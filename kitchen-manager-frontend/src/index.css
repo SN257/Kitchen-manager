@@ -1,0 +1,21 @@
+@media print {
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+    .MuiDialog-root, .MuiPaper-root {
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .MuiDialogActions-root {
+      display: none !important;
+    }
+    .MuiButton-root {
+      display: none !important;
+    }
+  }
