@@ -6,6 +6,7 @@ import AddFoodItem from './pages/AddFoodItem';
 import AddIngrediants from './pages/AddIngredient';
 import RecipeEntry from './pages/RecipeEntry';
 import Login from './pages/login';
+import CreateUser from './pages/CreateUser';
 
 
 const App = () => (
@@ -17,6 +18,7 @@ const App = () => (
       <Route path="add-food-item" element={<AddFoodItem />} />
       <Route path="add-ingredient" element={<AddIngrediants />} />
       <Route path="recipe-entry" element={<RecipeEntry />} />
+      <Route path="create-user" element={<CreateUser />} />
     </Route>
   </Routes>
 );

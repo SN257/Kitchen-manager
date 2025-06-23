@@ -18,6 +18,6 @@ export class User {
   @Column()
   center: string;
 
-  @OneToMany(() => Recipe, recipe => recipe.user)
+  @OneToMany(() => Recipe, (recipe) => recipe.user)
   recipes: Recipe[];
 }

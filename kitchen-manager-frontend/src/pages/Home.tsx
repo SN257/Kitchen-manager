@@ -106,8 +106,26 @@ const Dashboard: React.FC = () => {
             </List>
             <Divider sx={{ bgcolor: 'rgba(255,255,255,0.3)', my: -3 }} />
             <List>
+                {localStorage.getItem('user') && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin' && (
+                    <ListItem
+                        sx={{ cursor: 'pointer', mt: 3 }}
+                        onClick={() => navigate('/dashboard/create-user')}
+                    >
+                        <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                            <AccountCircle />
+                        </ListItemIcon>
+                        <ListItemText primary="Create User" />
+                    </ListItem>
+                )}
                 <ListItem
-                    sx={{ cursor: 'pointer', mt: 3 }}
+                    sx={{
+                        cursor: 'pointer',
+                        mt:
+                            !(localStorage.getItem('user') &&
+                                JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin')
+                                ? 3
+                                : 0,
+                    }}
                     onClick={async () => {
                         await fetch(`${API_BASE_URL}/users/logout`, {
                             method: 'POST',

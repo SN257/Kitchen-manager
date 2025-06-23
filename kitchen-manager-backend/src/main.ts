@@ -3,30 +3,34 @@ import { AppModule } from './app.module';
 import * as session from 'express-session';
 import * as pgSession from 'connect-pg-simple';
 import { config } from 'dotenv';
+import { Pool } from 'pg';
 config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const PgSession = pgSession(session);
+  // Setup PostgreSQL pool
+  const pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
 
-  // Use environment variables for DB connection and CORS
-  const isProd = process.env.NODE_ENV === 'production';
-
+  // Setup session middleware
   app.use(
     session({
-      store: new PgSession({
-        conString: process.env.DATABASE_URL,
+      store: new (pgSession(session))({
+        pool: pgPool,
+        createTableIfMissing: true, // <-- This will auto-create the session table if missing
       }),
       secret: process.env.SESSION_SECRET || 'your-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: { secure: isProd }, // secure cookies in production
+      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
     }),
   );
 
+  // Enable CORS if needed
   app.enableCors({
-    origin: isProd ? '/api' : 'http://localhost:5173',
+    origin: process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5173',
     credentials: true,
   });
 
