@@ -31,4 +31,15 @@ export class UserService {
   async findById(id: number) {
     return this.userRepository.findOne({ where: { id } });
   }
+
+  async getAllCenterAdminsCenters(): Promise<string[]> {
+    const users = await this.userRepository.find({
+      where: { role: 'center-admin' },
+      select: ['center'],
+    });
+
+    // Extract unique centers
+    const uniqueCenters = Array.from(new Set(users.map(user => user.center)));
+    return uniqueCenters;
+  }
 }

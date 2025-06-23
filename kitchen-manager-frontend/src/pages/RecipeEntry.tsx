@@ -24,6 +24,7 @@ import {
   DialogActions,
   Snackbar,
 } from '@mui/material';
+import ShareIcon from '@mui/icons-material/Share';
 import FastfoodIcon from '@mui/icons-material/Fastfood';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ReceiptIcon from '@mui/icons-material/Receipt';
@@ -52,7 +53,7 @@ const RecipeEntry: React.FC = () => {
   });
   const [vanagiSearch, setVanagiSearch] = useState('');
   const [vangiList, setVangiList] = useState<{ id: number; vangiName: string }[]>([]);
-  const [ingredientList, setIngredientList] = useState<{ id: number; ingredientName: string }[]>([]);
+  const [ingredientList, setIngredientList] = useState<{ id: number; ingredientName: string; category: string }[]>([]);
   const [vangiId, setVangiId] = useState('');
   const [ingredients, setIngredients] = useState<{ ingredientId: string; ingredientName: string; kg: string }[]>([]);
   const [error, setError] = useState('');
@@ -64,6 +65,34 @@ const RecipeEntry: React.FC = () => {
   const filteredRecipes = recipes.filter(recipe =>
     recipe.vangiName.toLowerCase().includes(vanagiSearch.toLowerCase())
   );
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const role = user.role;
+  const center = user.center;
+  const [selectedCenter, setSelectedCenter] = useState<string>(center || '');
+  const [centers, setCenters] = useState<string[]>([]);
+  useEffect(() => {
+    if (role === 'sant') {
+      fetch(`${API_BASE_URL}/users/centers`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          setCenters(data);
+        });
+    }
+  }, []);
+
+  useEffect(() => {
+    let url = `${API_BASE_URL}/recipes`;
+    if (role === 'sant' && selectedCenter) {
+      url += `?center=${encodeURIComponent(selectedCenter)}`;
+    }
+    fetch(url, { credentials: 'include' })
+      .then(res => res.json())
+       .then(data => {
+        console.log('Fetched recipes:', data);
+        setRecipes(data);
+      });
+  }, [selectedCenter, role]);
+
   useEffect(() => {
     fetch(`${API_BASE_URL}/food-items`)
       .then(res => res.json())
@@ -81,9 +110,9 @@ const RecipeEntry: React.FC = () => {
       .then(data => setRecipes(Array.isArray(data) ? data : []));
   };
 
-  useEffect(() => {
-    fetchRecipes();
-  }, []);
+  // useEffect(() => {
+  //   fetchRecipes();
+  // }, []);
 
   useEffect(() => {
     const savedIngredients = localStorage.getItem('recipe_ingredients');
@@ -142,11 +171,19 @@ const RecipeEntry: React.FC = () => {
   const handleIngredientCheck = (id: string) => {
     setSelectedIngredients(prev => {
       const checked = !prev[id];
-      if (checked && (!ingredientKgs[id] || ingredientKgs[id] === '')) {
-        setIngredientKgs(prevKgs => ({
-          ...prevKgs,
-          [id]: '1',
-        }));
+      if (checked) {
+        if (!ingredientKgs[id] || ingredientKgs[id] === '') {
+          setIngredientKgs(prevKgs => ({
+            ...prevKgs,
+            [id]: '1',
+          }));
+        }
+      } else {
+        setIngredientKgs(prevKgs => {
+          const newKgs = { ...prevKgs };
+          delete newKgs[id];
+          return newKgs;
+        });
       }
       return {
         ...prev,
@@ -218,6 +255,7 @@ const RecipeEntry: React.FC = () => {
           vangiName,
           ingredients,
           items_per_kg: itemsPerKgToSend,
+          center,
           // userId: user.id,
         }),
         credentials: 'include', 
@@ -234,9 +272,12 @@ const RecipeEntry: React.FC = () => {
       setError('');
       localStorage.removeItem('recipe_ingredients');
       localStorage.removeItem('recipe_vangiId');
+      setItemsPerKg('');
+      if (role === 'sant') {
+        setSelectedCenter(center || '');
+      }
       fetchRecipes();
       setSnackbar({ open: true, message: 'Recipe saved successfully!', severity: 'success' });
-      setItemsPerKg(''); 
     } catch (err) {
       setSnackbar({ open: true, message: 'Server error. Please try again.', severity: 'error' });
     }
@@ -423,7 +464,36 @@ const RecipeEntry: React.FC = () => {
           </List>
         </Box>
       </Paper>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4, mb: -2 }}>
+        {role === 'sant' && centers.length > 0 && (
+          <TextField
+            select
+            label="Select Center"
+            value={selectedCenter}
+            onChange={e => setSelectedCenter(e.target.value)}
+            fullWidth
+            size="small"
+            sx={{ 
+              width: 200, 
+              mr: 2,
+              background: '#fff',
+              borderRadius: 2,
+              '& .MuiOutlinedInput-root': {
+                background: '#fff',
+                borderRadius: 2,
+                color: '#245D6B',
+              },
+              '& .MuiInputLabel-root': {
+                color: '#245D6B',
+              },
+              '& .MuiInputBase-input': {
+                color: '#245D6B',
+              },
+            }}
+          >
+            {centers.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+          </TextField>
+        )}
         <TextField
           label="Search by Vanagi Name"
           variant="outlined"
@@ -497,6 +567,12 @@ const RecipeEntry: React.FC = () => {
                       }}
                     >
                       <VisibilityIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      sx={{ color: '#245D6B' }}
+                    >
+                      <ShareIcon fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
@@ -763,7 +839,7 @@ const RecipeEntry: React.FC = () => {
             color: '#fff', 
           }}
         >
-          <Typography variant="h6">
+          <Typography variant="h6" component="span">
             {`Select Ingredients for ${editRecipe
               ? editVangiName
               : selectedVangi
@@ -857,11 +933,12 @@ const RecipeEntry: React.FC = () => {
         <DialogContent>
           <Box
             sx={{
-              display: 'flex',
-              flexDirection: 'row',
+              display: 'grid',
+              // flexDirection: 'row',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
               mt: 2,
               gap: 2,
-              alignItems: 'flex-start', 
+              // alignItems: 'flex-start',
               width: '100%',
               minWidth: 800, 
               minHeight: 300, 
@@ -884,25 +961,40 @@ const RecipeEntry: React.FC = () => {
             }}
           >
             {(() => {
-              const columns = 3; 
-              const itemsPerColumn = Math.ceil(filteredIngredients.length / columns);
-              const ingredientChunks = Array.from({ length: columns }, (_, i) =>
-                filteredIngredients.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn)
-              );
+              // const columns = 3; 
+              // const itemsPerColumn = Math.ceil(filteredIngredients.length / columns);
+              // const ingredientChunks = Array.from({ length: columns }, (_, i) =>
+              //   filteredIngredients.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn)
+              // );
 
-              return ingredientChunks.map((chunk, columnIndex) => (
+              // return ingredientChunks.map((chunk, columnIndex) => (
+
+              const categorizedIngredients: { [category: string]: typeof ingredientList } = {};
+              filteredIngredients.forEach((ing) => {
+                const category = ing.category || 'Uncategorized';
+                if (!categorizedIngredients[category]) categorizedIngredients[category] = [];
+                categorizedIngredients[category].push(ing);
+              });
+
+              return Object.entries(categorizedIngredients).map(([category, ingredients]) => (
                 <Box
-                  key={columnIndex}
+                  // key={columnIndex}
+                  key={category}
                   sx={{
-                    flexGrow: 1,
+                    // flexGrow: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 1, 
-                    borderRight: columnIndex < ingredientChunks.length - 1 ? '1px solid #ccc' : 'none', 
+                    gap: 1,
+                    // borderRight: columnIndex < ingredientChunks.length - 1 ? '1px solid #ccc' : 'none',
+                    borderRight: '1px solid #ccc',
                     pr: 2,
                   }}
                 >
-                  {chunk.map((ing) => (
+                  {/* {chunk.map((ing) => ( */}
+                  <Typography variant="h6" sx={{ color: '#245D6B', mb: 1 }}>
+                    {category}
+                  </Typography>
+                  {ingredients.map((ing) => (
                     <React.Fragment key={ing.id}>
                       <ListItem sx={{ display: 'flex', alignItems: 'center' }}>
                         <input

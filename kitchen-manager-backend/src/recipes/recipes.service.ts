@@ -29,8 +29,15 @@ export class RecipesService {
     return this.recipeRepo.find();
   }
 
-  async findByUser(userId: number): Promise<Recipe[]> {
-    return this.recipeRepo.find({ where: { user: { id: userId } } });
+  async findByUser(userId: number, center?: string): Promise<Recipe[]> {
+     if (center) {
+      const data = await this.recipeRepo.find({ where: { center } });
+      return data;
+    }
+
+    return this.recipeRepo.find({
+      where: { user: { id: userId } },
+    });
   }
 
   async update(id: number, updateRecipeDto: CreateRecipeDto): Promise<Recipe> {

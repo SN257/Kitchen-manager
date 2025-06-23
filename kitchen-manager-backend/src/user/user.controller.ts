@@ -7,6 +7,8 @@ import { Session } from 'express-session'; // Add this import
 interface CustomSession extends Session {
   userId?: number;
   username?: string;
+  role?: string;
+  center?: string;
 }
 
 @Controller('users')
@@ -27,6 +29,8 @@ async login(
   }
   req.session.userId = user.id;
   req.session.username = user.username;
+  req.session.role = user.role;        
+  req.session.center = user.center;
   const result = await this.authService.login(user);
   return {
     ...result,
@@ -41,7 +45,15 @@ async login(
 }
 
   @Post('register')
-  async register(@Body() body: { username: string; password: string; email?: string }) {
+  async register(
+    @Body()
+    body: {
+      username: string;
+      password: string;
+      role: string;
+      center: string;
+    },
+  ) {
     return this.userService.create(body);
   }
 
@@ -64,5 +76,13 @@ async login(
       center: user.center,
       role: user.role,
     };
+  }
+
+  @Get('centers')
+  async getCenters(@Req() req: Request & { session: any }) {
+    const { userId, role } = req.session;
+    if (!userId || role !== 'sant') throw new UnauthorizedException();
+
+    return this.userService.getAllCenterAdminsCenters();
   }
 }
