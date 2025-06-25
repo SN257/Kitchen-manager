@@ -1,21 +1,19 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
-import { User } from '../entities/users.entity';
-import { Recipe } from '../entities/recipes.entity';
-import { Ingredient } from '../entities/ingredient.entity';
-import { FoodItem } from '../entities/food-item.entity';
+import { join } from 'path';
+
 config();
 
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   synchronize: false,
-  entities: [User, Recipe, Ingredient, FoodItem],
+  entities: [join(__dirname, '/../**/*.entity.{js,ts}')],
   migrations: [
     process.env.TS_NODE === 'true'
-      ? 'src/database/migrations/*-migration.ts'
-      : 'dist/database/migrations/*-migration.js',
+      ? join(__dirname, '/../database/migrations/*.{ts,js}')
+      : join(__dirname, '/../database/migrations/*.{js,ts}'),
   ],
-  migrationsRun: true,
+  migrationsRun: false,
   logging: false,
 });

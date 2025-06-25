@@ -11,7 +11,7 @@ interface CustomSession extends Session {
   center?: string;
 }
 
-@Controller('users')
+@Controller('user')
 export class UserController {
   constructor(
     private readonly userService: UserService,
@@ -19,30 +19,30 @@ export class UserController {
   ) { }
 
   @Post('login')
-async login(
-  @Body() body: { username: string; password: string },
-  @Req() req: Request & { session: CustomSession },
-) {
-  const user = await this.userService.validateUser(body.username, body.password);
-  if (!user) {
-    throw new UnauthorizedException('Invalid username or password');
-  }
-  req.session.userId = user.id;
-  req.session.username = user.username;
-  req.session.role = user.role;        
-  req.session.center = user.center;
-  const result = await this.authService.login(user);
-  return {
-    ...result,
-    username: user.username,
-    user: {
-      id: user.id,
-      username: user.username,
-      center: user.center,
-      role: user.role,
+  async login(
+    @Body() body: { username: string; password: string },
+    @Req() req: Request & { session: CustomSession },
+  ) {
+    const user = await this.userService.validateUser(body.username, body.password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid username or password');
     }
-  };
-}
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.role = user.role;
+    req.session.center = user.center;
+    const result = await this.authService.login(user);
+    return {
+      ...result,
+      username: user.username,
+      user: {
+        id: user.id,
+        username: user.username,
+        center: user.center,
+        role: user.role,
+      }
+    };
+  }
 
   @Post('register')
   async register(
@@ -78,7 +78,7 @@ async login(
     };
   }
 
-  @Get('centers')
+  @Get('center')
   async getCenters(@Req() req: Request & { session: any }) {
     const { userId, role } = req.session;
     if (!userId || role !== 'sant') throw new UnauthorizedException();

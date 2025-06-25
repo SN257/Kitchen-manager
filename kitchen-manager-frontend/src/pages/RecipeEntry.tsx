@@ -57,7 +57,7 @@ const RecipeEntry: React.FC = () => {
   const [vangiId, setVangiId] = useState('');
   const [ingredients, setIngredients] = useState<{ ingredientId: string; ingredientName: string; kg: string }[]>([]);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); 
+  const [searchTerm, setSearchTerm] = useState('');
   const [ingredientDialogOpen, setIngredientDialogOpen] = useState(false);
   const [selectedIngredients, setSelectedIngredients] = useState<{ [id: string]: boolean }>({});
   const [ingredientKgs, setIngredientKgs] = useState<{ [id: string]: string }>({});
@@ -72,39 +72,43 @@ const RecipeEntry: React.FC = () => {
   const [centers, setCenters] = useState<string[]>([]);
   useEffect(() => {
     if (role === 'sant') {
-      fetch(`${API_BASE_URL}/users/centers`, { credentials: 'include' })
+      fetch(`${API_BASE_URL}/user/center`, { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
+          console.log('Fetched centers:', data); // Debugging log
           setCenters(data);
+        })
+        .catch(error => {
+          console.error('Failed to fetch centers:', error);
         });
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
-    let url = `${API_BASE_URL}/recipes`;
+    let url = `${API_BASE_URL}/recipe`;
     if (role === 'sant' && selectedCenter) {
       url += `?center=${encodeURIComponent(selectedCenter)}`;
     }
     fetch(url, { credentials: 'include' })
       .then(res => res.json())
-       .then(data => {
+      .then(data => {
         console.log('Fetched recipes:', data);
         setRecipes(data);
       });
   }, [selectedCenter, role]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/food-items`)
+    fetch(`${API_BASE_URL}/food-item`)
       .then(res => res.json())
       .then(data => setVangiList(data));
-    fetch(`${API_BASE_URL}/ingredients`)
+    fetch(`${API_BASE_URL}/ingredient`)
       .then(res => res.json())
       .then(data => setIngredientList(data));
   }, []);
 
   const fetchRecipes = () => {
-    fetch(`${API_BASE_URL}/recipes`, {
-      credentials: 'include', 
+    fetch(`${API_BASE_URL}/recipe`, {
+      credentials: 'include',
     })
       .then(res => res.json())
       .then(data => setRecipes(Array.isArray(data) ? data : []));
@@ -201,7 +205,7 @@ const RecipeEntry: React.FC = () => {
 
   const handleIngredientDialogSubmit = () => {
     const selected = Object.entries(selectedIngredients)
-      .filter(([, checked]) => checked) 
+      .filter(([, checked]) => checked)
       .map(([id]) => {
         const ingredientObj = ingredientList.find(i => i.id.toString() === id);
         return {
@@ -248,7 +252,7 @@ const RecipeEntry: React.FC = () => {
       const vangiName = vangiObj ? vangiObj.vangiName : '';
       const itemsPerKgToSend = itemsPerKg && itemsPerKg !== '' ? Number(itemsPerKg) : 1;
 
-    const res = await fetch(`${API_BASE_URL}/recipes`, {
+      const res = await fetch(`${API_BASE_URL}/recipe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -258,7 +262,7 @@ const RecipeEntry: React.FC = () => {
           center,
           // userId: user.id,
         }),
-        credentials: 'include', 
+        credentials: 'include',
 
       });
       const data = await res.json();
@@ -284,10 +288,10 @@ const RecipeEntry: React.FC = () => {
   };
 
   const handleEditOpen = (recipe: any) => {
-    setEditRecipe(recipe); 
-    setEditVangiName(recipe.vangiName); 
+    setEditRecipe(recipe);
+    setEditVangiName(recipe.vangiName);
     setEditIngredients(recipe.ingredients.map((i: any) => `${i.ingredientName} (${i.kg} KG)`).join(', '));
-    setEditItemsPerKg(recipe.items_per_kg?.toString() || ''); 
+    setEditItemsPerKg(recipe.items_per_kg?.toString() || '');
 
     setIngredientDialogOpen(true);
 
@@ -298,8 +302,8 @@ const RecipeEntry: React.FC = () => {
       kgs[ing.ingredientId] = ing.kg;
     });
 
-    setSelectedIngredients(selected); 
-    setIngredientKgs(kgs); 
+    setSelectedIngredients(selected);
+    setIngredientKgs(kgs);
   };
 
   const handleEditSave = async () => {
@@ -307,20 +311,20 @@ const RecipeEntry: React.FC = () => {
 
     try {
       const updatedIngredients = Object.entries(selectedIngredients)
-        .filter(([_, isSelected]) => isSelected) 
+        .filter(([_, isSelected]) => isSelected)
         .map(([id]) => ({
           ingredientId: id,
           ingredientName: ingredientList.find(ing => ing.id.toString() === id)?.ingredientName || '',
           kg: ingredientKgs[id] || '',
         }));
 
-      const res = await fetch(`${API_BASE_URL}/recipes/${editRecipe.id}`, {
+      const res = await fetch(`${API_BASE_URL}/recipe/${editRecipe.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vangiName: editVangiName, 
+          vangiName: editVangiName,
           ingredients: updatedIngredients,
-          items_per_kg: editItemsPerKg && editItemsPerKg !== '' ? Number(editItemsPerKg) : 1, 
+          items_per_kg: editItemsPerKg && editItemsPerKg !== '' ? Number(editItemsPerKg) : 1,
         }),
       });
 
@@ -331,7 +335,7 @@ const RecipeEntry: React.FC = () => {
 
       setIngredientDialogOpen(false);
       setEditRecipe(null);
-      fetchRecipes(); 
+      fetchRecipes();
       setSnackbar({ open: true, message: 'Recipe updated successfully!', severity: 'success' });
     } catch {
       setSnackbar({ open: true, message: 'Server error. Please try again.', severity: 'error' });
@@ -340,7 +344,7 @@ const RecipeEntry: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/recipes/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/recipe/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to delete recipe.', severity: 'error' });
         return;
@@ -381,7 +385,7 @@ const RecipeEntry: React.FC = () => {
             <TextField
               select
               label="Vanagi"
-              value={vangiId}
+              value={vangiList.some(v => v.id.toString() === vangiId) ? vangiId : ''}
               onChange={handleVangiChange}
               onClick={handleVangiClick}
               fullWidth
@@ -398,17 +402,21 @@ const RecipeEntry: React.FC = () => {
             </TextField>
             <TextField
               label="Item will made on per 1 KG ingredient"
-              type="text"
+              type="number"
               value={itemsPerKg}
               onChange={e => {
+                // Allow only digits and one decimal point
                 const normalizedValue = e.target.value.replace(/[૦૧૨૩૪૫૬૭૮૯]/g, char =>
                   '0123456789'['૦૧૨૩૪૫૬૭૮૯'.indexOf(char)]
                 );
-                setItemsPerKg(normalizedValue);
+                // Allow empty, digits, or digits with one decimal
+                if (/^\d*\.?\d*$/.test(normalizedValue)) {
+                  setItemsPerKg(normalizedValue);
+                }
               }}
               fullWidth
               sx={{ flex: 2 }}
-              inputProps={{ inputMode: 'numeric', pattern: '[0-9૦-૯]*', min: 1 }}
+              inputProps={{ inputMode: 'decimal', pattern: '[0-9.૦-૯]*', min: 0, step: 'any' }}
               InputProps={{
                 endAdornment: <span style={{ marginLeft: 4 }}>Kg</span>,
               }}
@@ -473,8 +481,8 @@ const RecipeEntry: React.FC = () => {
             onChange={e => setSelectedCenter(e.target.value)}
             fullWidth
             size="small"
-            sx={{ 
-              width: 200, 
+            sx={{
+              width: 200,
               mr: 2,
               background: '#fff',
               borderRadius: 2,
@@ -491,7 +499,11 @@ const RecipeEntry: React.FC = () => {
               },
             }}
           >
-            {centers.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+            {centers.map(center => (
+              <MenuItem key={center} value={center}>
+                {center}
+              </MenuItem>
+            ))}
           </TextField>
         )}
         <TextField
@@ -502,15 +514,15 @@ const RecipeEntry: React.FC = () => {
           onChange={e => setVanagiSearch(e.target.value)}
           sx={{
             width: 300,
-            background: '#fff', 
+            background: '#fff',
             borderRadius: 5,
             '& .MuiOutlinedInput-root': {
               background: '#fff',
               borderRadius: 2,
-              color: '#245D6B',   
+              color: '#245D6B',
             },
-            '& .MuiInputLabel-root': { color: '#245D6B' }, 
-            '& .MuiInputBase-input': { color: '#245D6B' }, 
+            '& .MuiInputLabel-root': { color: '#245D6B' },
+            '& .MuiInputBase-input': { color: '#245D6B' },
           }}
         />
       </Box>
@@ -536,16 +548,16 @@ const RecipeEntry: React.FC = () => {
                   <TableCell
                     sx={{
                       fontSize: 16,
-                      whiteSpace: 'nowrap', 
-                      overflow: 'hidden', 
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}
                   >
                     {recipe.ingredients
-                      .slice(0, 5) 
+                      .slice(0, 5)
                       .map((i: any) => `${i.ingredientName} (${i.kg} KG)`)
                       .join(', ')}
-                    {recipe.ingredients.length > 5 && '...'} 
+                    {recipe.ingredients.length > 5 && '...'}
                   </TableCell>
                   <TableCell sx={{ fontSize: 16 }}>
                     {recipe.items_per_kg}
@@ -554,7 +566,7 @@ const RecipeEntry: React.FC = () => {
                     <IconButton
                       size="small"
                       sx={{ color: '#245D6B' }}
-                      onClick={() => handleEditOpen(recipe)} 
+                      onClick={() => handleEditOpen(recipe)}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -688,7 +700,7 @@ const RecipeEntry: React.FC = () => {
           <Table size="small" sx={{
             background: '#fff',
             borderRadius: 1,
-            boxShadow: '0 1px 8px 0 rgba(36,93,107,0.18)', 
+            boxShadow: '0 1px 8px 0 rgba(36,93,107,0.18)',
             '@media print': { boxShadow: 'none', border: '1px solid #000' }
           }}>
             <TableHead>
@@ -826,17 +838,17 @@ const RecipeEntry: React.FC = () => {
       <Dialog
         open={ingredientDialogOpen}
         onClose={handleIngredientDialogClose}
-        maxWidth="lg" 
-        sx={{ ml: 25, mt: 7 }} 
+        maxWidth="lg"
+        sx={{ ml: 25, mt: 7 }}
       >
         <DialogTitle
           sx={{
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             pb: 2,
             backgroundColor: '#245D6B',
-            color: '#fff', 
+            color: '#fff',
           }}
         >
           <Typography variant="h6" component="span">
@@ -873,22 +885,22 @@ const RecipeEntry: React.FC = () => {
                       borderColor: '#fff',
                     },
                     '&:hover fieldset': {
-                      borderColor: '#fff', 
+                      borderColor: '#fff',
                     },
                     '&.Mui-focused fieldset': {
                       borderColor: '#fff',
                     },
                   },
                   '& .MuiInputLabel-root': {
-                    color: '#fff', 
+                    color: '#fff',
                   },
                   '& .Mui-focused .MuiInputLabel-root': {
-                    color: '#fff !important', 
+                    color: '#fff !important',
                   },
                   '& .MuiInputBase-input': {
-                    color: '#fff', 
+                    color: '#fff',
                   },
-                  background: 'transparent', 
+                  background: 'transparent',
                 }}
                 inputProps={{ inputMode: 'numeric', pattern: '[0-9૦-૯]*' }}
                 InputProps={{
@@ -901,29 +913,29 @@ const RecipeEntry: React.FC = () => {
               variant="outlined"
               value={searchTerm}
               onChange={handleSearchChange}
-              size="small" 
+              size="small"
               sx={{
-                width: 300, 
-                color: '#fff', 
+                width: 300,
+                color: '#fff',
                 '& .MuiOutlinedInput-root': {
                   '& fieldset': {
-                    borderColor: '#ccc', 
+                    borderColor: '#ccc',
                   },
                   '&:hover fieldset': {
                     borderColor: '#fff',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: '#fff', 
+                    borderColor: '#fff',
                   },
                 },
                 '& .MuiInputLabel-root': {
-                  color: '#fff', 
+                  color: '#fff',
                 },
                 '& .Mui-focused .MuiInputLabel-root': {
-                  color: '#fff !important', 
+                  color: '#fff !important',
                 },
                 '& .MuiInputBase-input': {
-                  color: '#fff', 
+                  color: '#fff',
                 },
               }}
             />
@@ -940,23 +952,23 @@ const RecipeEntry: React.FC = () => {
               gap: 2,
               // alignItems: 'flex-start',
               width: '100%',
-              minWidth: 800, 
-              minHeight: 300, 
-              maxHeight: 6 * 52, 
+              minWidth: 800,
+              minHeight: 300,
+              maxHeight: 6 * 52,
               overflowY: 'scroll',
               '&::-webkit-scrollbar': {
-                width: '8px', 
-                visibility: 'visible', 
-                cursor: 'pointer', 
+                width: '8px',
+                visibility: 'visible',
+                cursor: 'pointer',
               },
               '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(36, 93, 107, 0.5)', 
-                borderRadius: '4px', 
-                cursor: 'pointer', 
+                backgroundColor: 'rgba(36, 93, 107, 0.5)',
+                borderRadius: '4px',
+                cursor: 'pointer',
 
               },
               '&::-webkit-scrollbar-track': {
-                backgroundColor: 'rgba(0, 0, 0, 0.1)', 
+                backgroundColor: 'rgba(0, 0, 0, 0.1)',
               },
             }}
           >
@@ -1002,13 +1014,13 @@ const RecipeEntry: React.FC = () => {
                           checked={!!selectedIngredients[ing.id]}
                           onChange={() => handleIngredientCheck(ing.id.toString())}
                           style={{
-                            accentColor: '#245D6B', 
+                            accentColor: '#245D6B',
                           }}
                         />
                         <ListItemText primary={ing.ingredientName} sx={{ ml: 2, flex: 1 }} />
                         <TextField
                           label="KG"
-                          type="text" 
+                          type="text"
                           size="small"
                           value={ingredientKgs[ing.id.toString()] || ''}
                           onChange={(e) => {
@@ -1034,11 +1046,11 @@ const RecipeEntry: React.FC = () => {
         <DialogActions sx={{ mb: 1, ml: 2, mr: 2, mt: 0 }}>
           <Button onClick={handleIngredientDialogClose} sx={{ color: '#245D6B' }}>Cancel</Button>
           <Button
-            onClick={editRecipe ? handleEditSave : handleIngredientDialogSubmit} 
+            onClick={editRecipe ? handleEditSave : handleIngredientDialogSubmit}
             variant="contained"
             sx={{ background: '#245D6B' }}
           >
-            {editRecipe ? 'Update Ingredients' : 'Save Ingredients'} 
+            {editRecipe ? 'Update Ingredients' : 'Save Ingredients'}
 
           </Button>
         </DialogActions>

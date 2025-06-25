@@ -51,7 +51,7 @@ const AddFoodItem: React.FC = () => {
 
   // Fetch items from server on mount
   useEffect(() => {
-    fetch(`${API_BASE_URL}/food-items`)
+    fetch(`${API_BASE_URL}/food-item`)
       .then(res => res.json())
       .then(data => setItems(data));
   }, []);
@@ -67,7 +67,7 @@ const AddFoodItem: React.FC = () => {
     e.preventDefault();
     if (vangiName && category) {
       try {
-        const res = await fetch(`${API_BASE_URL}/food-items`, {
+        const res = await fetch(`${API_BASE_URL}/food-item`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vangiName, category }),
@@ -90,7 +90,7 @@ const AddFoodItem: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/food-items/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/food-item/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -114,7 +114,7 @@ const AddFoodItem: React.FC = () => {
   const handleEditSave = async () => {
     if (editItem) {
       try {
-        const res = await fetch(`${API_BASE_URL}/food-items/${editItem.id}`, {
+        const res = await fetch(`${API_BASE_URL}/food-item/${editItem.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vangiName: editVangiName, category: editCategory }),

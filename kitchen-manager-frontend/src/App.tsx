@@ -8,6 +8,12 @@ import RecipeEntry from './pages/RecipeEntry';
 import Login from './pages/login';
 import CreateUser from './pages/CreateUser';
 
+import EventMaster from './pages/EventMaster';
+import WeightEntry from './pages/WeightEntry';
+import BoxWeightEntry from './pages/BoxWeightEntry';
+import WeightCalculation from './pages/WeightCalculation';
+import AnnkutNosSummary from './pages/AnnkutNosSummary';
+import BoxRangeEntry from './pages/BoxRangeEntry';
 
 const App = () => (
   <Routes>
@@ -19,7 +25,14 @@ const App = () => (
       <Route path="add-ingredient" element={<AddIngrediants />} />
       <Route path="recipe-entry" element={<RecipeEntry />} />
       <Route path="create-user" element={<CreateUser />} />
+      <Route path="event-master" element={<EventMaster />} />
+      <Route path="box-annkut/weight-entry" element={<WeightEntry />} />
+      <Route path="box-annkut/box-weight-entry" element={<BoxWeightEntry />} /> 
+      <Route path="box-annkut/WeightCalculation" element={<WeightCalculation />} /> 
+      <Route path="box-annkut/AnnkutNosSummary" element={<AnnkutNosSummary/>} />   
+      <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />      
     </Route>
+
   </Routes>
 );
 
