@@ -12,7 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useApiBaseUrl } from '../config/config';
 import '../App.css';
 const MAGAJ_SUBTYPES = ["લાડુડી", "લાડવા", "ચોસલા"];
-const ROWS_PER_PAGE = 5; // or any number you prefer
+const ROWS_PER_PAGE = 5;
 
 const WeightEntry: React.FC = () => {
     const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
@@ -117,7 +117,6 @@ const WeightEntry: React.FC = () => {
                     body: JSON.stringify({
                         vangiName,
                         gram: Number(item.gram),
-                        nang: Number(item.nang),
                     }),
                 });
             }
@@ -167,7 +166,6 @@ const WeightEntry: React.FC = () => {
                 body: JSON.stringify({
                     vangiName: editEntry.vangiName,
                     gram: Number(editEntry.gram),
-                    nang: Number(editEntry.nang),
                 }),
             });
             setEditDialogOpen(false);
@@ -312,9 +310,9 @@ const WeightEntry: React.FC = () => {
                                                         sx={{
                                                             width: 120,
                                                             background: '#fff',
-                                                            borderRadius: 2,
+                                                            borderRadius: 1,
                                                             '& .MuiOutlinedInput-root': {
-                                                                borderRadius: 2,
+                                                                borderRadius: 1,
                                                                 color: '#245D6B',
                                                                 fontWeight: 400,
                                                                 background: '#fff',
@@ -357,7 +355,7 @@ const WeightEntry: React.FC = () => {
                                                     </TextField>
                                                 )}
                                                 <TextField
-                                                    label="Gram"
+                                                    label="1 Piece Weight"
                                                     value={selectedItems[item.id]?.gram || ''}
                                                     onChange={e =>
                                                         setSelectedItems(prev => ({
@@ -372,52 +370,11 @@ const WeightEntry: React.FC = () => {
                                                     inputProps={{ min: 0, step: 0.01 }}
                                                     size="small"
                                                     sx={{
-                                                        width: 90,
+                                                        width: 120,
                                                         background: '#fff',
-                                                        borderRadius: 2,
+                                                        borderRadius: 1,
                                                         '& .MuiOutlinedInput-root': {
-                                                            borderRadius: 2,
-                                                            color: '#245D6B',
-                                                            fontWeight: 400,
-                                                            background: '#fff',
-                                                        },
-                                                        '& .MuiInputLabel-root': {
-                                                            color: '#245D6B',
-                                                            fontWeight: 400,
-                                                        },
-                                                        '& .MuiOutlinedInput-notchedOutline': {
-                                                            borderColor: '#245D6B',
-                                                        },
-                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                                                            borderColor: '#4A7D91',
-                                                        },
-                                                    }}
-                                                    InputLabelProps={{
-                                                        style: { color: '#245D6B', fontWeight: 400 },
-                                                    }}
-                                                    disabled={!selectedItems[item.id]}
-                                                />
-                                                <TextField
-                                                    label="Nang"
-                                                    value={selectedItems[item.id]?.nang || ''}
-                                                    onChange={e =>
-                                                        setSelectedItems(prev => ({
-                                                            ...prev,
-                                                            [item.id]: {
-                                                                ...prev[item.id],
-                                                                nang: e.target.value,
-                                                            },
-                                                        }))
-                                                    }
-                                                    type="number"
-                                                    inputProps={{ min: 0, step: 1 }}
-                                                    size="small"
-                                                    sx={{
-                                                        width: 70,
-                                                        background: '#fff',
-                                                        borderRadius: 2,
-                                                        '& .MuiOutlinedInput-root': {
-                                                            borderRadius: 2,
+                                                            borderRadius: 1,
                                                             color: '#245D6B',
                                                             fontWeight: 400,
                                                             background: '#fff',
@@ -511,8 +468,7 @@ const WeightEntry: React.FC = () => {
                         <TableRow>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Id</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Food Name</TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Gram</TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Nang</TableCell>
+                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>1 Piece Weight</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Actions</TableCell>
                         </TableRow>
@@ -526,7 +482,6 @@ const WeightEntry: React.FC = () => {
                                         <TableCell>{(page - 1) * ROWS_PER_PAGE + idx + 1}</TableCell>
                                         <TableCell>{item.vangiName}</TableCell>
                                         <TableCell>{item.gram}</TableCell>
-                                        <TableCell>{item.nang}</TableCell>
                                         <TableCell>{new Date(item.createdAt).toLocaleString()}</TableCell>
                                         <TableCell>
                                             <IconButton
@@ -550,8 +505,8 @@ const WeightEntry: React.FC = () => {
                                 ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ color: '#999', fontStyle: 'italic', py: 4 }}>
-                                    No items found
+                                <TableCell colSpan={5} align="center" sx={{ color: '#999', fontStyle: 'italic', py: 4 }}>
+                                    No data available
                                 </TableCell>
                             </TableRow>
                         )}
@@ -612,13 +567,6 @@ const WeightEntry: React.FC = () => {
                         onChange={e => handleEditChange('gram', e.target.value)}
                         fullWidth
                     />
-                    <TextField
-                        label="Nang"
-                        type="number"
-                        value={editEntry?.nang || ''}
-                        onChange={e => handleEditChange('nang', e.target.value)}
-                        fullWidth
-                    />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
@@ -650,13 +598,13 @@ const WeightEntry: React.FC = () => {
                             <div style={{ color: '#555', fontSize: 16, marginTop: 4 }}>
                                 {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
                             </div>
-                        </div>                        <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
+                        </div>
+                        <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
                             <thead>
                                 <tr>
                                     <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Id</th>
                                     <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Food Name</th>
                                     <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Gram</th>
-                                    <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Nang</th>
                                     <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Date</th>
                                 </tr>
                             </thead>
@@ -668,7 +616,6 @@ const WeightEntry: React.FC = () => {
                                             <td style={{ border: '1px solid #ccc', padding: 8 }}>{idx + 1}</td>
                                             <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.vangiName}</td>
                                             <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.gram}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.nang}</td>
                                             <td style={{ border: '1px solid #ccc', padding: 8 }}>{new Date(item.createdAt).toLocaleString()}</td>
                                         </tr>
                                     ))}

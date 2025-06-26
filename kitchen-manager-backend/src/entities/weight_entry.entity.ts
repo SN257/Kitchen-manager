@@ -10,10 +10,7 @@ export class WeightEntry {
 
   @Column('float')
   gram: number;
-
-  @Column('int')
-  nang: number;
-
+  
   @CreateDateColumn()
   createdAt: Date;
 }
