@@ -168,7 +168,7 @@ const Dashboard: React.FC = () => {
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                         <RestaurantIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Add Food Item" />
+                    <ListItemText primary="Food Item Master" />
                 </ListItem>
                 <ListItem
                     component="li"
@@ -191,7 +191,7 @@ const Dashboard: React.FC = () => {
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                         <KitchenIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Add Ingredient" />
+                    <ListItemText primary="Ingredient Master" />
                 </ListItem>
                 <ListItem
                     component="li"
@@ -232,7 +232,7 @@ const Dashboard: React.FC = () => {
                             },
                         }),
                     }}
-                    onClick={() => navigate('/dashboard/event-master')} // Navigate to Event Master page
+                    onClick={() => navigate('/dashboard/event-master')} 
                 >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                         <EventIcon fontSize="small" sx={{ fontSize: 20 }} />
@@ -268,7 +268,7 @@ const Dashboard: React.FC = () => {
                                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                                         <ScaleIcon fontSize="small" sx={{ fontSize: 20 }} />
                                     </ListItemIcon>
-                                    <ListItemText primary="Weight Entry" />
+                                    <ListItemText primary="Weight Entry Master" />
                                 </ListItemButton>
                                 <ListItemButton
                                     selected={isActive('/dashboard/box-annkut/BoxRangeEntry')}
@@ -278,7 +278,7 @@ const Dashboard: React.FC = () => {
                                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                                         <Inventory2Icon fontSize="small" sx={{ fontSize: 20 }} />
                                     </ListItemIcon>
-                                    <ListItemText primary="Box Range Entry" />
+                                    <ListItemText primary="Box Range Master" />
                                 </ListItemButton>
                                 <ListItemButton
                                     selected={isActive('/dashboard/box-annkut/box-weight-entry')}
@@ -288,7 +288,7 @@ const Dashboard: React.FC = () => {
                                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
                                         <Inventory2Icon fontSize="small" sx={{ fontSize: 20 }} />
                                     </ListItemIcon>
-                                    <ListItemText primary="Box Weight Entry" />
+                                    <ListItemText primary="Box MAster" />
                                 </ListItemButton>
                                 <ListItemButton
                                     selected={isActive('/dashboard/box-annkut/WeightCalculation')}

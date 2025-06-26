@@ -554,15 +554,15 @@ const RecipeEntry: React.FC = () => {
                     }}
                   >
                     {recipe.ingredients
-                      .slice(0, 5)
+                      .slice(0, 3)
                       .map((i: any) => `${i.ingredientName} (${i.kg} KG)`)
                       .join(', ')}
-                    {recipe.ingredients.length > 5 && '...'}
+                    {recipe.ingredients.length > 3 && '...'}
                   </TableCell>
                   <TableCell sx={{ fontSize: 16 }}>
                     {recipe.items_per_kg}
                   </TableCell>
-                  <TableCell >
+                  <TableCell>
                     <IconButton
                       size="small"
                       sx={{ color: '#245D6B' }}

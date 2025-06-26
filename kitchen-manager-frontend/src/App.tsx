@@ -2,18 +2,17 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home'; // or './pages/Dashboard'
 import Dashboard from './pages/Dashboard';
-import AddFoodItem from './pages/AddFoodItem';
-import AddIngrediants from './pages/AddIngredient';
+import AddFoodItem from './pages/FoddItemMaster';
+import AddIngrediants from './pages/IngredientsMaster';
 import RecipeEntry from './pages/RecipeEntry';
 import Login from './pages/login';
 import CreateUser from './pages/CreateUser';
-
 import EventMaster from './pages/EventMaster';
-import WeightEntry from './pages/WeightEntry';
+import WeightEntry from './pages/WeightMaster';
 import BoxWeightEntry from './pages/BoxWeightEntry';
 import WeightCalculation from './pages/WeightCalculation';
 import AnnkutNosSummary from './pages/AnnkutNosSummary';
-import BoxRangeEntry from './pages/BoxRangeEntry';
+import BoxRangeEntry from './pages/BoxRangeMaster';
 
 const App = () => (
   <Routes>
