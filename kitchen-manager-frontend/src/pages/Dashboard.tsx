@@ -7,7 +7,7 @@ const Dashboard: React.FC = () => {
   const [username, setUsername] = useState('User');
   const API_BASE_URL = useApiBaseUrl();
   useEffect(() => {
-    axios.get<{ username: string }>(`${API_BASE_URL}/users/me`, {
+    axios.get<{ username: string }>(`${API_BASE_URL}/user/me`, {
       withCredentials: true,
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`

@@ -22,6 +22,7 @@ export class RecipesService {
       user,
       center: data.center,
     });
+    console.log('Saving recipe with center:', data.center);
     return this.recipeRepo.save(recipe);
   }
 

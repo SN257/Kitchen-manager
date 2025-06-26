@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Delete, Param, Put } from '@nestjs/common'
 import { FoodItemService } from './food-item.service';
 import { FoodItem } from '../entities/food-item.entity';
 
-@Controller('food-items')
+@Controller('food-item')
 export class FoodItemController {
   constructor(private readonly foodItemService: FoodItemService) {}
 

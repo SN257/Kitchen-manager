@@ -4,10 +4,11 @@ import { Recipe } from '../entities/recipes.entity';
 import { User } from '../entities/users.entity';
 import { RecipesService } from './recipes.service';
 import { RecipesController } from './recipes.controller';
+import { UserService } from '../user/user.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Recipe, User])], 
-  providers: [RecipesService],
+  providers: [RecipesService, UserService],
   controllers: [RecipesController],
 })
 export class RecipesModule {}

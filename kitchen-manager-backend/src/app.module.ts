@@ -6,6 +6,11 @@ import { IngredientsModule } from './ingredient/ingredient.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { RecipesModule } from './recipes/recipes.module';
+import { EventsModule } from './events/events.module';
+import { WeightEntryModule } from './weight-entry/weight-entry.module';
+import { BoxWeightEntryModule } from './box-weight-entry/box-weight-entry.module';
+import { WeightCalculationEntryModule } from './weight-calculation-entry/weight-calculation-entry.module';
+import { BoxRangeModule } from './box-range/box-range.module';
 
 @Module({
   imports: [
@@ -15,6 +20,11 @@ import { RecipesModule } from './recipes/recipes.module';
     UserModule,
     AuthModule,
     RecipesModule,
-  ],
+    EventsModule,
+    WeightEntryModule,
+    BoxWeightEntryModule,
+    WeightCalculationEntryModule,
+    BoxRangeModule,
+  ]
 })
 export class AppModule {}

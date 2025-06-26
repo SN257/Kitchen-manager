@@ -14,7 +14,8 @@ import {
     Divider,
     IconButton,
     Menu,
-
+    Collapse,
+    ListItemButton,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -23,23 +24,72 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import KitchenIcon from '@mui/icons-material/Kitchen';
 import ReceiptIcon from '@mui/icons-material/Receipt';
-import { Outlet, useNavigate } from 'react-router-dom';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import EventIcon from '@mui/icons-material/Event';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useApiBaseUrl } from '../config/config';
-
+import LunchDiningIcon from '@mui/icons-material/LunchDining';
+import BoxIcon from '@mui/icons-material/Inventory2'; // For Box wise Annkut
+import GroupWorkIcon from '@mui/icons-material/GroupWork'; // For Section wise Annkut
+import SubdirectoryArrowRightIcon from '@mui/icons-material/SubdirectoryArrowRight'; // For submenus
+import ScaleIcon from '@mui/icons-material/Scale';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
+import CalculateIcon from '@mui/icons-material/Calculate';
+import SummarizeIcon from '@mui/icons-material/Summarize';
+import '../App.css'
 const drawerWidth = 250;
+
+const sidebarItemSx = {
+    cursor: 'pointer',
+    '&.Mui-selected': {
+        backgroundColor: '#fff',
+        color: '#245D6B',
+        fontWeight: 700,
+        '& .MuiListItemIcon-root': {
+            color: '#245D6B',
+        },
+        '&:hover': {
+            backgroundColor: '#fff',
+        },
+    },
+    color: '#fff',
+    '&:hover': {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+};
 
 const Dashboard: React.FC = () => {
     const [mobileOpen, setMobileOpen] = React.useState(false);
     const [username, setUsername] = React.useState('User');
     const navigate = useNavigate();
+    const location = useLocation();
     const API_BASE_URL = useApiBaseUrl();
+
+    const [annkutOpen, setAnnkutOpen] = React.useState(
+        location.pathname.startsWith('/dashboard/box-annkut') ||
+        location.pathname.startsWith('/dashboard/section-annkut')
+    );
+
+    const [boxAnnkutOpen, setBoxAnnkutOpen] = React.useState(
+        location.pathname.startsWith('/dashboard/box-annkut')
+    );
+
+    const [sectionAnnkutOpen, setSectionAnnkutOpen] = React.useState(
+        location.pathname.startsWith('/dashboard/section-annkut')
+    );
+
+    const handleAnnkutClick = () => setAnnkutOpen(!annkutOpen);
+    const handleBoxAnnkutClick = () => setBoxAnnkutOpen(!boxAnnkutOpen);
+    const handleSectionAnnkutClick = () => setSectionAnnkutOpen(!sectionAnnkutOpen);
+
     React.useEffect(() => {
         interface UserResponse {
             username?: string;
         }
 
         const fetchUsername = () => {
-            axios.get<UserResponse>(`${API_BASE_URL}/users/me`, {
+            axios.get<UserResponse>(`${API_BASE_URL}/user/me`, {
                 withCredentials: true,
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -60,89 +110,289 @@ const Dashboard: React.FC = () => {
         };
 
         fetchUsername();
-
-        const interval = setInterval(fetchUsername, 5000);
-
-        return () => clearInterval(interval);
     }, []);
+
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
     };
 
+    // Helper for active tab
+    const isActive = (path: string) => location.pathname === path;
+
     const drawer = (
-        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <Toolbar>
                 <Typography variant="h6" noWrap>
                     Kitchen Manager
                 </Typography>
             </Toolbar>
             <Divider sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
-            <List sx={{ flexGrow: 1 }}>
-                <ListItem sx={{ cursor: 'pointer' }} onClick={() => navigate('/dashboard')}>
+            <List
+                className="sidebar-scrollbar"
+                sx={{
+                    flexGrow: 1,
+                    minHeight: 0,
+                    maxHeight: '100%',
+                    overflowY: 'auto',
+                }}
+            >
+                <ListItem
+                    component="div"
+                    sx={sidebarItemSx}
+                    className={isActive('/dashboard') ? 'Mui-selected' : ''}
+                    onClick={() => navigate('/dashboard')}
+                >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                        <DashboardIcon />
+                        <DashboardIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
                     <ListItemText primary="Dashboard" />
                 </ListItem>
-                <ListItem sx={{ cursor: 'pointer' }} onClick={() => navigate('/dashboard/add-food-item')}>
+                <ListItem
+                    component="li"
+                    sx={{
+                        ...sidebarItemSx,
+                        ...(isActive('/dashboard/add-food-item') && {
+                            backgroundColor: '#fff',
+                            color: '#245D6B',
+                            fontWeight: 700,
+                            '& .MuiListItemIcon-root': {
+                                color: '#245D6B',
+                            },
+                            '&:hover': {
+                                backgroundColor: '#fff',
+                            },
+                        }),
+                    }}
+                    onClick={() => navigate('/dashboard/add-food-item')}
+                >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                        <RestaurantIcon />
+                        <RestaurantIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Add Food Item" />
+                    <ListItemText primary="Food Item Master" />
                 </ListItem>
-                <ListItem sx={{ cursor: 'pointer' }} onClick={() => navigate('/dashboard/add-ingredient')}>
+                <ListItem
+                    component="li"
+                    sx={{
+                        ...sidebarItemSx,
+                        ...(isActive('/dashboard/add-ingredient') && {
+                            backgroundColor: '#fff',
+                            color: '#245D6B',
+                            fontWeight: 700,
+                            '& .MuiListItemIcon-root': {
+                                color: '#245D6B',
+                            },
+                            '&:hover': {
+                                backgroundColor: '#fff',
+                            },
+                        }),
+                    }}
+                    onClick={() => navigate('/dashboard/add-ingredient')}
+                >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                        <KitchenIcon />
+                        <KitchenIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Add Ingredient" />
+                    <ListItemText primary="Ingredient Master" />
                 </ListItem>
-                {/* Add Recipe Entry menu item */}
-                <ListItem sx={{ cursor: 'pointer' }} onClick={() => navigate('/dashboard/recipe-entry')}>
+                <ListItem
+                    component="li"
+                    sx={{
+                        ...sidebarItemSx,
+                        ...(isActive('/dashboard/recipe-entry') && {
+                            backgroundColor: '#fff',
+                            color: '#245D6B',
+                            fontWeight: 700,
+                            '& .MuiListItemIcon-root': {
+                                color: '#245D6B',
+                            },
+                            '&:hover': {
+                                backgroundColor: '#fff',
+                            },
+                        }),
+                    }}
+                    onClick={() => navigate('/dashboard/recipe-entry')}
+                >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                        <ReceiptIcon />
+                        <ReceiptIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
                     <ListItemText primary="Recipe Entry" />
                 </ListItem>
-            </List>
-            <Divider sx={{ bgcolor: 'rgba(255,255,255,0.3)', my: -3 }} />
-            <List>
-                {localStorage.getItem('user') && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin' && (
-                    <ListItem
-                        sx={{ cursor: 'pointer', mt: 3 }}
-                        onClick={() => navigate('/dashboard/create-user')}
-                    >
-                        <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                            <AccountCircle />
-                        </ListItemIcon>
-                        <ListItemText primary="Create User" />
-                    </ListItem>
-                )}
                 <ListItem
+                    component="li"
                     sx={{
-                        cursor: 'pointer',
-                        mt:
-                            !(localStorage.getItem('user') &&
-                                JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin')
-                                ? 3
-                                : 0,
+                        ...sidebarItemSx,
+                        ...(isActive('/dashboard/event-master') && {
+                            backgroundColor: '#fff',
+                            color: '#245D6B',
+                            fontWeight: 700,
+                            '& .MuiListItemIcon-root': {
+                                color: '#245D6B',
+                            },
+                            '&:hover': {
+                                backgroundColor: '#fff',
+                            },
+                        }),
                     }}
-                    onClick={async () => {
-                        await fetch(`${API_BASE_URL}/users/logout`, {
-                            method: 'POST',
-                            credentials: 'include',
-                        }).catch(() => { });
-
-                        localStorage.clear();
-                        sessionStorage.clear();
-                        navigate('/login');
-                    }}
+                    onClick={() => navigate('/dashboard/event-master')} 
                 >
                     <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
-                        <LogoutIcon />
+                        <EventIcon fontSize="small" sx={{ fontSize: 20 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Sign Out" />
+                    <ListItemText primary="Event Master" />
                 </ListItem>
+                <ListItemButton
+                    onClick={handleAnnkutClick}
+                >
+                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                        <LunchDiningIcon fontSize="small" sx={{ fontSize: 20 }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Annkut" />
+                    {annkutOpen ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                <Collapse in={annkutOpen} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                        {/* Box wise Annkut */}
+                        <ListItemButton sx={{ pl: 4 }} onClick={handleBoxAnnkutClick}>
+                            <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                <BoxIcon fontSize="small" sx={{ fontSize: 20 }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Box wise Annkut" />
+                            {boxAnnkutOpen ? <ExpandLess /> : <ExpandMore />}
+                        </ListItemButton>
+                        <Collapse in={boxAnnkutOpen} timeout="auto" unmountOnExit>
+                            <List component="div" disablePadding>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/box-annkut/weight-entry')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/box-annkut/weight-entry')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <ScaleIcon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Weight Entry Master" />
+                                </ListItemButton>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/box-annkut/BoxRangeEntry')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/box-annkut/BoxRangeEntry')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <Inventory2Icon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Box Range Master" />
+                                </ListItemButton>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/box-annkut/box-weight-entry')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/box-annkut/box-weight-entry')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <Inventory2Icon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Box MAster" />
+                                </ListItemButton>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/box-annkut/WeightCalculation')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/box-annkut/WeightCalculation')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <CalculateIcon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Weight Calculation" />
+                                </ListItemButton>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/box-annkut/AnnkutNosSummary')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/box-annkut/AnnkutNosSummary')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Annkut Nos Summary" />
+                                </ListItemButton>
+                            </List>
+                        </Collapse>
+                        <ListItemButton sx={{ pl: 4 }} onClick={handleSectionAnnkutClick}>
+                            <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                <GroupWorkIcon fontSize="small" sx={{ fontSize: 20 }} />
+                            </ListItemIcon>
+                            <ListItemText primary="Section wise Annkut" />
+                            {sectionAnnkutOpen ? <ExpandLess /> : <ExpandMore />}
+                        </ListItemButton>
+                        <Collapse in={sectionAnnkutOpen} timeout="auto" unmountOnExit>
+                            <List component="div" disablePadding>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/section-annkut/submenu1')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/section-annkut/submenu1')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <SubdirectoryArrowRightIcon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Submenu 1" />
+                                </ListItemButton>
+                                <ListItemButton
+                                    selected={isActive('/dashboard/section-annkut/submenu2')}
+                                    sx={{ pl: 8, ...sidebarItemSx }}
+                                    onClick={() => navigate('/dashboard/section-annkut/submenu2')}
+                                >
+                                    <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                        <SubdirectoryArrowRightIcon fontSize="small" sx={{ fontSize: 20 }} />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Submenu 2" />
+                                </ListItemButton>
+                            </List>
+                        </Collapse>
+                    </List>
+                </Collapse>
             </List>
+            <Divider sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
+            <Box
+                sx={{
+                    position: 'sticky',
+                    bottom: 0,
+                    bgcolor: '#245D6B',
+                    zIndex: 1,
+                }}
+            >
+                <List>
+                    {localStorage.getItem('user') && JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin' && (
+                        <ListItem
+                            sx={{ cursor: 'pointer', mt: 0 }}
+                            onClick={() => navigate('/dashboard/create-user')}
+                        >
+                            <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                                <AccountCircle />
+                            </ListItemIcon>
+                            <ListItemText primary="Create User" />
+                        </ListItem>
+                    )}
+                    <ListItem
+                        sx={{
+                            cursor: 'pointer',
+                            mt: localStorage.getItem('user') &&
+                                JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super-admin'
+                                ? 0 // No margin if super-admin
+                                : 0, // Explicitly set to 0 to remove unnecessary space
+                        }}
+                        onClick={async () => {
+                            await fetch(`${API_BASE_URL}/user/logout`, {
+                                method: 'POST',
+                                credentials: 'include',
+                            }).catch(() => { });
+
+                            localStorage.clear();
+                            sessionStorage.clear();
+                            navigate('/login');
+                        }}
+                    >
+                        <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                            <LogoutIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Sign Out" />
+                    </ListItem>
+                </List>
+            </Box>
         </Box>
     );
 
@@ -240,6 +490,8 @@ const Dashboard: React.FC = () => {
                             width: drawerWidth,
                             bgcolor: '#245D6B',
                             color: '#fff',
+                            maxHeight: '100vh',
+                            overflowY: 'auto',
                         },
                     }}
                 >
@@ -254,6 +506,8 @@ const Dashboard: React.FC = () => {
                             width: drawerWidth,
                             bgcolor: '#245D6B',
                             color: '#fff',
+                            maxHeight: '100vh',
+                            overflowY: 'auto',
                         },
                     }}
                     open

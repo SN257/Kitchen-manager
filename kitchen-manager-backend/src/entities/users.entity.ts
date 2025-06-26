@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Recipe } from './recipes.entity'; // Adjust the path as necessary
 
-@Entity('users')
+@Entity()
 export class User {
   @PrimaryGeneratedColumn()
   id: number;

@@ -57,7 +57,7 @@ const AddIngredient: React.FC = () => {
     const API_BASE_URL = useApiBaseUrl();
 
     const fetchIngredients = () => {
-        fetch(`${API_BASE_URL}/ingredients`)
+        fetch(`${API_BASE_URL}/ingredient`)
             .then(res => res.json())
             .then(data => setItems(data));
     };
@@ -75,7 +75,7 @@ const AddIngredient: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await fetch(`${API_BASE_URL}/ingredients`, {
+            const res = await fetch(`${API_BASE_URL}/ingredient`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -100,7 +100,7 @@ const AddIngredient: React.FC = () => {
 
     const handleDelete = async (id: number) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/ingredients/${id}`, {
+            const res = await fetch(`${API_BASE_URL}/ingredient/${id}`, {
                 method: 'DELETE',
             });
             if (!res.ok) {
@@ -124,7 +124,7 @@ const AddIngredient: React.FC = () => {
     const handleEditSave = async () => {
         if (!editItem) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/ingredients/${editItem.id}`, {
+            const res = await fetch(`${API_BASE_URL}/ingredient/${editItem.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -2,9 +2,14 @@ import { Controller, Get, Post, Body, Req, UnauthorizedException, Param, Put, De
 import { RecipesService } from './recipes.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { Request } from 'express'; 
-@Controller('recipes')
+import { UserService } from '../user/user.service'; // <-- import UserService
+
+@Controller('recipe')
 export class RecipesController {
-  constructor(private readonly recipesService: RecipesService) {}
+  constructor(
+    private readonly recipesService: RecipesService,
+    private readonly userService: UserService, // <-- inject UserService
+  ) {}
 
   @Get()
   async findAll(
@@ -26,10 +31,12 @@ export class RecipesController {
   ) {
     const userId = req.session.userId;
     if (!userId) throw new UnauthorizedException('Not logged in');
+    const user = await this.userService.findById(userId); 
+    if (!user) throw new UnauthorizedException('User not found');
     return this.recipesService.create({
       ...createRecipeDto,
       userId,
-      center: req.session.center || '',
+      center: user.center, 
     });
   }
 
