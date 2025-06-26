@@ -33,8 +33,6 @@ export class RecipesController {
     if (!userId) throw new UnauthorizedException('Not logged in');
     const user = await this.userService.findById(userId); 
     if (!user) throw new UnauthorizedException('User not found');
-    console.log('User center:', user.center); // <-- fetch user
-    if (!user) throw new UnauthorizedException('User not found');
     return this.recipesService.create({
       ...createRecipeDto,
       userId,

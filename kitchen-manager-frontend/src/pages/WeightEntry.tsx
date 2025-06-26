@@ -30,17 +30,15 @@ const WeightEntry: React.FC = () => {
 
     const API_BASE_URL = useApiBaseUrl();
 
-    // Fetch food items
     useEffect(() => {
         const fetchFoodItems = async () => {
-            const res = await fetch(`${API_BASE_URL}/food-items`);
+            const res = await fetch(`${API_BASE_URL}/food-item`);
             const data = await res.json();
             setFoodItems(data.filter((item: any) => item.category === 'મીઠાઈ'));
         };
         fetchFoodItems();
     }, [API_BASE_URL]);
 
-    // Fetch weight entries from backend
     const fetchWeightEntries = async () => {
         const res = await fetch(`${API_BASE_URL}/weight-entries`);
         let data = [];
