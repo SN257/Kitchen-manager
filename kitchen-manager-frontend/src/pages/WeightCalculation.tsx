@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+// import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
@@ -13,7 +13,7 @@ interface Mithai {
   id: number;
   vangiName: string;
   gram: number;
-  nang: number;
+  // nang: number;
 }
 
 interface BoxRange {
@@ -89,9 +89,9 @@ const WeightCalculation: React.FC = () => {
     .filter(box => getTotalGramForBox(box.id) > box.gram)
     .map(box => `Total gram for box range "${box.priceRange}" is over the allowed ${box.gram}g!`);
 
-  const nangWarnings = mithais
-    .filter(mithai => getTotalNang(mithai) > mithai.nang)
-    .map(mithai => `Total nang for  "${mithai.vangiName}" is over the allowed ${mithai.nang}!`);
+  // const nangWarnings = mithais
+  //   .filter(mithai => getTotalNang(mithai) > mithai.nang)
+  //   .map(mithai => `Total nang for  "${mithai.vangiName}" is over the allowed ${mithai.nang}!`);
 
   const handleSave = async () => {
     const hasEntry = Object.values(pieces).some(val => !!val && Number(val) > 0);
@@ -165,7 +165,7 @@ const WeightCalculation: React.FC = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell
+                {/* <TableCell
                   sx={{
                     fontWeight: 700,
                     color: '#245D6B',
@@ -178,13 +178,13 @@ const WeightCalculation: React.FC = () => {
                   }}
                 >
                   Nang
-                </TableCell>
+                </TableCell> */}
                 <TableCell
                   sx={{
                     fontWeight: 700,
                     color: '#245D6B',
                     position: 'sticky',
-                    left: 100,
+                    left: 0,
                     top: 0,
                     background: '#fff',
                     zIndex: 3,
@@ -198,7 +198,7 @@ const WeightCalculation: React.FC = () => {
                     fontWeight: 700,
                     color: '#245D6B',
                     position: 'sticky',
-                    left: 200,
+                    left: 100,
                     top: 0,
                     background: '#fff',
                     zIndex: 3,
@@ -248,7 +248,7 @@ const WeightCalculation: React.FC = () => {
                 .sort((a, b) => a.id - b.id)
                 .map((mithai, mithaiIdx) => (
                   <TableRow key={mithai.id}>
-                    <TableCell
+                    {/* <TableCell
                       sx={{
                         position: 'sticky',
                         left: 0,
@@ -258,11 +258,11 @@ const WeightCalculation: React.FC = () => {
                       }}
                     >
                       {mithai.nang}
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell
                       sx={{
                         position: 'sticky',
-                        left: 100,
+                        left: 0,
                         background: '#fff',
                         zIndex: 1,
                         minWidth: 100,
@@ -273,7 +273,7 @@ const WeightCalculation: React.FC = () => {
                     <TableCell
                       sx={{
                         position: 'sticky',
-                        left: 200,
+                        left: 100,
                         background: '#fff',
                         zIndex: 1,
                         minWidth: 120,
@@ -393,7 +393,7 @@ const WeightCalculation: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-        {(gramWarnings.length > 0 || nangWarnings.length > 0) && (
+        {/* {(gramWarnings.length > 0 || nangWarnings.length > 0) && (
           <Box sx={{ mt: 2 }}>
             {[...gramWarnings, ...nangWarnings].map((msg, idx) => (
               <Box key={idx} sx={{ display: 'flex', alignItems: 'center', color: '#d32f2f', mb: 0.5 }}>
@@ -402,7 +402,7 @@ const WeightCalculation: React.FC = () => {
               </Box>
             ))}
           </Box>
-        )}
+        )} */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, gap: 2 }}>
           <Button
             variant="contained"
@@ -481,7 +481,7 @@ const WeightCalculation: React.FC = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Nang</TableCell>
+                    {/* <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Nang</TableCell> */}
                     <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Gram</TableCell>
                     <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Mithai</TableCell>
                     {boxRanges.map(box => (
@@ -501,7 +501,7 @@ const WeightCalculation: React.FC = () => {
                     .sort((a, b) => a.id - b.id)
                     .map(mithai => (
                       <TableRow key={mithai.id}>
-                        <TableCell>{mithai.nang}</TableCell>
+                        {/* <TableCell>{mithai.nang}</TableCell> */}
                         <TableCell>{mithai.gram}</TableCell>
                         <TableCell>{mithai.vangiName}</TableCell>
                         {boxRanges.map(box => (

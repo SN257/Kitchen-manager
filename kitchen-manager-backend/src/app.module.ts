@@ -11,6 +11,7 @@ import { WeightEntryModule } from './weight-entry/weight-entry.module';
 import { BoxWeightEntryModule } from './box-weight-entry/box-weight-entry.module';
 import { WeightCalculationEntryModule } from './weight-calculation-entry/weight-calculation-entry.module';
 import { BoxRangeModule } from './box-range/box-range.module';
+import { AnnkutSidhuSamanModule } from './annkut-sidhu-saman/annkut-sidhu-saman.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { BoxRangeModule } from './box-range/box-range.module';
     BoxWeightEntryModule,
     WeightCalculationEntryModule,
     BoxRangeModule,
+    AnnkutSidhuSamanModule,
   ]
 })
 export class AppModule {}

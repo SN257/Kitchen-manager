@@ -16,7 +16,7 @@ const ROWS_PER_PAGE = 5;
 
 const WeightEntry: React.FC = () => {
     const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
-    const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string; nang: string; subType?: string } }>({});
+    const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string; subType?: string } }>({});
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
@@ -96,12 +96,12 @@ const WeightEntry: React.FC = () => {
                 setOpenSnackbar(true);
                 return;
             }
-            if (!item.nang || isNaN(Number(item.nang)) || Number(item.nang) <= 0) {
-                setError('Please enter a valid nang for all selected items.');
-                setSuccess('');
-                setOpenSnackbar(true);
-                return;
-            }
+            // if (!item.nang || isNaN(Number(item.nang)) || Number(item.nang) <= 0) {
+            //     setError('Please enter a valid nang for all selected items.');
+            //     setSuccess('');
+            //     setOpenSnackbar(true);
+            //     return;
+            // }
         }
         try {
             // Save all selected items to backend
