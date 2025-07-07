@@ -1,10 +1,10 @@
-import { Controller, Post, Body, Put, Param, Get } from '@nestjs/common';
+import { Controller, Post, Body, Put, Param, Get, Delete, HttpException, HttpStatus } from '@nestjs/common';
 import { WeightCalculationEntryService } from './weight-calculation-entry.service';
 import { CreateWeightCalculationEntryDto } from './dto/create-weight-calculation-entry.dto';
 
 @Controller('weight-calculation-entries')
 export class WeightCalculationEntryController {
-  constructor(private readonly service: WeightCalculationEntryService) { }
+  constructor(private readonly service: WeightCalculationEntryService) {}
 
   @Post()
   async create(@Body() dto: CreateWeightCalculationEntryDto) {
@@ -22,5 +22,18 @@ export class WeightCalculationEntryController {
   async getLatest() {
     // You may want to filter by user if multi-user
     return this.service.getLatest();
+  }
+
+  @Delete('delete-by-box/:boxId')
+  async deleteByBoxId(@Param('boxId') boxId: number) {
+    try {
+      await this.service.deleteByBoxId(boxId);
+      return { success: true, message: 'Associated weight calculation entries deleted successfully.' };
+    } catch (error) {
+      throw new HttpException(
+        'Failed to delete associated weight calculation entries.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

@@ -8,9 +8,9 @@ export class BoxRange {
     @Column({ type: 'varchar', length: 255 })
     priceRange: string;
 
-    @Column({ type: 'varchar', length: 255 })
-    boxType: string;
-
+    @Column('jsonb')
+    boxType: { type: string; quantity: number }[];
+        
     @Column({ type: 'integer', nullable: true }) // Changed to integer
     gramPerBox: number;
 }

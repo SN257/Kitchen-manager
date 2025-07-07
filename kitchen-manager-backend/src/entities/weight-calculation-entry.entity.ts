@@ -6,7 +6,7 @@ export class WeightCalculationEntry {
   id: number;
 
   @Column('jsonb')
-  entries: any; // Array of MithaiEntryDto
+  entries: { boxId: number; mithaiId: number; pieces: number }[]; // Array of MithaiEntryDto
 
   @CreateDateColumn()
   createdAt: Date;

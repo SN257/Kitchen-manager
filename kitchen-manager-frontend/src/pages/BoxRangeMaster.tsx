@@ -24,18 +24,19 @@ import {
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import SearchIcon from '@mui/icons-material/Search';
 import { useApiBaseUrl } from '../config/config'; // Import BASE_URL from config.ts
+import Autocomplete from '@mui/material/Autocomplete';
 
 const ROWS_PER_PAGE = 5;
 
 const BoxRangeEntry: React.FC = () => {
     const [priceRange, setPriceRange] = useState('');
-    const [boxType, setBoxType] = useState('');
+    const [boxType, setBoxType] = useState<string[]>([]); // Updated to support multiple box types
     const [gramPerBox, setGramPerBox] = useState('');
     const [search, setSearch] = useState('');
-    const [boxRanges, setBoxRanges] = useState<{ id: number; priceRange: string; boxType: string; gramPerBox: number }[]>([]);
-    const [editingBox, setEditingBox] = useState<{ id: number; priceRange: string; boxType: string; gramPerBox: number } | null>(null);
+    const [boxTypeOptions, setBoxTypeOptions] = useState<string[]>([]); // Options for the dropdown
+    const [boxRanges, setBoxRanges] = useState<{ id: number; priceRange: string; boxType: string[]; gramPerBox: number }[]>([]);
+    const [editingBox, setEditingBox] = useState<{ id: number; priceRange: string; boxType: string[]; gramPerBox: number } | null>(null);
     const [deleteBoxId, setDeleteBoxId] = useState<number | null>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -51,7 +52,20 @@ const BoxRangeEntry: React.FC = () => {
             try {
                 const response = await fetch(`${API_BASE_URL}/box-ranges`);
                 const data = await response.json();
-                setBoxRanges(data);
+    
+                // Normalize boxType to always be an array
+                const normalizedData = data.map((box: { boxType: string | string[] }) => ({
+                    ...box,
+                    boxType: Array.isArray(box.boxType) ? box.boxType : [box.boxType].filter(Boolean),
+                }));
+    
+                setBoxRanges(normalizedData);
+    
+                // Extract unique box types for the dropdown
+                const uniqueBoxTypes: string[] = Array.from(
+                    new Set(normalizedData.flatMap((box: { boxType: string[] }) => box.boxType))
+                );
+                setBoxTypeOptions(uniqueBoxTypes); // Ensure no duplicates
             } catch (error) {
                 console.error('Error fetching box ranges:', error);
             }
@@ -61,7 +75,7 @@ const BoxRangeEntry: React.FC = () => {
 
     // Add a new box range
     const handleAdd = async () => {
-        if (!priceRange || !boxType || !gramPerBox) {
+        if (!priceRange || boxType.length === 0 || !gramPerBox) {
             setError('Please fill in all fields.');
             setSuccess('');
             setOpenSnackbar(true);
@@ -75,14 +89,14 @@ const BoxRangeEntry: React.FC = () => {
                 },
                 body: JSON.stringify({
                     priceRange,
-                    boxType,
+                    boxType, // Send as an array
                     gramPerBox,
                 }),
             });
             const newBoxRange = await response.json();
             setBoxRanges(prev => [...prev, newBoxRange]);
             setPriceRange('');
-            setBoxType('');
+            setBoxType([]);
             setGramPerBox('');
             setSuccess('Box range added successfully!');
             setError('');
@@ -95,7 +109,7 @@ const BoxRangeEntry: React.FC = () => {
     };
 
     // Open edit dialog
-    const handleEditOpen = (box: { id: number; priceRange: string; boxType: string; gramPerBox: number }) => {
+    const handleEditOpen = (box: { id: number; priceRange: string; boxType: string[]; gramPerBox: number }) => {
         setEditingBox(box);
         setEditDialogOpen(true);
     };
@@ -111,7 +125,7 @@ const BoxRangeEntry: React.FC = () => {
                 },
                 body: JSON.stringify({
                     priceRange: editingBox.priceRange,
-                    boxType: editingBox.boxType,
+                    boxType: editingBox.boxType, // Send as an array
                     gramPerBox: editingBox.gramPerBox,
                 }),
             });
@@ -162,7 +176,7 @@ const BoxRangeEntry: React.FC = () => {
     const filteredBoxRanges = boxRanges.filter(
         box =>
             box.priceRange.toLowerCase().includes(search.toLowerCase()) ||
-            box.boxType.toLowerCase().includes(search.toLowerCase())
+            box.boxType.some(type => type.toLowerCase().includes(search.toLowerCase()))
     );
 
     const pageCount = Math.ceil(filteredBoxRanges.length / ROWS_PER_PAGE);
@@ -210,21 +224,38 @@ const BoxRangeEntry: React.FC = () => {
                                 </InputAdornment>
                             ),
                         }}
-                        sx={{ flex: 1 }}
+                        sx={{ flex: 1, minWidth: '300px', maxWidth: '300px' }}
                     />
-                    <TextField
-                        label="Box Type"
+                    <Autocomplete
+                        multiple
+                        options={boxTypeOptions}
                         value={boxType}
-                        onChange={e => setBoxType(e.target.value)}
-                        required
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <Inventory2Icon sx={{ color: '#245D6B' }} />
-                                </InputAdornment>
-                            ),
-                        }}
-                        sx={{ flex: 1 }}
+                        onChange={(_, newValue: string[]) => setBoxType(newValue)} // Update the boxType array
+                        freeSolo
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                label="Box Type"
+                                placeholder="Type or select box types"
+                                sx={{
+                                    flex: 1,
+                                    minWidth: '300px',
+                                    maxWidth: '300px',
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: 2,
+                                    },
+                                }}
+                                onBlur={(e) => {
+                                    const enteredText = e.target.value.trim();
+                                    if (enteredText && !boxType.includes(enteredText)) {
+                                        setBoxType((prev) => [...prev, enteredText]); // Add the entered text to the array
+                                    }
+                                    // Clear the input field to prevent duplicate display
+                                    e.target.value = '';
+                                    params.inputProps.value = ''; // Clear the Autocomplete input value
+                                }}
+                            />
+                        )}
                     />
                     <TextField
                         label="Gram per Box"
@@ -244,7 +275,7 @@ const BoxRangeEntry: React.FC = () => {
                                 </InputAdornment>
                             ),
                         }}
-                        sx={{ flex: 1 }}
+                        sx={{ flex: 1, minWidth: '300px', maxWidth: '300px' }}
                     />
                     <Button
                         type="button"
@@ -276,13 +307,6 @@ const BoxRangeEntry: React.FC = () => {
                     size="small"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon sx={{ color: '#245D6B' }} />
-                            </InputAdornment>
-                        ),
-                    }}
                     sx={{
                         width: 300,
                         background: '#fff',
@@ -296,7 +320,6 @@ const BoxRangeEntry: React.FC = () => {
                     }}
                 />
             </Box>
-            {/* Table */}
             <TableContainer
                 component={Paper}
                 sx={{
@@ -323,9 +346,11 @@ const BoxRangeEntry: React.FC = () => {
                                         {(currentPage - 1) * ROWS_PER_PAGE + idx + 1}
                                     </TableCell>
                                     <TableCell sx={{ fontSize: 16 }}>{box.priceRange}</TableCell>
-                                    <TableCell sx={{ fontSize: 16 }}>{box.boxType}</TableCell>
                                     <TableCell sx={{ fontSize: 16 }}>
-                                        {box.gramPerBox ? `${box.gramPerBox} g` : 'N/A'} {/* Add "g" suffix */}
+                                        {Array.isArray(box.boxType) ? box.boxType.join(', ') : 'N/A'}
+                                    </TableCell>
+                                    <TableCell sx={{ fontSize: 16 }}>
+                                        {box.gramPerBox ? `${box.gramPerBox} g` : 'N/A'}
                                     </TableCell>
                                     <TableCell>
                                         <IconButton
@@ -380,10 +405,18 @@ const BoxRangeEntry: React.FC = () => {
                 </Box>
             )}
             {/* Edit Dialog */}
-            <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} sx={{ marginLeft: 20 }}>
+            <Dialog
+                open={editDialogOpen}
+                onClose={() => setEditDialogOpen(false)}
+                aria-labelledby="edit-dialog-title"
+                aria-describedby="edit-dialog-description"
+                sx={{ marginLeft: 20 }}
+            >
                 <Box sx={{ p: 3, minWidth: 600 }}>
-                    <DialogTitle sx={{ p: 0, mb: 2 }}>Edit Box Range</DialogTitle>
-                    <DialogContent sx={{ p: 0 }}>
+                    <DialogTitle id="edit-dialog-title" sx={{ p: 0, mb: 2 }}>
+                        Edit Box Range
+                    </DialogTitle>
+                    <DialogContent id="edit-dialog-description" sx={{ p: 0 }}>
                         <TextField
                             label="Price Range"
                             value={editingBox?.priceRange || ''}
@@ -391,13 +424,25 @@ const BoxRangeEntry: React.FC = () => {
                             fullWidth
                             margin="dense"
                         />
-                        <TextField
-                            label="Box Type"
-                            value={editingBox?.boxType || ''}
-                            onChange={e => setEditingBox({ ...editingBox!, boxType: e.target.value })}
-                            fullWidth
-                            margin="dense"
-                            sx={{ mt: 2 }}
+                        <Autocomplete
+                            multiple
+                            options={boxTypeOptions}
+                            value={editingBox?.boxType || []}
+                            onChange={(_, newValue) => setEditingBox({ ...editingBox!, boxType: newValue })}
+                            freeSolo
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Box Type"
+                                    placeholder="Type or select box types"
+                                    sx={{
+                                        flex: 1,
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: 2,
+                                        },
+                                    }}
+                                />
+                            )}
                         />
                         <TextField
                             label="Gram per Box"
@@ -410,8 +455,12 @@ const BoxRangeEntry: React.FC = () => {
                         />
                     </DialogContent>
                     <DialogActions sx={{ p: 0, mt: 2 }}>
-                        <Button onClick={() => setEditDialogOpen(false)} sx={{ color: '#245D6B' }}>Cancel</Button>
-                        <Button onClick={handleEditSave} variant="contained" sx={{ background: '#245D6B' }}>Save</Button>
+                        <Button onClick={() => setEditDialogOpen(false)} sx={{ color: '#245D6B' }}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleEditSave} variant="contained" sx={{ background: '#245D6B' }}>
+                            Save
+                        </Button>
                     </DialogActions>
                 </Box>
             </Dialog>

@@ -32,4 +32,13 @@ export class WeightCalculationEntryService {
     });
     return entry === null ? undefined : entry;
   }
+
+  async deleteByBoxId(boxId: number): Promise<void> {
+    const entries = await this.repo.find();
+
+    for (const entry of entries) {
+      const filteredEntries = entry.entries.filter((e: any) => e.boxId !== boxId);
+      await this.repo.update(entry.id, { entries: filteredEntries });
+    }
+  }
 }

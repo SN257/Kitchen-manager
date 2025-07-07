@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
-// import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
@@ -88,10 +88,6 @@ const WeightCalculation: React.FC = () => {
   const gramWarnings = boxRanges
     .filter(box => getTotalGramForBox(box.id) > box.gram)
     .map(box => `Total gram for box range "${box.priceRange}" is over the allowed ${box.gram}g!`);
-
-  // const nangWarnings = mithais
-  //   .filter(mithai => getTotalNang(mithai) > mithai.nang)
-  //   .map(mithai => `Total nang for  "${mithai.vangiName}" is over the allowed ${mithai.nang}!`);
 
   const handleSave = async () => {
     const hasEntry = Object.values(pieces).some(val => !!val && Number(val) > 0);
@@ -359,7 +355,7 @@ const WeightCalculation: React.FC = () => {
                 }}
               >
                 <TableCell
-                  colSpan={3}
+                  colSpan={2}
                   sx={{
                     fontWeight: 700,
                     color: '#245D6B',
@@ -393,16 +389,16 @@ const WeightCalculation: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-        {/* {(gramWarnings.length > 0 || nangWarnings.length > 0) && (
+        {(gramWarnings.length > 0) && (
           <Box sx={{ mt: 2 }}>
-            {[...gramWarnings, ...nangWarnings].map((msg, idx) => (
+            {[...gramWarnings].map((msg, idx) => (
               <Box key={idx} sx={{ display: 'flex', alignItems: 'center', color: '#d32f2f', mb: 0.5 }}>
                 <WarningAmberIcon fontSize="small" sx={{ mr: 1 }} color="warning" />
                 <Typography variant="body2">{msg}</Typography>
               </Box>
             ))}
           </Box>
-        )} */}
+        )}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, gap: 2 }}>
           <Button
             variant="contained"
@@ -524,7 +520,7 @@ const WeightCalculation: React.FC = () => {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={3} style={{
+                    <TableCell colSpan={2} style={{
                       fontWeight: 700,
                       color: '#245D6B',
                       background: '#f5f5f5'

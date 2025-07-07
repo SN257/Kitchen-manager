@@ -9,8 +9,8 @@ export class BoxWeightEntry {
   priceRange: string;
 
   @Column()
-  gram: string;
+  totalBoxes: string;
 
   @Column()
-  totalBoxes: string;
+  boxType: string; // New column for box type
 }

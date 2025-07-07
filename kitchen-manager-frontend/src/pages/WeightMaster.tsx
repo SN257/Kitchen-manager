@@ -27,6 +27,15 @@ const WeightEntry: React.FC = () => {
     const [editEntry, setEditEntry] = useState<any>(null);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
     const [page, setPage] = useState(1);
+    type Event = {
+        id: string;
+        name: string;
+        eventName: string;
+        eventYear: string;
+    };
+
+    const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
+    const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
 
     const API_BASE_URL = useApiBaseUrl();
 
@@ -39,6 +48,24 @@ const WeightEntry: React.FC = () => {
         fetchFoodItems();
     }, [API_BASE_URL]);
 
+    useEffect(() => {
+        const fetchAnnkutEvents = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
+                if (!res.ok) {
+                    throw new Error(`Failed to fetch Annkut events: ${res.status}`);
+                }
+                const data = await res.json();
+                const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut'); // Filter Annkut events
+                console.log('Filtered Annkut Events:', filteredAnnkutEvents); // Debugging: Log filtered events
+                setAnnkutEvents(filteredAnnkutEvents); // Update state with filtered events
+            } catch (err) {
+                console.error('Failed to fetch Annkut events:', err);
+            }
+        };
+        fetchAnnkutEvents();
+    }, [API_BASE_URL]);
+    
     const fetchWeightEntries = async () => {
         const res = await fetch(`${API_BASE_URL}/weight-entries`);
         let data = [];
@@ -401,6 +428,22 @@ const WeightEntry: React.FC = () => {
                             </Grid>
                         </Box>
                     </Box>
+                    <Box sx={{ mb: 2 }}>
+                        <TextField
+                            select
+                            label="Annkut Event"
+                            value={selectedAnnkutEvent}
+                            onChange={(e) => setSelectedAnnkutEvent(e.target.value)}
+                            fullWidth
+                            size="small"
+                        >
+                            {annkutEvents.map((evt) => (
+                                <MenuItem key={evt.id} value={evt.id}>
+                                    {evt.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    </Box>
                     <Button
                         type="submit"
                         variant="contained"
@@ -636,6 +679,20 @@ const WeightEntry: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <div>
+                <h1>Annkut Events</h1>
+                {annkutEvents.length > 0 ? (
+                    <ul>
+                        {annkutEvents.map(event => (
+                            <li key={event.id}>
+                                {event.eventName} ({event.eventYear})
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p>No Annkut events found.</p>
+                )}
+            </div>
         </Box>
     );
 };
