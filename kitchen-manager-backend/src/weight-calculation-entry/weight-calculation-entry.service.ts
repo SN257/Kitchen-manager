@@ -25,10 +25,12 @@ export class WeightCalculationEntryService {
     return entry;
   }
 
-  async getLatest(): Promise<WeightCalculationEntry | undefined> {
+  async getLatest(eventId?: number): Promise<WeightCalculationEntry | undefined> {
+    const whereCondition = eventId ? { eventId: Number(eventId) } : {};
+    
     const entry = await this.repo.findOne({
-      where: {},
-      order: { createdAt: 'DESC' },
+      where: whereCondition,
+      relations: ['event'],
     });
     return entry === null ? undefined : entry;
   }

@@ -17,7 +17,10 @@ export class WeightEntryService {
   }
 
   async findAll() {
-    return this.repo.find({ order: { id: 'DESC' } });
+    return this.repo.find({ 
+      order: { id: 'DESC' },
+      relations: ['event']
+    });
   }
 
   async update(id: number, dto: CreateWeightEntryDto) {
@@ -32,5 +35,13 @@ export class WeightEntryService {
     if (!entry) throw new NotFoundException('Weight entry not found');
     await this.repo.remove(entry);
     return { deleted: true };
+  }
+
+  async findByEventId(eventId: number) {
+    return this.repo.find({
+      where: { eventId },
+      order: { id: 'ASC' },
+      relations: ['event']
+    });
   }
 }

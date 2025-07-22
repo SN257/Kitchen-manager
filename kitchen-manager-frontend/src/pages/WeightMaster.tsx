@@ -22,7 +22,19 @@ const WeightEntry: React.FC = () => {
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
     const [savedItemSearch, setSavedItemSearch] = useState('');
-    const [weightEntries, setWeightEntries] = useState<{ id: number; vangiName: string; gram: number; nang: number; createdAt: string }[]>([]);
+    const [weightEntries, setWeightEntries] = useState<{ 
+        id: number; 
+        vangiName: string; 
+        gram: number; 
+        createdAt: string; 
+        eventId?: number; 
+        event?: { 
+            id: number; 
+            eventName: string; 
+            eventYear: string; 
+            description?: string; 
+        } 
+    }[]>([]);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editEntry, setEditEntry] = useState<any>(null);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -47,7 +59,11 @@ const WeightEntry: React.FC = () => {
         };
         fetchFoodItems();
     }, [API_BASE_URL]);
-
+    useEffect(() => {
+        if (selectedAnnkutEvent) {
+            fetchWeightEntries();
+        }
+    }, [selectedAnnkutEvent]);
     useEffect(() => {
         const fetchAnnkutEvents = async () => {
             try {
@@ -110,6 +126,14 @@ const WeightEntry: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!selectedAnnkutEvent) {
+            setError('Please select an Annkut event first.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+        
         if (Object.keys(selectedItems).length === 0) {
             setError('Please select at least one food item.');
             setSuccess('');
@@ -144,6 +168,7 @@ const WeightEntry: React.FC = () => {
                     body: JSON.stringify({
                         vangiName,
                         gram: Number(item.gram),
+                        eventId: selectedAnnkutEvent,
                     }),
                 });
             }
@@ -152,6 +177,8 @@ const WeightEntry: React.FC = () => {
             setOpenSnackbar(true);
             setSelectedItems({});
             fetchWeightEntries(); // Refresh table from DB
+            // Force re-render of food items by updating a state or calling fetchFoodItems again
+            // Force re-render of food items by updating a state or calling fetchFoodItems again
         } catch (err) {
             setError('Failed to save weight entry.');
             setSuccess('');
@@ -208,33 +235,88 @@ const WeightEntry: React.FC = () => {
         }
     };
 
-    // Filter weight entries by search
+    // Filter weight entries by search and selected event
     const filteredWeightEntries = weightEntries
         .slice() // make a copy to avoid mutating state
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        .filter(item =>
-            item.vangiName.toLowerCase().includes(savedItemSearch.toLowerCase())
-        );
+        .filter(item => {
+            // Filter by search term
+            const matchesSearch = item.vangiName.toLowerCase().includes(savedItemSearch.toLowerCase());
+            
+            // Filter by selected event
+            const matchesEvent = selectedAnnkutEvent ? 
+                item.eventId?.toString() === selectedAnnkutEvent.toString() : 
+                true;
+            
+            return matchesSearch && matchesEvent;
+        });
 
     return (
         <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <ScaleIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
-                <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-                    Weight Entry
-                </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <ScaleIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
+                    <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
+                        Weight Entry
+                    </Typography>
+                </Box>
+                
+                {/* Annkut Event Dropdown */}
+                <TextField
+                    select
+                    label="Select Annkut Event"
+                    value={selectedAnnkutEvent}
+                    onChange={e => setSelectedAnnkutEvent(e.target.value)}
+                    size="small"
+                    sx={{
+                        width: 200,
+                        background: '#fff',
+                        borderRadius: 1,
+                        '& .MuiOutlinedInput-root': {
+                            background: '#fff',
+                            color: '#245D6B',
+                        },
+                        '& .MuiInputLabel-root': { color: '#245D6B' },
+                        '& .MuiInputBase-input': { color: '#245D6B' },
+                    }}
+                >
+                    {annkutEvents.map(event => (
+                        <MenuItem key={event.id} value={event.id}>
+                            {event.eventName} - {event.eventYear}
+                        </MenuItem>
+                    ))}
+                </TextField>
             </Box>
+            
             <Paper
                 elevation={4}
                 sx={{
                     p: { xs: 2, sm: 4 },
-                    mt: 5,
+                    mt: 3,
                     width: '100%',
                     mx: 'auto',
                     borderRadius: 2,
                     boxShadow: '0 4px 24px rgba(36,93,107,0.08)',
+                    opacity: selectedAnnkutEvent ? 1 : 0.5,
+                    pointerEvents: selectedAnnkutEvent ? 'auto' : 'none',
                 }}
             >
+                {!selectedAnnkutEvent && (
+                    <Box sx={{ 
+                        position: 'absolute', 
+                        top: '50%', 
+                        left: '50%', 
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 10,
+                        textAlign: 'center',
+                        color: '#245D6B',
+                        fontWeight: 600
+                    }}>
+                        <Typography variant="h6">
+                            Please select an Annkut event first
+                        </Typography>
+                    </Box>
+                )}
                 <Box
                     component="form"
                     onSubmit={handleSubmit}
@@ -283,6 +365,36 @@ const WeightEntry: React.FC = () => {
                             <Grid container spacing={2}>
                                 {foodItems
                                     .filter(item => item.vangiName.toLowerCase().includes(search.toLowerCase()))
+                                    .filter(item => {
+                                        // Filter out items that are already saved for the selected event
+                                        if (!selectedAnnkutEvent) return true;
+                                        
+                                        console.log('Filtering item:', item.vangiName);
+                                        console.log('Selected event ID:', selectedAnnkutEvent);
+                                        console.log('Weight entries for this item:', weightEntries.filter(e => e.vangiName === item.vangiName));
+                                        
+                                        const isAlreadySaved = weightEntries.some(entry => {
+                                            const match = entry.vangiName === item.vangiName && 
+                                                         entry.eventId?.toString() === selectedAnnkutEvent.toString();
+                                            console.log(`Checking ${entry.vangiName} (eventId: ${entry.eventId}) against ${item.vangiName} (selectedEvent: ${selectedAnnkutEvent}): ${match}`);
+                                            return match;
+                                        });
+                                        
+                                        // Also check for મગજ subtypes
+                                        if (item.vangiName.trim().startsWith("મગજ")) {
+                                            const hasAnyMagajSubtype = MAGAJ_SUBTYPES.some(subType => 
+                                                weightEntries.some(entry => 
+                                                    entry.vangiName === `મગજ (${subType})` && 
+                                                    entry.eventId?.toString() === selectedAnnkutEvent.toString()
+                                                )
+                                            );
+                                            console.log(`મગજ subtype check for ${item.vangiName}: ${hasAnyMagajSubtype}`);
+                                            return !hasAnyMagajSubtype;
+                                        }
+                                        
+                                        console.log(`Final result for ${item.vangiName}: ${!isAlreadySaved}`);
+                                        return !isAlreadySaved;
+                                    })
                                     .map(item => (
                                         <Grid key={item.id} columns={{ xs: 12, sm: 6 }}>
                                             <Box
@@ -427,23 +539,7 @@ const WeightEntry: React.FC = () => {
                                     ))}
                             </Grid>
                         </Box>
-                    </Box>
-                    <Box sx={{ mb: 2 }}>
-                        <TextField
-                            select
-                            label="Annkut Event"
-                            value={selectedAnnkutEvent}
-                            onChange={(e) => setSelectedAnnkutEvent(e.target.value)}
-                            fullWidth
-                            size="small"
-                        >
-                            {annkutEvents.map((evt) => (
-                                <MenuItem key={evt.id} value={evt.id}>
-                                    {evt.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Box>
+                    </Box>  
                     <Button
                         type="submit"
                         variant="contained"
@@ -512,12 +608,19 @@ const WeightEntry: React.FC = () => {
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Id</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Food Name</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>1 Piece Weight</TableCell>
+                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Event</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredWeightEntries.length > 0 ? (
+                        {!selectedAnnkutEvent ? (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ color: '#245D6B', fontStyle: 'italic', py: 4, fontSize: 16 }}>
+                                    Please select an Annkut event first
+                                </TableCell>
+                            </TableRow>
+                        ) : filteredWeightEntries.length > 0 ? (
                             filteredWeightEntries
                                 .slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE)
                                 .map((item, idx) => (
@@ -525,6 +628,7 @@ const WeightEntry: React.FC = () => {
                                         <TableCell>{(page - 1) * ROWS_PER_PAGE + idx + 1}</TableCell>
                                         <TableCell>{item.vangiName}</TableCell>
                                         <TableCell>{item.gram}</TableCell>
+                                        <TableCell>{item.event?.eventName || 'N/A'} - {item.event?.eventYear || 'N/A'}</TableCell>
                                         <TableCell>{new Date(item.createdAt).toLocaleString()}</TableCell>
                                         <TableCell>
                                             <IconButton
@@ -548,7 +652,7 @@ const WeightEntry: React.FC = () => {
                                 ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ color: '#999', fontStyle: 'italic', py: 4 }}>
+                                <TableCell colSpan={6} align="center" sx={{ color: '#999', fontStyle: 'italic', py: 4 }}>
                                     No data available
                                 </TableCell>
                             </TableRow>
@@ -679,20 +783,6 @@ const WeightEntry: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <div>
-                <h1>Annkut Events</h1>
-                {annkutEvents.length > 0 ? (
-                    <ul>
-                        {annkutEvents.map(event => (
-                            <li key={event.id}>
-                                {event.eventName} ({event.eventYear})
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p>No Annkut events found.</p>
-                )}
-            </div>
         </Box>
     );
 };

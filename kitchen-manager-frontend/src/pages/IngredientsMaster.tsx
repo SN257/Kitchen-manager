@@ -34,7 +34,7 @@ const gujaratiToEnglishDigits = (input: string) =>
     input.replace(/[૦૧૨૩૪૫૬૭૮૯]/g, d =>
         '૦૧૨૩૪૫૬૭૮૯'.indexOf(d).toString()
     );
-const categories = ['અનાજ-કઠોળ', 'સૂકા મસાલા', 'લીલા શાકભાજી ', 'ફ્રુટ', 'સૂકો મેવો'];
+const categories = ['અનાજ-કઠોળ', 'સૂકા મસાલા', 'ચોખ્ખી વસ્તુ', 'લીલા શાકભાજી ', 'ફ્રુટ', 'સૂકો મેવો'];
 const AddIngredient: React.FC = () => {
     const [ingredientName, setIngredientName] = useState('');
     const [pricePerKg, setPricePerKg] = useState('');

@@ -13,7 +13,10 @@ export class BoxWeightEntryService {
   ) {}
 
   findAll(): Promise<BoxWeightEntry[]> {
-    return this.boxWeightEntryRepository.find();
+    return this.boxWeightEntryRepository.find({
+      order: { id: 'DESC' },
+      relations: ['event']
+    });
   }
 
   async findOne(id: number): Promise<BoxWeightEntry> {

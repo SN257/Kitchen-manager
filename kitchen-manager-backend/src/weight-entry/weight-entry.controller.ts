@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Param, Delete, Query } from '@nestjs/common';
 import { WeightEntryService } from './weight-entry.service';
 import { CreateWeightEntryDto } from './dto/create-weight-entry.dto';
 
@@ -12,7 +12,10 @@ export class WeightEntryController {
   }
 
   @Get()
-  async findAll() {
+  async findAll(@Query('eventId') eventId?: string) {
+    if (eventId) {
+      return this.service.findByEventId(Number(eventId));
+    }
     return this.service.findAll();
   }
   @Put(':id')

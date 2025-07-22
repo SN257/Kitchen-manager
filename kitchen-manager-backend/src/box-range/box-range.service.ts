@@ -11,8 +11,11 @@ export class BoxRangeService {
     ) {}
 
     // Fetch all box ranges
-    async findAll(): Promise<BoxRange[]> {
-        return this.boxRangeRepository.find();
+    async findAll() {
+        return this.boxRangeRepository.find({ 
+            order: { id: 'ASC' },
+            relations: ['event']
+        });
     }
 
     // Fetch a single box range by ID
@@ -46,5 +49,13 @@ export class BoxRangeService {
         if (result.affected === 0) {
             throw new NotFoundException(`BoxRange with ID ${id} not found`);
         }
+    }
+
+    async findByEventId(eventId: number) {
+        return this.boxRangeRepository.find({
+            where: { eventId },
+            order: { id: 'ASC' },
+            relations: ['event']
+        });
     }
 }

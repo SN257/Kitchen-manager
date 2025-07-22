@@ -20,17 +20,29 @@ import { useApiBaseUrl } from "../config/config";
 
 const AnnkutSidhuSaman = () => {
   const [recipes, setRecipes] = useState<any[]>([]);
+  const [annkutData, setAnnkutData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const API_BASE_URL = useApiBaseUrl();
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/recipe`, {
-      credentials: "include",
-    })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {console.log("data", data);setRecipes(Array.isArray(data) ? data : [])})
-      .catch(() => setRecipes([]))
+    Promise.all([
+      fetch(`${API_BASE_URL}/recipe`, {
+        credentials: "include",
+      }).then((res) => (res.ok ? res.json() : [])),
+      fetch(`${API_BASE_URL}/annkut-sidhu-saman`, {
+        credentials: "include",
+      }).then((res) => (res.ok ? res.json() : []))
+    ])
+      .then(([recipesData, annkutData]) => {
+        setRecipes(Array.isArray(recipesData) ? recipesData : []);
+        setAnnkutData(Array.isArray(annkutData) ? annkutData : []);
+      })
+      .catch((err) => {
+        console.error("Error fetching data:", err);
+        setRecipes([]);
+        setAnnkutData([]);
+      })
       .finally(() => setLoading(false));
   }, [API_BASE_URL]);
 
@@ -47,11 +59,15 @@ const AnnkutSidhuSaman = () => {
     name,
   }));
 
-  const columns = recipes.map((r) => {
+  const columns = annkutData.map((entry) => {
+    // Find the matching recipe for this mithai
+    const recipe = recipes.find((r) => r.vangiName === entry.mithai_name);
+
     return {
-      id: r.id,
-      name: r.vangiName,
-      ingredients: r.ingredients,
+      id: entry.id,
+      name: entry.mithai_name,
+      ingredients: recipe?.ingredients || [], // Use recipe ingredients if available
+      totalFlour: entry.total_flour || null, // Use total_flour from annkutData
     };
   });
 
@@ -59,17 +75,35 @@ const AnnkutSidhuSaman = () => {
     const found = recipe.ingredients.find(
       (ing: any) => ing.ingredientName === ingName
     );
-    return found ? found.kg : 0;
+
+    // If no total_flour, return "-"
+    if (!recipe.totalFlour) {
+      return "-";
+    }
+
+    // Scale the ingredient weight based on `total_flour`
+    if (found && recipe.totalFlour > 0) {
+      const weight = found.kg * recipe.totalFlour;
+      return weight > 0 ? Number(weight.toFixed(2)) : "-"; // Show "-" if weight is 0
+    }
+
+    return "-"; // Return "-" if no match or weight is 0
   };
 
   const getTotalWeightByIngredient = (ingName: string) => {
-    const total = recipes.reduce((sum, recipe) => {
-      const found = recipe.ingredients.find(
-        (ing: any) => ing.ingredientName === ingName
-      );
-      return sum + (found ? Number(found.kg) : 0);
+    let hasValidWeight = false;
+    const total = columns.reduce((sum, recipe) => {
+      const weight = getIngredientWeight(recipe, ingName);
+      // Only add to sum if weight is a number and greater than 0
+      if (typeof weight === 'number' && !isNaN(weight) && weight > 0) {
+        hasValidWeight = true;
+        return sum + weight;
+      }
+      return sum;
     }, 0);
-    return Number(total.toFixed(2));
+    
+    // Return "-" if no valid weights were found, otherwise return the formatted total
+    return hasValidWeight ? Number(total.toFixed(2)) : "-";
   };
 
   return (
@@ -86,7 +120,25 @@ const AnnkutSidhuSaman = () => {
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
+          <TableContainer 
+            sx={{ 
+              width: "100%", 
+              overflowX: "auto",
+              maxHeight: "70vh", // Set maximum height
+              overflowY: "auto", // Enable vertical scrolling
+              "&::-webkit-scrollbar": {
+                width: "8px",
+                height: "8px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "rgba(36, 93, 107, 0.5)",
+                borderRadius: "4px",
+              },
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: "rgba(0, 0, 0, 0.1)",
+              },
+            }}
+          >
             <Table sx={{ width: "100%" }}>
               <TableHead>
                 <TableRow>
@@ -150,10 +202,7 @@ const AnnkutSidhuSaman = () => {
                 {ingredientWithId.map((ingredient, idx) => {
                   const rowBg = idx % 2 === 0 ? "#f7fbfc" : "#eaf3f6";
                   return (
-                    <TableRow
-                      key={ingredient.id}
-                      sx={{ backgroundColor: rowBg }}
-                    >
+                    <TableRow key={ingredient.id} sx={{ backgroundColor: rowBg }}>
                       <TableCell
                         sx={{
                           position: "sticky",

@@ -1,16 +1,25 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Event } from './event.entity';
 
 @Entity()
 export class BoxRange {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ type: 'varchar', length: 255 })
-    priceRange: string;
+  @Column()
+  priceRange: string;
 
-    @Column('jsonb')
-    boxType: { type: string; quantity: number }[];
-        
-    @Column({ type: 'integer', nullable: true }) // Changed to integer
-    gramPerBox: number;
+  @Column('simple-array')
+  boxType: string[];
+
+  @Column('float')
+  gramPerBox: number;
+
+  @Column({ nullable: true })
+  eventId: number;
+
+  @ManyToOne(() => Event, { eager: true })
+  @JoinColumn({ name: 'eventId' })
+  event: Event;
+
 }

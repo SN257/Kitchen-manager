@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
 import { BoxRangeService } from './box-range.service';
 import { BoxRange } from '../entities/box-range.entity';
 
@@ -8,7 +8,10 @@ export class BoxRangeController {
 
     // Get all box ranges
     @Get()
-    async findAll(): Promise<BoxRange[]> {
+    async findAll(@Query('eventId') eventId?: string) {
+        if (eventId) {
+            return this.boxRangeService.findByEventId(Number(eventId));
+        }
         return this.boxRangeService.findAll();
     }
 

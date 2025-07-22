@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter } from '@mui/material';
+import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter, MenuItem } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
@@ -9,18 +9,25 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import '../App.css'; 
+
 interface Mithai {
   id: number;
   vangiName: string;
   gram: number;
-  // nang: number;
 }
 
 interface BoxRange {
   id: number;
   priceRange: string;
-  gram: number;
+  gramPerBox: number;
 }
+
+type Event = {
+  id: string;
+  name: string;
+  eventName: string;
+  eventYear: string;
+};
 
 const WeightCalculation: React.FC = () => {
   const [mithais, setMithais] = useState<Mithai[]>([]);
@@ -32,19 +39,58 @@ const WeightCalculation: React.FC = () => {
     severity: 'success',
   });
   const [, setIsDirty] = useState(false);
-  const API_BASE_URL = useApiBaseUrl();
   const [entryId, setEntryId] = useState<number | null>(null);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  
+  // New states for event functionality
+  const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
+  const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
+  
+  const API_BASE_URL = useApiBaseUrl();
 
+  // Fetch Annkut events
   useEffect(() => {
-    fetch(`${API_BASE_URL}/weight-entries`)
+    const fetchAnnkutEvents = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
+        if (!res.ok) {
+          throw new Error(`Failed to fetch Annkut events: ${res.status}`);
+        }
+        const data = await res.json();
+        const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
+        setAnnkutEvents(filteredAnnkutEvents);
+      } catch (err) {
+        console.error('Failed to fetch Annkut events:', err);
+      }
+    };
+    fetchAnnkutEvents();
+  }, [API_BASE_URL]);
+
+  // Refresh data when event is selected
+  useEffect(() => {
+    if (selectedAnnkutEvent) {
+      fetchData();
+    }
+  }, [selectedAnnkutEvent]);
+
+  const fetchData = () => {
+    if (!selectedAnnkutEvent) {
+      setMithais([]);
+      setBoxRanges([]);
+      setEntryId(null);
+      setPieces({});
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`)
       .then(res => res.json())
       .then(data => setMithais(data || []));
-    fetch(`${API_BASE_URL}/box-weight-entries`)
+    
+    fetch(`${API_BASE_URL}/box-ranges?eventId=${selectedAnnkutEvent}`)
       .then(res => res.json())
       .then(data => setBoxRanges(data || []));
-    // Fetch the latest weight calculation entry
-    fetch(`${API_BASE_URL}/weight-calculation-entries/latest`)
+    
+    fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`)
       .then(res => res.json())
       .then(data => {
         if (data && data.id && data.entries) {
@@ -57,9 +103,26 @@ const WeightCalculation: React.FC = () => {
             });
           });
           setPieces(newPieces);
+        } else {
+          // Reset if no data found for this event
+          setEntryId(null);
+          setPieces({});
         }
       });
-  }, []);
+  };
+
+  useEffect(() => {
+    // Only fetch data if an event is selected
+    if (selectedAnnkutEvent) {
+      fetchData();
+    } else {
+      // Clear data when no event is selected
+      setMithais([]);
+      setBoxRanges([]);
+      setEntryId(null);
+      setPieces({});
+    }
+  }, [selectedAnnkutEvent]);
 
   const handlePieceChange = (mithaiId: number, boxId: number, value: string) => {
     // Allow empty string, or any string of digits (including leading zeros)
@@ -86,10 +149,15 @@ const WeightCalculation: React.FC = () => {
   };
 
   const gramWarnings = boxRanges
-    .filter(box => getTotalGramForBox(box.id) > box.gram)
-    .map(box => `Total gram for box range "${box.priceRange}" is over the allowed ${box.gram}g!`);
+    .filter(box => getTotalGramForBox(box.id) > box.gramPerBox)
+    .map(box => `Total gram for box range "${box.priceRange}" is over the allowed ${box.gramPerBox}g!`);
 
   const handleSave = async () => {
+    if (!selectedAnnkutEvent) {
+      setSnackbar({ open: true, message: 'Please select an Annkut event first.', severity: 'error' });
+      return;
+    }
+
     const hasEntry = Object.values(pieces).some(val => !!val && Number(val) > 0);
     if (!hasEntry) {
       setSnackbar({ open: true, message: 'Please enter at least one value before saving.', severity: 'error' });
@@ -119,7 +187,10 @@ const WeightCalculation: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/weight-calculation-entries${entryId ? `/${entryId}` : ''}`, {
         method: entryId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries: dataToSave }),
+        body: JSON.stringify({ 
+          entries: dataToSave,
+          eventId: selectedAnnkutEvent 
+        }),
       });
 
       if (response.ok) {
@@ -143,14 +214,60 @@ const WeightCalculation: React.FC = () => {
           Weight Calculation
         </Typography>
       </Box>
+
+      {/* Event Selection */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <TextField
+          select
+          label="Select Annkut Event"
+          value={selectedAnnkutEvent}
+          onChange={e => setSelectedAnnkutEvent(e.target.value)}
+          size="small"
+          sx={{
+            width: 200,
+            background: '#fff',
+            borderRadius: 1,
+            '& .MuiOutlinedInput-root': {
+              background: '#fff',
+              color: '#245D6B',
+            },
+            '& .MuiInputLabel-root': { color: '#245D6B' },
+            '& .MuiInputBase-input': { color: '#245D6B' },
+          }}
+        >
+          {annkutEvents.map(event => (
+            <MenuItem key={event.id} value={event.id}>
+              {event.eventName} - {event.eventYear}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Box>
+
       <Paper
         elevation={3}
         sx={{
           p: 2,
           borderRadius: 2,
           mx: 'auto',
+          opacity: selectedAnnkutEvent ? 1 : 0.5,
+          pointerEvents: selectedAnnkutEvent ? 'auto' : 'none',
+          position: 'relative',
         }}
       >
+        {!selectedAnnkutEvent && (
+          <Box sx={{ 
+            position: 'absolute', 
+            top: '50%', 
+            left: '50%', 
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10,
+            textAlign: 'center',
+            color: '#245D6B',
+            fontWeight: 600
+          }}>
+          </Box>
+        )}
+
         <TableContainer
           sx={{
             maxHeight: 450,
@@ -161,20 +278,6 @@ const WeightCalculation: React.FC = () => {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                {/* <TableCell
-                  sx={{
-                    fontWeight: 700,
-                    color: '#245D6B',
-                    position: 'sticky',
-                    left: 0,
-                    top: 0,
-                    background: '#fff',
-                    zIndex: 3,
-                    minWidth: 100,
-                  }}
-                >
-                  Nang
-                </TableCell> */}
                 <TableCell
                   sx={{
                     fontWeight: 700,
@@ -218,7 +321,7 @@ const WeightCalculation: React.FC = () => {
                   >
                     {box.priceRange}
                     <br />
-                    <span style={{ fontWeight: 400, fontSize: 12 }}>({box.gram}g)</span>
+                    <span style={{ fontWeight: 400, fontSize: 12 }}>({box.gramPerBox}g)</span>
                   </TableCell>
                 ))}
                 <TableCell
@@ -244,17 +347,6 @@ const WeightCalculation: React.FC = () => {
                 .sort((a, b) => a.id - b.id)
                 .map((mithai, mithaiIdx) => (
                   <TableRow key={mithai.id}>
-                    {/* <TableCell
-                      sx={{
-                        position: 'sticky',
-                        left: 0,
-                        background: '#fff',
-                        zIndex: 1,
-                        minWidth: 100,
-                      }}
-                    >
-                      {mithai.nang}
-                    </TableCell> */}
                     <TableCell
                       sx={{
                         position: 'sticky',
@@ -471,13 +563,17 @@ const WeightCalculation: React.FC = () => {
               </h1>
               <div style={{ color: '#555', fontSize: 16, marginTop: 4 }}>
                 {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
+                {selectedAnnkutEvent && (
+                  <span>
+                    &nbsp;|&nbsp; Event: {annkutEvents.find(event => event.id === selectedAnnkutEvent)?.eventName} - {annkutEvents.find(event => event.id === selectedAnnkutEvent)?.eventYear}
+                  </span>
+                )}
               </div>
             </div>
             <TableContainer>
               <Table>
                 <TableHead>
                   <TableRow>
-                    {/* <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Nang</TableCell> */}
                     <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Gram</TableCell>
                     <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Mithai</TableCell>
                     {boxRanges.map(box => (
@@ -485,7 +581,7 @@ const WeightCalculation: React.FC = () => {
                         key={box.id}
                         style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}
                       >
-                        {box.priceRange} <br />({box.gram}g)
+                        {box.priceRange} <br />({box.gramPerBox}g)
                       </TableCell>
                     ))}
                     <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Total Nang</TableCell>
@@ -497,7 +593,6 @@ const WeightCalculation: React.FC = () => {
                     .sort((a, b) => a.id - b.id)
                     .map(mithai => (
                       <TableRow key={mithai.id}>
-                        {/* <TableCell>{mithai.nang}</TableCell> */}
                         <TableCell>{mithai.gram}</TableCell>
                         <TableCell>{mithai.vangiName}</TableCell>
                         {boxRanges.map(box => (

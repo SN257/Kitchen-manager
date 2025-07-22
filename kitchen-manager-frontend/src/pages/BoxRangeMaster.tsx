@@ -20,6 +20,7 @@ import {
     Pagination,
     Snackbar,
     Alert,
+    MenuItem,
 } from '@mui/material';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import EditIcon from '@mui/icons-material/Edit';
@@ -31,12 +32,31 @@ const ROWS_PER_PAGE = 5;
 
 const BoxRangeEntry: React.FC = () => {
     const [priceRange, setPriceRange] = useState('');
-    const [boxType, setBoxType] = useState<string[]>([]); // Updated to support multiple box types
+    const [boxType, setBoxType] = useState<string[]>([]);
     const [gramPerBox, setGramPerBox] = useState('');
     const [search, setSearch] = useState('');
-    const [boxTypeOptions, setBoxTypeOptions] = useState<string[]>([]); // Options for the dropdown
-    const [boxRanges, setBoxRanges] = useState<{ id: number; priceRange: string; boxType: string[]; gramPerBox: number }[]>([]);
-    const [editingBox, setEditingBox] = useState<{ id: number; priceRange: string; boxType: string[]; gramPerBox: number } | null>(null);
+    const [boxTypeOptions, setBoxTypeOptions] = useState<string[]>([]);
+    const [boxRanges, setBoxRanges] = useState<{ 
+        id: number; 
+        priceRange: string; 
+        boxType: string[]; 
+        gramPerBox: number;
+        eventId?: number;
+        event?: {
+            id: number;
+            eventName: string;
+            eventYear: string;
+            description?: string;
+        };
+        createdAt: string;
+    }[]>([]);
+    const [editingBox, setEditingBox] = useState<{ 
+        id: number; 
+        priceRange: string; 
+        boxType: string[]; 
+        gramPerBox: number;
+        eventId?: number;
+    } | null>(null);
     const [deleteBoxId, setDeleteBoxId] = useState<number | null>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -44,43 +64,102 @@ const BoxRangeEntry: React.FC = () => {
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
+    
+    // New states for event functionality
+    type Event = {
+        id: string;
+        name: string;
+        eventName: string;
+        eventYear: string;
+    };
+    const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
+    const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
+    
     const API_BASE_URL = useApiBaseUrl();
 
-    // Fetch data from the database
+    // Fetch Annkut events
     useEffect(() => {
-        const fetchBoxRanges = async () => {
+        const fetchAnnkutEvents = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/box-ranges`);
-                const data = await response.json();
-    
-                // Normalize boxType to always be an array
-                const normalizedData = data.map((box: { boxType: string | string[] }) => ({
-                    ...box,
-                    boxType: Array.isArray(box.boxType) ? box.boxType : [box.boxType].filter(Boolean),
-                }));
-    
-                setBoxRanges(normalizedData);
-    
-                // Extract unique box types for the dropdown
-                const uniqueBoxTypes: string[] = Array.from(
-                    new Set(normalizedData.flatMap((box: { boxType: string[] }) => box.boxType))
-                );
-                setBoxTypeOptions(uniqueBoxTypes); // Ensure no duplicates
-            } catch (error) {
-                console.error('Error fetching box ranges:', error);
+                const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
+                if (!res.ok) {
+                    throw new Error(`Failed to fetch Annkut events: ${res.status}`);
+                }
+                const data = await res.json();
+                const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
+                setAnnkutEvents(filteredAnnkutEvents);
+            } catch (err) {
+                console.error('Failed to fetch Annkut events:', err);
             }
         };
+        fetchAnnkutEvents();
+    }, [API_BASE_URL]);
+
+    // Refresh box ranges when event is selected
+    useEffect(() => {
+        if (selectedAnnkutEvent) {
+            fetchBoxRanges();
+        }
+    }, [selectedAnnkutEvent]);
+
+    // Fetch data from the database
+    const fetchBoxRanges = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/box-ranges`);
+            const data = await response.json();
+
+            // Normalize boxType to always be an array
+            const normalizedData = data.map((box: { boxType: string | string[] }) => ({
+                ...box,
+                boxType: Array.isArray(box.boxType) ? box.boxType : [box.boxType].filter(Boolean),
+            }));
+
+            setBoxRanges(normalizedData);
+
+            // Extract unique box types for the dropdown
+            const uniqueBoxTypes: string[] = Array.from(
+                new Set(normalizedData.flatMap((box: { boxType: string[] }) => box.boxType))
+            );
+            setBoxTypeOptions(uniqueBoxTypes);
+        } catch (error) {
+            console.error('Error fetching box ranges:', error);
+        }
+    };
+
+    useEffect(() => {
         fetchBoxRanges();
     }, []);
 
     // Add a new box range
     const handleAdd = async () => {
+        if (!selectedAnnkutEvent) {
+            setError('Please select an Annkut event first.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+        
         if (!priceRange || boxType.length === 0 || !gramPerBox) {
             setError('Please fill in all fields.');
             setSuccess('');
             setOpenSnackbar(true);
             return;
         }
+
+        // Check for duplicates
+        const isDuplicate = boxRanges.some(box => 
+            box.priceRange === priceRange && 
+            box.eventId?.toString() === selectedAnnkutEvent.toString() &&
+            JSON.stringify(box.boxType.sort()) === JSON.stringify(boxType.sort())
+        );
+
+        if (isDuplicate) {
+            setError('This box range already exists for the selected event.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+
         try {
             const response = await fetch(`${API_BASE_URL}/box-ranges`, {
                 method: 'POST',
@@ -89,8 +168,9 @@ const BoxRangeEntry: React.FC = () => {
                 },
                 body: JSON.stringify({
                     priceRange,
-                    boxType, // Send as an array
+                    boxType,
                     gramPerBox,
+                    eventId: selectedAnnkutEvent,
                 }),
             });
             const newBoxRange = await response.json();
@@ -101,6 +181,7 @@ const BoxRangeEntry: React.FC = () => {
             setSuccess('Box range added successfully!');
             setError('');
             setOpenSnackbar(true);
+            fetchBoxRanges(); // Refresh data
         } catch (error) {
             setError('Failed to add box range.');
             setSuccess('');
@@ -173,11 +254,23 @@ const BoxRangeEntry: React.FC = () => {
         }
     };
 
-    const filteredBoxRanges = boxRanges.filter(
-        box =>
-            box.priceRange.toLowerCase().includes(search.toLowerCase()) ||
-            box.boxType.some(type => type.toLowerCase().includes(search.toLowerCase()))
-    );
+    const filteredBoxRanges = boxRanges
+        .filter(box => {
+            // Only show data if an event is selected
+            if (!selectedAnnkutEvent) {
+                return false; // Don't show any data when no event is selected
+            }
+            
+            // Filter by search term
+            const matchesSearch = box.priceRange.toLowerCase().includes(search.toLowerCase()) ||
+                box.boxType.some(type => type.toLowerCase().includes(search.toLowerCase()));
+            
+            // Filter by selected event
+            const matchesEvent = box.eventId?.toString() === selectedAnnkutEvent.toString();
+            
+            return matchesSearch && matchesEvent;
+        })
+        .sort((a, b) => new Date(a.createdAt || '').getTime() - new Date(b.createdAt || '').getTime());
 
     const pageCount = Math.ceil(filteredBoxRanges.length / ROWS_PER_PAGE);
     const paginatedBoxRanges = filteredBoxRanges.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
@@ -191,6 +284,34 @@ const BoxRangeEntry: React.FC = () => {
                     Box Range Entry
                 </Typography>
             </Box>
+
+            {/* Event Selection */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                <TextField
+                    select
+                    label="Select Annkut Event"
+                    value={selectedAnnkutEvent}
+                    onChange={e => setSelectedAnnkutEvent(e.target.value)}
+                    size="small"
+                    sx={{
+                        width: 200,
+                        background: '#fff',
+                        borderRadius: 1,
+                        '& .MuiOutlinedInput-root': {
+                            background: '#fff',
+                            color: '#245D6B',
+                        },
+                        '& .MuiInputLabel-root': { color: '#245D6B' },
+                        '& .MuiInputBase-input': { color: '#245D6B' },
+                    }}
+                >
+                    {annkutEvents.map(event => (
+                        <MenuItem key={event.id} value={event.id}>
+                            {event.eventName} - {event.eventYear}
+                        </MenuItem>
+                    ))}
+                </TextField>
+            </Box>
             {/* Paper Container */}
             <Paper
                 elevation={4}
@@ -200,8 +321,24 @@ const BoxRangeEntry: React.FC = () => {
                     width: '100%',
                     borderRadius: 2,
                     boxShadow: '0 4px 24px rgba(36,93,107,0.08)',
+                    opacity: selectedAnnkutEvent ? 1 : 0.5,
+                    pointerEvents: selectedAnnkutEvent ? 'auto' : 'none',
+                    position: 'relative',
                 }}
             >
+                {!selectedAnnkutEvent && (
+                    <Box sx={{ 
+                        position: 'absolute', 
+                        top: '50%', 
+                        left: '50%', 
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 10,
+                        textAlign: 'center',
+                        color: '#245D6B',
+                        fontWeight: 600
+                    }}>
+                    </Box>
+                )}
                 {/* Form Fields */}
                 <Box
                     component="form"
@@ -335,11 +472,18 @@ const BoxRangeEntry: React.FC = () => {
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Price Range</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Box Type</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Gram per Box</TableCell>
+                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Event</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {paginatedBoxRanges.length > 0 ? (
+                        {!selectedAnnkutEvent ? (
+                            <TableRow>
+                                <TableCell colSpan={7} align="center" sx={{ color: '#245D6B', fontStyle: 'italic', py: 4, fontSize: 16 }}>
+                                    Please select an Annkut event first
+                                </TableCell>
+                            </TableRow>
+                        ) : paginatedBoxRanges.length > 0 ? (
                             paginatedBoxRanges.map((box, idx) => (
                                 <TableRow key={box.id}>
                                     <TableCell sx={{ fontSize: 16 }}>
@@ -352,7 +496,11 @@ const BoxRangeEntry: React.FC = () => {
                                     <TableCell sx={{ fontSize: 16 }}>
                                         {box.gramPerBox ? `${box.gramPerBox} g` : 'N/A'}
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ fontSize: 16 }}>
+                                        {box.event?.eventName || 'N/A'} - {box.event?.eventYear || 'N/A'}
+                                    </TableCell>
+                                    
+                                    <TableCell sx={{ fontSize: 16 }}>
                                         <IconButton
                                             size="small"
                                             sx={{ color: '#245D6B' }}
@@ -372,7 +520,7 @@ const BoxRangeEntry: React.FC = () => {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} align="center">
+                                <TableCell colSpan={7} align="center" sx={{ color: '#999', fontStyle: 'italic', py: 4 }}>
                                     No data found.
                                 </TableCell>
                             </TableRow>
@@ -381,7 +529,7 @@ const BoxRangeEntry: React.FC = () => {
                 </Table>
             </TableContainer>
             {/* Pagination */}
-            {pageCount > 1 && (
+            {selectedAnnkutEvent && selectedAnnkutEvent && pageCount > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                     <Pagination
                         count={pageCount}

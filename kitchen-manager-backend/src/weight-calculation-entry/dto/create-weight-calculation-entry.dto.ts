@@ -13,5 +13,6 @@ export class BoxEntryDto {
   }
   
   export class CreateWeightCalculationEntryDto {
-    entries: MithaiEntryDto[];
+    entries: any[];
+    eventId?: number;
   }

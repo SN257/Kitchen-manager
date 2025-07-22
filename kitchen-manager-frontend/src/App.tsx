@@ -9,7 +9,7 @@ import Login from './pages/login';
 import CreateUser from './pages/CreateUser';
 import EventMaster from './pages/EventMaster';
 import WeightEntry from './pages/WeightMaster';
-import BoxWeightEntry from './pages/BoxWeightEntry';
+import BoxWeightEntry from './pages/BoxNosMaster';
 import WeightCalculation from './pages/WeightCalculation';
 import AnnkutNosSummary from './pages/AnnkutNosSummary';
 import BoxRangeEntry from './pages/BoxRangeMaster';

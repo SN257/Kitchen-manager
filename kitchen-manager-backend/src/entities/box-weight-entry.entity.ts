@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Event } from './event.entity';
 
 @Entity()
 export class BoxWeightEntry {
@@ -12,5 +13,13 @@ export class BoxWeightEntry {
   totalBoxes: string;
 
   @Column()
-  boxType: string; // New column for box type
+  boxType: string;
+
+  @Column({ nullable: true })
+  eventId: number;
+
+  @ManyToOne(() => Event, { eager: true })
+  @JoinColumn({ name: 'eventId' })
+  event: Event;
+
 }

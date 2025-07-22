@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Put, Param, Get, Delete, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Put, Param, Get, Delete, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { WeightCalculationEntryService } from './weight-calculation-entry.service';
 import { CreateWeightCalculationEntryDto } from './dto/create-weight-calculation-entry.dto';
 
@@ -19,9 +19,8 @@ export class WeightCalculationEntryController {
   }
 
   @Get('latest')
-  async getLatest() {
-    // You may want to filter by user if multi-user
-    return this.service.getLatest();
+  async getLatest(@Query('eventId') eventId?: string) {
+    return this.service.getLatest(eventId ? Number(eventId) : undefined);
   }
 
   @Delete('delete-by-box/:boxId')
