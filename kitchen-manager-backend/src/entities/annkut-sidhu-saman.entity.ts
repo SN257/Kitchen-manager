@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Event } from './event.entity';
 
 @Entity()
 export class AnnkutSidhuSaman {
@@ -11,9 +12,20 @@ export class AnnkutSidhuSaman {
   @Column()
   mithai_name: string;
 
-  @Column()
+  @Column('float')
   total_nang: number;
 
   @Column('float')
   total_flour: number;
+
+  @Column()
+  eventId: number;
+
+  @ManyToOne(() => Event)
+  @JoinColumn({ name: 'eventId' })
+  event: Event;
+
+  @Column()
+  userId: number;
+
 }

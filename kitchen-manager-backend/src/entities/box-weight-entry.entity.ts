@@ -10,10 +10,10 @@ export class BoxWeightEntry {
   priceRange: string;
 
   @Column()
-  totalBoxes: string;
+  boxType: string;
 
   @Column()
-  boxType: string;
+  totalBoxes: number;
 
   @Column({ nullable: true })
   eventId: number;
@@ -22,4 +22,6 @@ export class BoxWeightEntry {
   @JoinColumn({ name: 'eventId' })
   event: Event;
 
+  @Column()
+  userId: number;
 }

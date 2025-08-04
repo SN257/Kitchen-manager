@@ -1,16 +1,27 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, HttpException, HttpStatus, Req, Query, UnauthorizedException } from '@nestjs/common';
 import { BoxWeightEntryService } from './box-weight-entry.service';
 import { CreateBoxWeightEntryDto } from './dto/create-box-weight-entry.dto';
 import { UpdateBoxWeightEntryDto } from './dto/update-box-weight-entry.dto';
 import { BoxWeightEntry } from '../entities/box-weight-entry.entity';
+import { Request } from 'express';
+
+interface CustomSession {
+  userId: number;
+}
 
 @Controller('box-weight-entries')
 export class BoxWeightEntryController {
   constructor(private readonly boxWeightEntryService: BoxWeightEntryService) {}
 
   @Get()
-  findAll() {
-    return this.boxWeightEntryService.findAll();
+  async findAll(@Req() req: Request & { session: CustomSession }, @Query('eventId') eventId?: string) {
+    const { userId } = req.session;
+    if (!userId) throw new UnauthorizedException('Not logged in');
+
+    if (eventId) {
+      return this.boxWeightEntryService.findByEventIdAndUser(Number(eventId), userId);
+    }
+    return this.boxWeightEntryService.findAllByUser(userId);
   }
 
   @Get(':id')
@@ -19,17 +30,11 @@ export class BoxWeightEntryController {
   }
 
   @Post()
-  async createOrUpdateEntries(@Body() entries: BoxWeightEntry[]): Promise<BoxWeightEntry[]> {
-    if (!Array.isArray(entries)) {
-      throw new HttpException('Invalid payload format. Expected an array.', HttpStatus.BAD_REQUEST);
-    }
-
-    try {
-      return await this.boxWeightEntryService.createOrUpdateEntries(entries);
-    } catch (error) {
-      console.error('Error saving box weight entries:', error);
-      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+  async create(@Body() entries: Partial<BoxWeightEntry>[], @Req() req: Request & { session: CustomSession }) {
+    const { userId } = req.session;
+    if (!userId) throw new UnauthorizedException('Not logged in');
+    
+    return this.boxWeightEntryService.createMultiple(entries, userId);
   }
 
   @Put(':id')

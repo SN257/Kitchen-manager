@@ -11,12 +11,24 @@ export class WeightCalculationEntryService {
     private repo: Repository<WeightCalculationEntry>,
   ) {}
 
-  async create(dto: CreateWeightCalculationEntryDto): Promise<WeightCalculationEntry> {
-    const entry = this.repo.create(dto);
+  async create(dto: CreateWeightCalculationEntryDto, userId: number): Promise<WeightCalculationEntry> {
+    const entry = this.repo.create({
+      ...dto,
+      userId
+    });
     return this.repo.save(entry);
   }
 
-  async update(id: number, dto: CreateWeightCalculationEntryDto): Promise<WeightCalculationEntry> {
+  async update(id: number, dto: CreateWeightCalculationEntryDto, userId: number): Promise<WeightCalculationEntry> {
+    // Verify the entry belongs to the user
+    const existingEntry = await this.repo.findOne({
+      where: { id, userId }
+    });
+    
+    if (!existingEntry) {
+      throw new Error(`WeightCalculationEntry with id ${id} not found or access denied`);
+    }
+    
     await this.repo.update(id, dto);
     const entry = await this.repo.findOneBy({ id });
     if (!entry) {
@@ -42,5 +54,13 @@ export class WeightCalculationEntryService {
       const filteredEntries = entry.entries.filter((e: any) => e.boxId !== boxId);
       await this.repo.update(entry.id, { entries: filteredEntries });
     }
+  }
+
+  async findLatestByEventAndUser(eventId: number, userId: number) {
+    return this.repo.findOne({
+      where: { eventId, userId },
+      order: { createdAt: 'DESC' },
+      relations: ['event']
+    });
   }
 }

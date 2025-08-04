@@ -13,28 +13,32 @@ import BoxWeightEntry from './pages/BoxNosMaster';
 import WeightCalculation from './pages/WeightCalculation';
 import AnnkutNosSummary from './pages/AnnkutNosSummary';
 import BoxRangeEntry from './pages/BoxRangeMaster';
-import AnnkutSidhuSaman from './pages/AnnkutSidhuSaman';
+import AnnkutSidhuSaman from './pages/AnnkutIngredientSummary';
+import { AnnkutEventProvider } from './contexts/AnnkutEventContext';
 
-const App = () => (
-  <Routes>
-    <Route path="/" element={<Navigate to="/login" replace />} />
-    <Route path="/login" element={<Login />} />
-    <Route path="/dashboard/*" element={<Home />}>
-      <Route index element={<Dashboard />} />
-      <Route path="add-food-item" element={<AddFoodItem />} />
-      <Route path="add-ingredient" element={<AddIngrediants />} />
-      <Route path="recipe-entry" element={<RecipeEntry />} />
-      <Route path="create-user" element={<CreateUser />} />
-      <Route path="event-master" element={<EventMaster />} />
-      <Route path="box-annkut/weight-entry" element={<WeightEntry />} />
-      <Route path="box-annkut/box-weight-entry" element={<BoxWeightEntry />} /> 
-      <Route path="box-annkut/WeightCalculation" element={<WeightCalculation />} /> 
-      <Route path="box-annkut/AnnkutNosSummary" element={<AnnkutNosSummary/>} />   
-      <Route path="box-annkut/AnnkutSidhuSaman" element={<AnnkutSidhuSaman/>} />   
-      <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />      
-    </Route>
-
-  </Routes>
-);
+function App() {
+  return (
+    <AnnkutEventProvider>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard/*" element={<Home />}>
+          <Route index element={<Dashboard />} />
+          <Route path="add-food-item" element={<AddFoodItem />} />
+          <Route path="add-ingredient" element={<AddIngrediants />} />
+          <Route path="recipe-entry" element={<RecipeEntry />} />
+          <Route path="create-user" element={<CreateUser />} />
+          <Route path="event-master" element={<EventMaster />} />
+          <Route path="box-annkut/weight-entry" element={<WeightEntry />} />
+          <Route path="box-annkut/box-weight-entry" element={<BoxWeightEntry />} /> 
+          <Route path="box-annkut/WeightCalculation" element={<WeightCalculation />} /> 
+          <Route path="box-annkut/AnnkutNosSummary" element={<AnnkutNosSummary/>} />   
+          <Route path="box-annkut/AnnkutSidhuSaman" element={<AnnkutSidhuSaman/>} />   
+          <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />      
+        </Route>
+      </Routes>
+    </AnnkutEventProvider>
+  );
+}
 
 export default App;

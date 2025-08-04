@@ -21,4 +21,7 @@ export class WeightEntry {
   
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column()
+  userId: number;
 }

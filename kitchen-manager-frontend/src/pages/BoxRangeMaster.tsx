@@ -20,13 +20,13 @@ import {
     Pagination,
     Snackbar,
     Alert,
-    MenuItem,
 } from '@mui/material';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useApiBaseUrl } from '../config/config'; // Import BASE_URL from config.ts
+import { useApiBaseUrl } from '../config/config';
 import Autocomplete from '@mui/material/Autocomplete';
+import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
 const ROWS_PER_PAGE = 5;
 
@@ -36,6 +36,7 @@ const BoxRangeEntry: React.FC = () => {
     const [gramPerBox, setGramPerBox] = useState('');
     const [search, setSearch] = useState('');
     const [boxTypeOptions, setBoxTypeOptions] = useState<string[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [boxRanges, setBoxRanges] = useState<{ 
         id: number; 
         priceRange: string; 
@@ -65,47 +66,69 @@ const BoxRangeEntry: React.FC = () => {
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
     
-    // New states for event functionality
-    type Event = {
-        id: string;
-        name: string;
-        eventName: string;
-        eventYear: string;
-    };
-    const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
-    const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
+    // Use context instead of local state
+    const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
     
     const API_BASE_URL = useApiBaseUrl();
 
-    // Fetch Annkut events
+    // Fetch current user data
     useEffect(() => {
-        const fetchAnnkutEvents = async () => {
+        const fetchCurrentUser = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch Annkut events: ${res.status}`);
+                const res = await fetch(`${API_BASE_URL}/user/me`, {
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                if (res.ok) {
+                    const userData = await res.json();
+                    setCurrentUser(userData);
+                    console.log('Current user:', userData);
+                } else {
+                    console.error('Failed to fetch user data');
                 }
-                const data = await res.json();
-                const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
-                setAnnkutEvents(filteredAnnkutEvents);
-            } catch (err) {
-                console.error('Failed to fetch Annkut events:', err);
+            } catch (error) {
+                console.error('Error fetching user data:', error);
             }
         };
-        fetchAnnkutEvents();
+        fetchCurrentUser();
     }, [API_BASE_URL]);
-
-    // Refresh box ranges when event is selected
-    useEffect(() => {
-        if (selectedAnnkutEvent) {
-            fetchBoxRanges();
-        }
-    }, [selectedAnnkutEvent]);
 
     // Fetch data from the database
     const fetchBoxRanges = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/box-ranges`);
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.log('No token found, user not logged in');
+                return;
+            }
+
+            let url = `${API_BASE_URL}/box-ranges`;
+            if (selectedAnnkutEvent) {
+                url += `?eventId=${selectedAnnkutEvent}`;
+            }
+            const response = await fetch(url, {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    console.error('Authentication failed - session expired');
+                    localStorage.clear();
+                    window.location.href = '/login';
+                    return;
+                }
+                console.error('Failed to fetch box ranges:', response.status);
+                setBoxRanges([]);
+                return;
+            }
+
             const data = await response.json();
 
             // Normalize boxType to always be an array
@@ -114,7 +137,7 @@ const BoxRangeEntry: React.FC = () => {
                 boxType: Array.isArray(box.boxType) ? box.boxType : [box.boxType].filter(Boolean),
             }));
 
-            setBoxRanges(normalizedData);
+            setBoxRanges(selectedAnnkutEvent ? normalizedData : []);
 
             // Extract unique box types for the dropdown
             const uniqueBoxTypes: string[] = Array.from(
@@ -126,12 +149,25 @@ const BoxRangeEntry: React.FC = () => {
         }
     };
 
+    // Refresh box ranges when event is selected
     useEffect(() => {
-        fetchBoxRanges();
-    }, []);
+        if (selectedAnnkutEvent) {
+            fetchBoxRanges();
+        } else {
+            setBoxRanges([]);
+            setBoxTypeOptions([]);
+        }
+    }, [selectedAnnkutEvent, API_BASE_URL]);
 
     // Add a new box range
     const handleAdd = async () => {
+        if (!currentUser) {
+            setError('User not authenticated. Please login again.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+
         if (!selectedAnnkutEvent) {
             setError('Please select an Annkut event first.');
             setSuccess('');
@@ -163,16 +199,24 @@ const BoxRangeEntry: React.FC = () => {
         try {
             const response = await fetch(`${API_BASE_URL}/box-ranges`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
                     priceRange,
                     boxType,
-                    gramPerBox,
-                    eventId: selectedAnnkutEvent,
+                    gramPerBox: Number(gramPerBox),
+                    eventId: selectedAnnkutEvent
+                    // Remove userId from body as backend gets it from session
                 }),
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to add box range');
+            }
+
             const newBoxRange = await response.json();
             setBoxRanges(prev => [...prev, newBoxRange]);
             setPriceRange('');
@@ -197,19 +241,32 @@ const BoxRangeEntry: React.FC = () => {
 
     // Save edited box range
     const handleEditSave = async () => {
-        if (!editingBox) return;
+        if (!editingBox || !currentUser) {
+            setError('User not authenticated. Please login again.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+        
         try {
-            await fetch(`${API_BASE_URL}/box-ranges/${editingBox.id}`, {
+            const response = await fetch(`${API_BASE_URL}/box-ranges/${editingBox.id}`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
                     priceRange: editingBox.priceRange,
-                    boxType: editingBox.boxType, // Send as an array
+                    boxType: editingBox.boxType,
                     gramPerBox: editingBox.gramPerBox,
                 }),
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to update box range');
+            }
+
             setBoxRanges(prev =>
                 prev.map(box =>
                     box.id === editingBox.id
@@ -237,10 +294,27 @@ const BoxRangeEntry: React.FC = () => {
 
     // Confirm delete
     const handleDeleteConfirm = async () => {
+        if (!deleteBoxId || !currentUser) {
+            setError('User not authenticated. Please login again.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+        
         try {
-            await fetch(`${API_BASE_URL}/box-ranges/${deleteBoxId}`, {
+            const response = await fetch(`${API_BASE_URL}/box-ranges/${deleteBoxId}`, {
                 method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete box range');
+            }
+
             setBoxRanges(prev => prev.filter(box => box.id !== deleteBoxId));
             setDeleteDialogOpen(false);
             setDeleteBoxId(null);
@@ -278,40 +352,17 @@ const BoxRangeEntry: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
             {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Inventory2Icon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                 <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-                    Box Range Entry
+                    Box Range Master
                 </Typography>
+                {selectedEventDetails && (
+                    <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
+                        - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
+                    </Typography>
+                )}
             </Box>
 
-            {/* Event Selection */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                <TextField
-                    select
-                    label="Select Annkut Event"
-                    value={selectedAnnkutEvent}
-                    onChange={e => setSelectedAnnkutEvent(e.target.value)}
-                    size="small"
-                    sx={{
-                        width: 200,
-                        background: '#fff',
-                        borderRadius: 1,
-                        '& .MuiOutlinedInput-root': {
-                            background: '#fff',
-                            color: '#245D6B',
-                        },
-                        '& .MuiInputLabel-root': { color: '#245D6B' },
-                        '& .MuiInputBase-input': { color: '#245D6B' },
-                    }}
-                >
-                    {annkutEvents.map(event => (
-                        <MenuItem key={event.id} value={event.id}>
-                            {event.eventName} - {event.eventYear}
-                        </MenuItem>
-                    ))}
-                </TextField>
-            </Box>
             {/* Paper Container */}
             <Paper
                 elevation={4}
@@ -337,6 +388,7 @@ const BoxRangeEntry: React.FC = () => {
                         color: '#245D6B',
                         fontWeight: 600
                     }}>
+                        
                     </Box>
                 )}
                 {/* Form Fields */}

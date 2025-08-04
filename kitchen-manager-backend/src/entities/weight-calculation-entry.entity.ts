@@ -1,18 +1,27 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Event } from './event.entity';
 
-@Entity('weight_calculation_entries')
+@Entity()
 export class WeightCalculationEntry {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column('jsonb')
-  entries: any[];
-
-  @Column({ nullable: true })
+  @Column()
   eventId: number;
 
-  @ManyToOne(() => Event, { nullable: true })
+  @ManyToOne(() => Event)
   @JoinColumn({ name: 'eventId' })
   event: Event;
+
+  @Column()
+  userId: number;
+
+  @Column('json')
+  entries: any[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

@@ -27,21 +27,35 @@ export class UserController {
     if (!user) {
       throw new UnauthorizedException('Invalid username or password');
     }
+    
+    // Set session data
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
     req.session.center = user.center;
-    const result = await this.authService.login(user);
-    return {
-      ...result,
-      username: user.username,
-      user: {
-        id: user.id,
-        username: user.username,
-        center: user.center,
-        role: user.role,
-      }
-    };
+    
+    // Force session save
+    return new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          reject(new Error('Session save failed'));
+        } else {
+          console.log('Session saved successfully:', req.session);
+          const result = this.authService.login(user);
+          resolve({
+            ...result,
+            username: user.username,
+            user: {
+              id: user.id,
+              username: user.username,
+              center: user.center,
+              role: user.role,
+            }
+          });
+        }
+      });
+    });
   }
 
   @Post('register')

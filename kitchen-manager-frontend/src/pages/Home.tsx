@@ -38,6 +38,7 @@ import Inventory2Icon from "@mui/icons-material/Inventory2";
 import CalculateIcon from "@mui/icons-material/Calculate";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import "../App.css";
+import AnnkutEventSelector from '../components/AnnkutEventSelector';
 const drawerWidth = 250;
 
 const sidebarItemSx = {
@@ -120,6 +121,11 @@ const Dashboard: React.FC = () => {
 
   // Helper for active tab
   const isActive = (path: string) => location.pathname === path;
+
+  // Add helper function to check if current page is an Annkut page
+  const isAnnkutPage = (pathname: string) => {
+    return pathname.includes('/box-annkut/') || pathname.includes('/section-annkut/');
+  };
 
   const drawer = (
     <Box
@@ -456,6 +462,22 @@ const Dashboard: React.FC = () => {
           </IconButton>
           <Box sx={{ flexGrow: 1 }} /> {/* Spacer */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            {/* Show event selector only on Annkut pages */}
+            {isAnnkutPage(location.pathname) && (
+              <>
+                <AnnkutEventSelector />
+                <Box
+                  sx={{
+                    width: "2px",
+                    height: "28px",
+                    bgcolor: "#ccc",
+                    ml: 2,
+                    mr: 1,
+                    borderRadius: 1,
+                  }}
+                />
+              </>
+            )}
             <Typography
               variant="subtitle1"
               sx={{

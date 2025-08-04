@@ -46,7 +46,12 @@ const EventMaster: React.FC = () => {
     // Fetch events from backend
     const fetchEvents = async () => {
         try {
-            const res = await axios.get(`${API_BASE_URL}/api/events`);
+            const res = await axios.get(`${API_BASE_URL}/api/events`, {
+                withCredentials: true,
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+            });
             setEvents(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             setError('Failed to fetch events');
@@ -82,6 +87,11 @@ const EventMaster: React.FC = () => {
                 eventName,
                 eventYear,
                 description,
+            }, {
+                withCredentials: true,
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
             });
             setSuccess('Event saved successfully!');
             setEventName('');

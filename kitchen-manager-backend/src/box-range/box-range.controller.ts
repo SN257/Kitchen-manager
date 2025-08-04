@@ -1,41 +1,59 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
 import { BoxRangeService } from './box-range.service';
 import { BoxRange } from '../entities/box-range.entity';
+
+interface CustomSession {
+  userId?: number;
+  username?: string;
+  role?: string;
+  center?: string;
+}
 
 @Controller('box-ranges')
 export class BoxRangeController {
     constructor(private readonly boxRangeService: BoxRangeService) {}
 
-    // Get all box ranges
     @Get()
-    async findAll(@Query('eventId') eventId?: string) {
+    async findAll(@Req() req: Request & { session: CustomSession }, @Query('eventId') eventId?: string) {
+        const { userId } = req.session;
+        if (!userId) throw new UnauthorizedException('Not logged in');
+
         if (eventId) {
-            return this.boxRangeService.findByEventId(Number(eventId));
+            return this.boxRangeService.findByEventIdAndUser(Number(eventId), userId);
         }
-        return this.boxRangeService.findAll();
+        return this.boxRangeService.findAllByUser(userId);
     }
 
-    // Get a single box range by ID
     @Get(':id')
-    async findOne(@Param('id') id: number): Promise<BoxRange> {
-        return this.boxRangeService.findOne(id);
+    async findOne(@Param('id') id: number, @Req() req: Request & { session: CustomSession }): Promise<BoxRange> {
+        const { userId } = req.session;
+        if (!userId) throw new UnauthorizedException('Not logged in');
+        
+        return this.boxRangeService.findOneByUser(id, userId);
     }
 
-    // Create a new box range
     @Post()
-    async create(@Body() boxRange: Partial<BoxRange>): Promise<BoxRange> {
-        return this.boxRangeService.create(boxRange);
+    async create(@Body() boxRange: Partial<BoxRange>, @Req() req: Request & { session: CustomSession }): Promise<BoxRange> {
+        const { userId } = req.session;
+        if (!userId) throw new UnauthorizedException('Not logged in');
+        
+        return this.boxRangeService.create(boxRange, userId);
     }
 
-    // Update an existing box range
     @Put(':id')
-    async update(@Param('id') id: number, @Body() boxRange: Partial<BoxRange>): Promise<BoxRange> {
-        return this.boxRangeService.update(id, boxRange);
+    async update(@Param('id') id: number, @Body() boxRange: Partial<BoxRange>, @Req() req: Request & { session: CustomSession }): Promise<BoxRange> {
+        const { userId } = req.session;
+        if (!userId) throw new UnauthorizedException('Not logged in');
+        
+        return this.boxRangeService.update(id, boxRange, userId);
     }
 
-    // Delete a box range
     @Delete(':id')
-    async delete(@Param('id') id: number): Promise<void> {
-        return this.boxRangeService.delete(id);
+    async delete(@Param('id') id: number, @Req() req: Request & { session: CustomSession }): Promise<void> {
+        const { userId } = req.session;
+        if (!userId) throw new UnauthorizedException('Not logged in');
+        
+        return this.boxRangeService.delete(id, userId);
     }
 }

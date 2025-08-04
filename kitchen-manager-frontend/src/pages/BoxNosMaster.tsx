@@ -21,10 +21,10 @@ import {
   Pagination,
   MenuItem,
 } from '@mui/material';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useApiBaseUrl } from '../config/config';
+import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
 const ROWS_PER_PAGE = 5;
 
@@ -44,49 +44,51 @@ const BoxWeightEntry: React.FC = () => {
   });
   const [totalBoxesByType, setTotalBoxesByType] = useState<{ [key: string]: string }>({});
   
-  // Add event-related state
-  type Event = {
-    id: string;
-    name: string;
-    eventName: string;
-    eventYear: string;
-  };
-  const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
-  const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
+  // Use context instead of local state
+  const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   
   const API_BASE_URL = useApiBaseUrl();
 
   // Move fetchBoxEntries outside useEffect so it can be reused
   const fetchBoxEntries = async () => {
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, user not logged in');
+        return;
+      }
+
       let url = `${API_BASE_URL}/box-weight-entries`;
       if (selectedAnnkutEvent) {
         url += `?eventId=${selectedAnnkutEvent}`;
       }
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          console.error('Authentication failed - session expired');
+          localStorage.clear();
+          window.location.href = '/login';
+          return;
+        }
+        console.error('Failed to fetch box entries:', res.status);
+        setBoxEntries([]);
+        return;
+      }
+
       const data = await res.json();
       setBoxEntries(selectedAnnkutEvent ? data : []);
-    } catch {
+    } catch (error) {
+      console.error('Error fetching box entries:', error);
       setSnackbar({ open: true, message: 'Failed to fetch box entries.', severity: 'error' });
     }
   };
-
-  useEffect(() => {
-    const fetchAnnkutEvents = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch Annkut events: ${res.status}`);
-        }
-        const data = await res.json();
-        const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
-        setAnnkutEvents(filteredAnnkutEvents);
-      } catch (err) {
-        console.error('Failed to fetch Annkut events:', err);
-      }
-    };
-    fetchAnnkutEvents();
-  }, [API_BASE_URL]);
 
   useEffect(() => {
     if (selectedAnnkutEvent) {
@@ -103,14 +105,40 @@ const BoxWeightEntry: React.FC = () => {
   useEffect(() => {
     const fetchBoxRanges = async () => {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.log('No token found, user not logged in');
+          return;
+        }
+
         let url = `${API_BASE_URL}/box-ranges`;
         if (selectedAnnkutEvent) {
           url += `?eventId=${selectedAnnkutEvent}`;
         }
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            console.error('Authentication failed - session expired');
+            localStorage.clear();
+            window.location.href = '/login';
+            return;
+          }
+          console.error('Failed to fetch box ranges:', res.status);
+          setBoxRanges([]);
+          return;
+        }
+
         const data = await res.json();
         setBoxRanges(selectedAnnkutEvent ? data : []);
-      } catch {
+      } catch (error) {
+        console.error('Error fetching box ranges:', error);
         setSnackbar({ open: true, message: 'Failed to fetch box ranges.', severity: 'error' });
       }
     };
@@ -118,7 +146,7 @@ const BoxWeightEntry: React.FC = () => {
     if (selectedAnnkutEvent) {
       fetchBoxRanges();
     } else {
-      setBoxRanges([]); // Clear box ranges when no event selected
+      setBoxRanges([]);
     }
   }, [selectedAnnkutEvent]);
 
@@ -134,7 +162,7 @@ const BoxWeightEntry: React.FC = () => {
       // Check for duplicate price range for the selected event
       const isDuplicate = boxEntries.some(entry => 
         entry.priceRange === priceRange && 
-        entry.eventId?.toString() === selectedAnnkutEvent.toString()
+        entry.eventId?.toString() === String(selectedAnnkutEvent)
       );
 
       if (isDuplicate) {
@@ -147,12 +175,16 @@ const BoxWeightEntry: React.FC = () => {
           priceRange,
           boxType: type,
           totalBoxes: Number(totalBoxes),
-          eventId: selectedAnnkutEvent,
+          eventId: Number(selectedAnnkutEvent),
         }));
 
         const res = await fetch(`${API_BASE_URL}/box-weight-entries`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
           body: JSON.stringify(entries),
         });
 
@@ -194,7 +226,11 @@ const BoxWeightEntry: React.FC = () => {
         
         const res = await fetch(`${API_BASE_URL}/box-weight-entries/${editEntry.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
           body: JSON.stringify(entryData),
         });
         if (!res.ok) {
@@ -216,13 +252,25 @@ const BoxWeightEntry: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/box-weight-entries/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/box-weight-entries/${id}`, { 
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to delete box entry.', severity: 'error' });
         return;
       }
   
-      const weightRes = await fetch(`${API_BASE_URL}/weight-calculation-entries/delete-by-box/${id}`, { method: 'DELETE' });
+      const weightRes = await fetch(`${API_BASE_URL}/weight-calculation-entries/delete-by-box/${id}`, { 
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       if (!weightRes.ok) {
         setSnackbar({ open: true, message: 'Failed to delete associated weight calculation entries.', severity: 'error' });
         return;
@@ -244,7 +292,7 @@ const BoxWeightEntry: React.FC = () => {
       const matchesSearch = entry.priceRange.toLowerCase().includes(boxSearch.toLowerCase()) ||
         entry.boxType.toLowerCase().includes(boxSearch.toLowerCase());
       
-      const matchesEvent = entry.eventId?.toString() === selectedAnnkutEvent.toString();
+      const matchesEvent = entry.eventId?.toString() === String(selectedAnnkutEvent);
       
       return matchesSearch && matchesEvent;
     })
@@ -264,39 +312,15 @@ const BoxWeightEntry: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
       {/* Title and Event Dropdown */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Inventory2Icon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
-          <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-            Box Nos Master
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
+          Box Numbers Master
+        </Typography>
+        {selectedEventDetails && (
+          <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
+            - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
           </Typography>
-        </Box>
-        
-        {/* Annkut Event Dropdown */}
-        <TextField
-          select
-          label="Select Annkut Event"
-          value={selectedAnnkutEvent}
-          onChange={e => setSelectedAnnkutEvent(e.target.value)}
-          size="small"
-          sx={{
-            width: 200,
-            background: '#fff',
-            borderRadius: 1,
-            '& .MuiOutlinedInput-root': {
-              background: '#fff',
-              color: '#245D6B',
-            },
-            '& .MuiInputLabel-root': { color: '#245D6B' },
-            '& .MuiInputBase-input': { color: '#245D6B' },
-          }}
-        >
-          {annkutEvents.map(event => (
-            <MenuItem key={event.id} value={event.id}>
-              {event.eventName} - {event.eventYear}
-            </MenuItem>
-          ))}
-        </TextField>
+        )}
       </Box>
       {/* Form Section */}
       <Paper 
@@ -471,7 +495,7 @@ const BoxWeightEntry: React.FC = () => {
                     <TableCell>{entry.boxType}</TableCell>
                     <TableCell>{entry.totalBoxes}</TableCell>
                     <TableCell>
-                      {annkutEvents.find(event => event.id.toString() === entry.eventId?.toString())?.eventName || 'N/A'} - {annkutEvents.find(event => event.id.toString() === entry.eventId?.toString())?.eventYear || 'N/A'}
+                      {selectedEventDetails?.eventName || 'N/A'} - {selectedEventDetails?.eventYear || 'N/A'}
                     </TableCell>
                     <TableCell>
                       <IconButton

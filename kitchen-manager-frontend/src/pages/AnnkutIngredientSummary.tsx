@@ -17,24 +17,55 @@ import {
 } from "@mui/material";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import { useApiBaseUrl } from "../config/config";
+import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
 const AnnkutSidhuSaman = () => {
   const [recipes, setRecipes] = useState<any[]>([]);
   const [annkutData, setAnnkutData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  
+  // Use context instead of local state
+  const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
+  
   const API_BASE_URL = useApiBaseUrl();
 
+  // Remove the fetchAnnkutEvents useEffect and update the data fetching useEffect
   useEffect(() => {
+    if (!selectedAnnkutEvent) {
+      setRecipes([]);
+      setAnnkutData([]);
+      setLoading(false);
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No token found, user not logged in');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     Promise.all([
       fetch(`${API_BASE_URL}/recipe`, {
         credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
       }).then((res) => (res.ok ? res.json() : [])),
-      fetch(`${API_BASE_URL}/annkut-sidhu-saman`, {
+      fetch(`${API_BASE_URL}/annkut-sidhu-saman?eventId=${selectedAnnkutEvent}`, {
         credentials: "include",
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
       }).then((res) => (res.ok ? res.json() : []))
     ])
       .then(([recipesData, annkutData]) => {
+        console.log('Recipes:', recipesData);
+        console.log('Annkut Data:', annkutData);
         setRecipes(Array.isArray(recipesData) ? recipesData : []);
         setAnnkutData(Array.isArray(annkutData) ? annkutData : []);
       })
@@ -44,7 +75,7 @@ const AnnkutSidhuSaman = () => {
         setAnnkutData([]);
       })
       .finally(() => setLoading(false));
-  }, [API_BASE_URL]);
+  }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const allIngredients = Array.from(
     new Set(
@@ -59,17 +90,47 @@ const AnnkutSidhuSaman = () => {
     name,
   }));
 
-  const columns = annkutData.map((entry) => {
-    // Find the matching recipe for this mithai
-    const recipe = recipes.find((r) => r.vangiName === entry.mithai_name);
+  type Column = {
+    id: number;
+    name: string;
+    ingredients: any[];
+    totalFlour: number | null;
+  };
 
-    return {
-      id: entry.id,
-      name: entry.mithai_name,
-      ingredients: recipe?.ingredients || [], // Use recipe ingredients if available
-      totalFlour: entry.total_flour || null, // Use total_flour from annkutData
-    };
-  });
+  const columns: Column[] = annkutData
+    .reduce((unique, entry) => {
+      // Check if we already have an entry with the same mithai_name
+      const existingIndex = unique.findIndex((item: { mithai_name: string }) => item.mithai_name === entry.mithai_name);
+      
+      if (existingIndex === -1) {
+        // If not found, add the entry
+        unique.push(entry);
+      } else {
+        // If found, keep the one with higher total_flour or more recent data
+        if (entry.total_flour > unique[existingIndex].total_flour) {
+          unique[existingIndex] = entry;
+        }
+      }
+      
+      return unique;
+    }, [] as any[])
+    .map((entry: { id: number; mithai_name: string; total_flour: number }) => {
+      // Find the matching recipe for this mithai - try exact match first, then base name match
+      let recipe = recipes.find((r) => r.vangiName === entry.mithai_name);
+      
+      // If no exact match, try matching base name (before parentheses)
+      if (!recipe) {
+        const baseName = entry.mithai_name.split('(')[0].trim();
+        recipe = recipes.find((r) => r.vangiName.trim() === baseName);
+      }
+
+      return {
+        id: entry.id,
+        name: entry.mithai_name,
+        ingredients: recipe?.ingredients || [], // Use recipe ingredients if available
+        totalFlour: entry.total_flour || null, // Use total_flour from annkutData
+      };
+    });
 
   const getIngredientWeight = (recipe: any, ingName: string) => {
     const found = recipe.ingredients.find(
@@ -92,7 +153,7 @@ const AnnkutSidhuSaman = () => {
 
   const getTotalWeightByIngredient = (ingName: string) => {
     let hasValidWeight = false;
-    const total = columns.reduce((sum, recipe) => {
+    const total = columns.reduce((sum: number, recipe: { id: number; name: string; ingredients: any[]; totalFlour: number | null }) => {
       const weight = getIngredientWeight(recipe, ingName);
       // Only add to sum if weight is a number and greater than 0
       if (typeof weight === 'number' && !isNaN(weight) && weight > 0) {
@@ -107,17 +168,35 @@ const AnnkutSidhuSaman = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: "80vh" }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
         <SummarizeIcon sx={{ color: "#245D6B", fontSize: 32, mr: 1 }} />
         <Typography variant="h5" sx={{ color: "#245D6B", fontWeight: 700 }}>
           Annkut Sidhu Saman
         </Typography>
+        {selectedEventDetails && (
+          <Typography variant="body1" sx={{ ml: 2, color: "#666", fontStyle: "italic" }}>
+            - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
+          </Typography>
+        )}
       </Box>
-      <Paper elevation={3} sx={{ p: 2 }}>
-        {loading ? (
+      
+      <Paper elevation={3} sx={{ p: 2, opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none' }}>
+        {!selectedAnnkutEvent ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <Typography variant="h6" sx={{ color: "#245D6B", fontStyle: "italic" }}>
+              Please select an Annkut event from the menu bar
+            </Typography>
+          </Box>
+        ) : loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
+          </Box>
+        ) : annkutData.length === 0 ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <Typography variant="h6" sx={{ color: "#999", fontStyle: "italic" }}>
+              No data available for the selected event
+            </Typography>
           </Box>
         ) : (
           <TableContainer 
@@ -174,6 +253,7 @@ const AnnkutSidhuSaman = () => {
                   </TableCell>
                   {columns.map((col) => (
                     <TableCell
+                      key={col.id}
                       sx={{
                         fontWeight: 700,
                         background: "#245D6B",

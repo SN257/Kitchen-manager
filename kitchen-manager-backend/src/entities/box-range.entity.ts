@@ -22,4 +22,6 @@ export class BoxRange {
   @JoinColumn({ name: 'eventId' })
   event: Event;
 
+  @Column()
+  userId: number;
 }

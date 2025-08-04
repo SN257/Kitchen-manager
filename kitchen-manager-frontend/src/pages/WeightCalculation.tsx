@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter, MenuItem } from '@mui/material';
+import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
+import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
@@ -22,14 +23,21 @@ interface BoxRange {
   gramPerBox: number;
 }
 
-type Event = {
-  id: string;
-  name: string;
-  eventName: string;
-  eventYear: string;
-};
-
 const WeightCalculation: React.FC = () => {
+  const getTotalNang = (mithai: Mithai): number => {
+    return boxRanges.reduce((sum, box) => sum + (Number(pieces[`${mithai.id}_${box.id}`]) || 0), 0);
+  };
+  const getTotalGram = (mithai: Mithai, boxId: number): number => {
+    const piecesCount = Number(pieces[`${mithai.id}_${boxId}`]) || 0;
+    return piecesCount * mithai.gram;
+  };
+  const handlePieceChange = (mithaiId: number, boxId: number, value: string) => {
+    setPieces(prevPieces => ({
+      ...prevPieces,
+      [`${mithaiId}_${boxId}`]: value,
+    }));
+    setIsDirty(true);
+  };
   const [mithais, setMithais] = useState<Mithai[]>([]);
   const [boxRanges, setBoxRanges] = useState<BoxRange[]>([]);
   const [pieces, setPieces] = useState<{ [key: string]: string }>({});
@@ -40,36 +48,22 @@ const WeightCalculation: React.FC = () => {
   });
   const [, setIsDirty] = useState(false);
   const [entryId, setEntryId] = useState<number | null>(null);
+  const [gramWarnings, setGramWarnings] = useState<string[]>([]);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   
-  // New states for event functionality
-  const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
-  const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
-  
+  const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
-
-  // Fetch Annkut events
-  useEffect(() => {
-    const fetchAnnkutEvents = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch Annkut events: ${res.status}`);
-        }
-        const data = await res.json();
-        const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
-        setAnnkutEvents(filteredAnnkutEvents);
-      } catch (err) {
-        console.error('Failed to fetch Annkut events:', err);
-      }
-    };
-    fetchAnnkutEvents();
-  }, [API_BASE_URL]);
 
   // Refresh data when event is selected
   useEffect(() => {
     if (selectedAnnkutEvent) {
       fetchData();
+    } else {
+      // Clear data when no event is selected
+      setMithais([]);
+      setBoxRanges([]);
+      setEntryId(null);
+      setPieces({});
     }
   }, [selectedAnnkutEvent]);
 
@@ -82,20 +76,43 @@ const WeightCalculation: React.FC = () => {
       return;
     }
 
-    fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`)
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('No token found, user not logged in');
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    })
       .then(res => res.json())
       .then(data => setMithais(data || []));
     
-    fetch(`${API_BASE_URL}/box-ranges?eventId=${selectedAnnkutEvent}`)
+    fetch(`${API_BASE_URL}/box-ranges?eventId=${selectedAnnkutEvent}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    })
       .then(res => res.json())
       .then(data => setBoxRanges(data || []));
     
-    fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`)
+    fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    })
       .then(res => res.json())
       .then(data => {
         if (data && data.id && data.entries) {
           setEntryId(data.id);
-          // Populate pieces from entries
           const newPieces: { [key: string]: string } = {};
           data.entries.forEach((mithai: any) => {
             mithai.boxEntries.forEach((boxEntry: any) => {
@@ -104,53 +121,11 @@ const WeightCalculation: React.FC = () => {
           });
           setPieces(newPieces);
         } else {
-          // Reset if no data found for this event
           setEntryId(null);
           setPieces({});
         }
       });
   };
-
-  useEffect(() => {
-    // Only fetch data if an event is selected
-    if (selectedAnnkutEvent) {
-      fetchData();
-    } else {
-      // Clear data when no event is selected
-      setMithais([]);
-      setBoxRanges([]);
-      setEntryId(null);
-      setPieces({});
-    }
-  }, [selectedAnnkutEvent]);
-
-  const handlePieceChange = (mithaiId: number, boxId: number, value: string) => {
-    // Allow empty string, or any string of digits (including leading zeros)
-    if (/^\d*$/.test(value)) {
-      setPieces(prev => ({
-        ...prev,
-        [`${mithaiId}_${boxId}`]: value,
-      }));
-      setIsDirty(true);
-    }
-  };
-
-  const getTotalGram = (mithai: Mithai, boxId: number) => {
-    const pcs = Number(pieces[`${mithai.id}_${boxId}`]) || 0;
-    return pcs * mithai.gram;
-  };
-
-  const getTotalNang = (mithai: Mithai) => {
-    return boxRanges.reduce((sum, box) => sum + (Number(pieces[`${mithai.id}_${box.id}`]) || 0), 0);
-  };
-
-  const getTotalGramForBox = (boxId: number) => {
-    return mithais.reduce((sum, mithai) => sum + ((Number(pieces[`${mithai.id}_${boxId}`]) || 0) * mithai.gram), 0);
-  };
-
-  const gramWarnings = boxRanges
-    .filter(box => getTotalGramForBox(box.id) > box.gramPerBox)
-    .map(box => `Total gram for box range "${box.priceRange}" is over the allowed ${box.gramPerBox}g!`);
 
   const handleSave = async () => {
     if (!selectedAnnkutEvent) {
@@ -163,7 +138,14 @@ const WeightCalculation: React.FC = () => {
       setSnackbar({ open: true, message: 'Please enter at least one value before saving.', severity: 'error' });
       return;
     }
+    
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setSnackbar({ open: true, message: 'Authentication required. Please login again.', severity: 'error' });
+        return;
+      }
+
       const dataToSave = mithais.map(mithai => {
         const boxEntries = boxRanges
           .map(box => ({
@@ -186,7 +168,11 @@ const WeightCalculation: React.FC = () => {
 
       const response = await fetch(`${API_BASE_URL}/weight-calculation-entries${entryId ? `/${entryId}` : ''}`, {
         method: entryId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({ 
           entries: dataToSave,
           eventId: selectedAnnkutEvent 
@@ -195,7 +181,7 @@ const WeightCalculation: React.FC = () => {
 
       if (response.ok) {
         const result = await response.json();
-        if (!entryId && result.id) setEntryId(result.id); // Save the entry ID after first save
+        if (!entryId && result.id) setEntryId(result.id);
         setSnackbar({ open: true, message: 'Saved successfully!', severity: 'success' });
         setIsDirty(false);
       } else {
@@ -206,6 +192,33 @@ const WeightCalculation: React.FC = () => {
     }
   };
 
+  // Add useEffect to calculate gram warnings
+  useEffect(() => {
+    if (!selectedAnnkutEvent || mithais.length === 0 || boxRanges.length === 0) {
+      setGramWarnings([]);
+      return;
+    }
+
+    const warnings: string[] = [];
+
+    // Check each box range for gram warnings
+    boxRanges.forEach(box => {
+      const totalGramForBox = mithais.reduce((sum, mithai) => {
+        const piecesCount = Number(pieces[`${mithai.id}_${box.id}`]) || 0;
+        return sum + (piecesCount * mithai.gram);
+      }, 0);
+
+      // Only show warning if total gram exceeds box capacity
+      if (totalGramForBox > box.gramPerBox) {
+        warnings.push(
+          `${box.priceRange}: Total weight (${totalGramForBox}g) exceeds box capacity (${box.gramPerBox}g) by ${totalGramForBox - box.gramPerBox}g`
+        );
+      }
+    });
+
+    setGramWarnings(warnings);
+  }, [mithais, boxRanges, pieces, selectedAnnkutEvent]);
+
   return (
     <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, mt: 1 }}>
@@ -213,34 +226,11 @@ const WeightCalculation: React.FC = () => {
         <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
           Weight Calculation
         </Typography>
-      </Box>
-
-      {/* Event Selection */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <TextField
-          select
-          label="Select Annkut Event"
-          value={selectedAnnkutEvent}
-          onChange={e => setSelectedAnnkutEvent(e.target.value)}
-          size="small"
-          sx={{
-            width: 200,
-            background: '#fff',
-            borderRadius: 1,
-            '& .MuiOutlinedInput-root': {
-              background: '#fff',
-              color: '#245D6B',
-            },
-            '& .MuiInputLabel-root': { color: '#245D6B' },
-            '& .MuiInputBase-input': { color: '#245D6B' },
-          }}
-        >
-          {annkutEvents.map(event => (
-            <MenuItem key={event.id} value={event.id}>
-              {event.eventName} - {event.eventYear}
-            </MenuItem>
-          ))}
-        </TextField>
+        {selectedEventDetails && (
+          <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
+            - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
+          </Typography>
+        )}
       </Box>
 
       <Paper
@@ -473,7 +463,7 @@ const WeightCalculation: React.FC = () => {
                       zIndex: 2,
                     }}
                   >
-                    {getTotalGramForBox(box.id)}
+                    {mithais.reduce((sum, mithai) => sum + getTotalGram(mithai, box.id), 0)}
                   </TableCell>
                 ))}
                 <TableCell sx={{ background: '#f5f5f5', position: 'sticky', bottom: 0, right: 0, zIndex: 2 }} />
@@ -565,7 +555,7 @@ const WeightCalculation: React.FC = () => {
                 {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
                 {selectedAnnkutEvent && (
                   <span>
-                    &nbsp;|&nbsp; Event: {annkutEvents.find(event => event.id === selectedAnnkutEvent)?.eventName} - {annkutEvents.find(event => event.id === selectedAnnkutEvent)?.eventYear}
+                    &nbsp;|&nbsp; Event: {selectedEventDetails?.eventName} - {selectedEventDetails?.eventYear}
                   </span>
                 )}
               </div>

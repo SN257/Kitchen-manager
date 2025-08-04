@@ -5,18 +5,19 @@ import {
     MenuItem, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Pagination
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import ScaleIcon from '@mui/icons-material/Scale';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useApiBaseUrl } from '../config/config';
 import '../App.css';
+import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 const MAGAJ_SUBTYPES = ["લાડુડી", "લાડવા", "ચોસલા"];
 const ROWS_PER_PAGE = 5;
 
 const WeightEntry: React.FC = () => {
     const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
     const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string; subType?: string } }>({});
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
@@ -39,17 +40,34 @@ const WeightEntry: React.FC = () => {
     const [editEntry, setEditEntry] = useState<any>(null);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
     const [page, setPage] = useState(1);
-    type Event = {
-        id: string;
-        name: string;
-        eventName: string;
-        eventYear: string;
-    };
-
-    const [annkutEvents, setAnnkutEvents] = useState<Event[]>([]);
-    const [selectedAnnkutEvent, setSelectedAnnkutEvent] = useState('');
+    const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
 
     const API_BASE_URL = useApiBaseUrl();
+
+    // Fetch current user data
+    useEffect(() => {
+        const fetchCurrentUser = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/user/me`, {
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                if (res.ok) {
+                    const userData = await res.json();
+                    setCurrentUser(userData);
+                    console.log('Current user:', userData);
+                } else {
+                    console.error('Failed to fetch user data');
+                }
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+            }
+        };
+        fetchCurrentUser();
+    }, [API_BASE_URL]);
 
     useEffect(() => {
         const fetchFoodItems = async () => {
@@ -64,34 +82,47 @@ const WeightEntry: React.FC = () => {
             fetchWeightEntries();
         }
     }, [selectedAnnkutEvent]);
-    useEffect(() => {
-        const fetchAnnkutEvents = async () => {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`);
-                if (!res.ok) {
-                    throw new Error(`Failed to fetch Annkut events: ${res.status}`);
-                }
-                const data = await res.json();
-                const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut'); // Filter Annkut events
-                console.log('Filtered Annkut Events:', filteredAnnkutEvents); // Debugging: Log filtered events
-                setAnnkutEvents(filteredAnnkutEvents); // Update state with filtered events
-            } catch (err) {
-                console.error('Failed to fetch Annkut events:', err);
-            }
-        };
-        fetchAnnkutEvents();
-    }, [API_BASE_URL]);
     
     const fetchWeightEntries = async () => {
-        const res = await fetch(`${API_BASE_URL}/weight-entries`);
-        let data = [];
         try {
-            data = await res.json();
-        } catch {
-            data = [];
+            // Check if user is logged in
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.log('No token found, user not logged in');
+                return;
+            }
+
+            const url = selectedAnnkutEvent 
+                ? `${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`
+                : `${API_BASE_URL}/weight-entries`;
+            
+            const res = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.error('Authentication failed - session expired');
+                    // Clear local storage and redirect to login
+                    localStorage.clear();
+                    window.location.href = '/login';
+                    return;
+                }
+                console.error('Failed to fetch weight entries:', res.status);
+                setWeightEntries([]);
+                return;
+            }
+            
+            const data = await res.json();
+            setWeightEntries(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error fetching weight entries:', error);
+            setWeightEntries([]);
         }
-        if (!Array.isArray(data)) data = [];
-        setWeightEntries(data);
     };
 
     useEffect(() => {
@@ -127,6 +158,13 @@ const WeightEntry: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        if (!currentUser) {
+            setError('User not authenticated. Please login again.');
+            setSuccess('');
+            setOpenSnackbar(true);
+            return;
+        }
+        
         if (!selectedAnnkutEvent) {
             setError('Please select an Annkut event first.');
             setSuccess('');
@@ -161,14 +199,19 @@ const WeightEntry: React.FC = () => {
                 if (item.vangiName.startsWith("મગજ") && item.subType) {
                     vangiName = `મગજ (${item.subType})`;
                 }
-                console.log('Saving:', vangiName, item);
+                console.log('Saving with user:', currentUser.id, vangiName, item);
                 await fetch(`${API_BASE_URL}/weight-entries`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    },
                     body: JSON.stringify({
                         vangiName,
                         gram: Number(item.gram),
                         eventId: selectedAnnkutEvent,
+                        userId: currentUser.id // Include user ID
                     }),
                 });
             }
@@ -253,39 +296,15 @@ const WeightEntry: React.FC = () => {
 
     return (
         <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <ScaleIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
-                    <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-                        Weight Entry
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
+                    Weight Master
+                </Typography>
+                {selectedEventDetails && (
+                    <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
+                        - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
                     </Typography>
-                </Box>
-                
-                {/* Annkut Event Dropdown */}
-                <TextField
-                    select
-                    label="Select Annkut Event"
-                    value={selectedAnnkutEvent}
-                    onChange={e => setSelectedAnnkutEvent(e.target.value)}
-                    size="small"
-                    sx={{
-                        width: 200,
-                        background: '#fff',
-                        borderRadius: 1,
-                        '& .MuiOutlinedInput-root': {
-                            background: '#fff',
-                            color: '#245D6B',
-                        },
-                        '& .MuiInputLabel-root': { color: '#245D6B' },
-                        '& .MuiInputBase-input': { color: '#245D6B' },
-                    }}
-                >
-                    {annkutEvents.map(event => (
-                        <MenuItem key={event.id} value={event.id}>
-                            {event.eventName} - {event.eventYear}
-                        </MenuItem>
-                    ))}
-                </TextField>
+                )}
             </Box>
             
             <Paper
@@ -299,6 +318,7 @@ const WeightEntry: React.FC = () => {
                     boxShadow: '0 4px 24px rgba(36,93,107,0.08)',
                     opacity: selectedAnnkutEvent ? 1 : 0.5,
                     pointerEvents: selectedAnnkutEvent ? 'auto' : 'none',
+                    position: 'relative',
                 }}
             >
                 {!selectedAnnkutEvent && (
@@ -312,9 +332,6 @@ const WeightEntry: React.FC = () => {
                         color: '#245D6B',
                         fontWeight: 600
                     }}>
-                        <Typography variant="h6">
-                            Please select an Annkut event first
-                        </Typography>
                     </Box>
                 )}
                 <Box
