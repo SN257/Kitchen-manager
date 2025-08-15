@@ -85,11 +85,6 @@ const AnnkutSidhuSaman = () => {
     )
   ).sort();
 
-  const ingredientWithId = allIngredients.map((name, idx) => ({
-    id: idx + 1,
-    name,
-  }));
-
   type Column = {
     id: number;
     name: string;
@@ -145,7 +140,7 @@ const AnnkutSidhuSaman = () => {
     // Scale the ingredient weight based on `total_flour`
     if (found && recipe.totalFlour > 0) {
       const weight = found.kg * recipe.totalFlour;
-      return weight > 0 ? Number(weight.toFixed(2)) : "-"; // Show "-" if weight is 0
+      return weight > 0 ? `${weight.toFixed(3)} kg` : "-"; // Changed to toFixed(3) and removed Number()
     }
 
     return "-"; // Return "-" if no match or weight is 0
@@ -154,18 +149,32 @@ const AnnkutSidhuSaman = () => {
   const getTotalWeightByIngredient = (ingName: string) => {
     let hasValidWeight = false;
     const total = columns.reduce((sum: number, recipe: { id: number; name: string; ingredients: any[]; totalFlour: number | null }) => {
-      const weight = getIngredientWeight(recipe, ingName);
-      // Only add to sum if weight is a number and greater than 0
-      if (typeof weight === 'number' && !isNaN(weight) && weight > 0) {
-        hasValidWeight = true;
-        return sum + weight;
+      const weightStr = getIngredientWeight(recipe, ingName);
+      // Extract numeric value from weight string (remove " kg")
+      if (typeof weightStr === 'string' && weightStr !== '-') {
+        const weight = parseFloat(weightStr.replace(' kg', ''));
+        if (!isNaN(weight) && weight > 0) {
+          hasValidWeight = true;
+          return sum + weight;
+        }
       }
       return sum;
     }, 0);
     
-    // Return "-" if no valid weights were found, otherwise return the formatted total
-    return hasValidWeight ? Number(total.toFixed(2)) : "-";
+    // Return "-" if no valid weights were found, otherwise return the formatted total with kg unit
+    return hasValidWeight ? `${total.toFixed(3)} kg` : "-"; // Changed to toFixed(3)
   };
+
+  const ingredientWithId = allIngredients
+    .map((name, idx) => ({
+      id: idx + 1,
+      name,
+    }))
+    .filter((ingredient) => {
+      // Only include ingredients that have weight in at least one column
+      const totalWeight = getTotalWeightByIngredient(ingredient.name);
+      return totalWeight !== "-";
+    });
 
   return (
     <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: "80vh" }}>
@@ -218,7 +227,7 @@ const AnnkutSidhuSaman = () => {
               },
             }}
           >
-            <Table sx={{ width: "100%" }}>
+            <Table sx={{ width: "100%" }} stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell
@@ -229,7 +238,8 @@ const AnnkutSidhuSaman = () => {
                       whiteSpace: "nowrap",
                       position: "sticky",
                       left: 0,
-                      zIndex: 3,
+                      top: 0,
+                      zIndex: 4,
                       minWidth: 50,
                       maxWidth: 50,
                     }}
@@ -244,7 +254,8 @@ const AnnkutSidhuSaman = () => {
                       whiteSpace: "nowrap",
                       position: "sticky",
                       left: 50,
-                      zIndex: 3,
+                      top: 0,
+                      zIndex: 4,
                       minWidth: 150,
                       maxWidth: 150,
                     }}
@@ -260,6 +271,9 @@ const AnnkutSidhuSaman = () => {
                         color: "#fff",
                         whiteSpace: "nowrap",
                         textAlign: "center",
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 3,
                       }}
                     >
                       {col.name}
@@ -272,6 +286,9 @@ const AnnkutSidhuSaman = () => {
                       color: "#fff",
                       whiteSpace: "nowrap",
                       textAlign: "center",
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 3,
                     }}
                   >
                     Total Weight
@@ -377,7 +394,7 @@ const AnnkutSidhuSaman = () => {
             </div>
 
             <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
-              <Table sx={{ width: "100%" }}>
+              <Table sx={{ width: "100%" }} stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell
@@ -388,7 +405,8 @@ const AnnkutSidhuSaman = () => {
                         whiteSpace: "nowrap",
                         position: "sticky",
                         left: 0,
-                        zIndex: 3,
+                        top: 0,
+                        zIndex: 4,
                         minWidth: 80,
                         maxWidth: 80,
                       }}
@@ -403,7 +421,8 @@ const AnnkutSidhuSaman = () => {
                         whiteSpace: "nowrap",
                         position: "sticky",
                         left: 80,
-                        zIndex: 3,
+                        top: 0,
+                        zIndex: 4,
                         minWidth: 120,
                         maxWidth: 120,
                       }}
@@ -418,6 +437,9 @@ const AnnkutSidhuSaman = () => {
                           background: "#245D6B",
                           whiteSpace: "nowrap",
                           textAlign: "center",
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 3,
                         }}
                       >
                         {col.name}
@@ -430,6 +452,9 @@ const AnnkutSidhuSaman = () => {
                         background: "#245D6B",
                         whiteSpace: "nowrap",
                         textAlign: "center",
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 3,
                       }}
                     >
                       Total Weight

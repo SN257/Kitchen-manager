@@ -11,7 +11,6 @@ import {
   TableRow,
   CircularProgress,
   Button,
-  Pagination,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -22,8 +21,6 @@ import SummarizeIcon from "@mui/icons-material/Summarize";
 import { useApiBaseUrl } from "../config/config";
 import "../App.css";
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
-
-const ROWS_PER_PAGE = 5;
 
 const AnnkutNosSummary: React.FC = () => {
   const [mithais, setMithais] = useState<any[]>([]);
@@ -37,13 +34,15 @@ const AnnkutNosSummary: React.FC = () => {
   const [recipes, setRecipes] = useState<
     { vangiName: string; items_per_kg: number }[]
   >([]);
-  const [page, setPage] = useState(1);
-  const [printing, setPrinting] = useState(false);
+  const [, setPrinting] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [storedMithaiIds, setStoredMithaiIds] = useState<Set<number>>(
-    new Set()
-  );
-  const [hasUnsavedData, setHasUnsavedData] = useState(false);
+  const [calculatedData, setCalculatedData] = useState<{
+    [mithaiId: number]: {
+      total_nang: number;
+      total_flour: number;
+      nos_per_kg: number;
+    }
+  }>({});
   
   // Add snackbar state
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -57,14 +56,8 @@ const AnnkutNosSummary: React.FC = () => {
   
   const API_BASE_URL = useApiBaseUrl();
 
-  const pageCount = Math.ceil(mithais.length / ROWS_PER_PAGE);
-
-  // Show all entries in print, paginate on screen
-  const paginatedMithais = printing
-    ? mithais
-    : mithais.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
-
-  // Remove the fetchAnnkutEvents useEffect
+  // Remove pagination variables and use all data
+  const displayedMithais = mithais;
 
   useEffect(() => {
     if (!selectedAnnkutEvent) {
@@ -256,383 +249,142 @@ const AnnkutNosSummary: React.FC = () => {
     setPrintDialogOpen(true);
   };
 
-  // Check if there's unsaved data or obsolete data to clean up
-  useEffect(() => {
-    if (!mithais.length || !selectedAnnkutEvent) {
-      setHasUnsavedData(false);
-      return;
-    }
-
-    // Check for new/updated entries that need saving
-    const hasNewData = mithais.some((mithai) => {
-      // Skip if already saved
-      if (storedMithaiIds.has(mithai.id)) {
-        return false;
-      }
-
-      const totalNang = getTotalNang(mithai);
-      const gramEntry = weightEntries.find(
-        (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
-      );
-      const gram = gramEntry ? Number(gramEntry.gram) : null;
-
-      const mithaiBase = baseName(mithai.vangiName || "");
-      const recipeEntry = recipes.find(
-        (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
-      );
-
-      let itemPerKg = null;
-      if (
-        recipeEntry &&
-        recipeEntry.items_per_kg !== undefined &&
-        recipeEntry.items_per_kg !== null &&
-        String(recipeEntry.items_per_kg).trim() !== ""
-      ) {
-        itemPerKg = Number(
-          String(recipeEntry.items_per_kg)
-            .replace(",", ".")
-            .replace(/[^0-9.]/g, "")
-        );
-      }
-
-      const nosFromItemPerKg =
-        gram !== null &&
-        !isNaN(gram) &&
-        itemPerKg !== null &&
-        !isNaN(itemPerKg) &&
-        gram > 0
-          ? Math.floor((itemPerKg * 1000) / gram)
-          : null;
-
-      const flourKg =
-        typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
-          ? Number((totalNang / nosFromItemPerKg).toFixed(2))
-          : null;
-
-      // Only show as unsaved if we have valid data to save
-      console.log('Validation check for', mithai.vangiName, {
-        flourKg,
-        totalNang,
-        isFlourValid: flourKg !== null && !isNaN(flourKg),
-        isTotalNangValid: totalNang !== null && !isNaN(totalNang) && totalNang > 0
-      });
-
-      return (
-        flourKg !== null &&
-        !isNaN(flourKg) &&
-        totalNang !== null &&
-        !isNaN(totalNang) &&
-        totalNang > 0
-      );
-    });
-
-    // Check for obsolete entries that need deletion
-    const currentMithaiIds = new Set(mithais.map(m => m.id));
-    const hasObsoleteData = Array.from(storedMithaiIds).some(id => !currentMithaiIds.has(id));
-
-    const hasChanges = hasNewData || hasObsoleteData;
-    console.log('Has changes:', { hasNewData, hasObsoleteData, hasChanges });
-    setHasUnsavedData(hasChanges);
-  }, [mithais, weightEntries, recipes, boxTotals, pieces, storedMithaiIds, selectedAnnkutEvent]);
+  
 
   // Check for existing saved entries when data loads
+  
+
+  // Auto-save calculated data when dependencies change
   useEffect(() => {
-    if (!selectedAnnkutEvent || !mithais.length) {
-      setStoredMithaiIds(new Set());
-      setHasUnsavedData(false);
+    if (!selectedAnnkutEvent || !mithais.length || !weightEntries.length || !recipes.length) {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('No token found, user not logged in');
-      return;
-    }
+    const saveCalculatedData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
-    // Fetch existing saved entries for this event
-    fetch(`${API_BASE_URL}/annkut-sidhu-saman?eventId=${selectedAnnkutEvent}`, {
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+      for (const mithai of mithais) {
+        const totalNang = getTotalNang(mithai);
+        const gramEntry = weightEntries.find(
+          (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
+        );
+        const gram = gramEntry ? Number(gramEntry.gram) : null;
+
+        const mithaiBase = baseName(mithai.vangiName || "");
+        const recipeEntry = recipes.find(
+          (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
+        );
+
+        let itemPerKg = null;
+        if (
+          recipeEntry &&
+          recipeEntry.items_per_kg !== undefined &&
+          recipeEntry.items_per_kg !== null &&
+          String(recipeEntry.items_per_kg).trim() !== ""
+        ) {
+          itemPerKg = Number(
+            String(recipeEntry.items_per_kg)
+              .replace(",", ".")
+              .replace(/[^0-9.]/g, "")
+          );
+        }
+
+        const nosFromItemPerKg =
+          gram !== null &&
+          !isNaN(gram) &&
+          itemPerKg !== null &&
+          !isNaN(itemPerKg) &&
+          gram > 0
+            ? Math.floor((itemPerKg * 1000) / gram)
+            : null;
+
+        const flourKg =
+          typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
+            ? Number((totalNang / nosFromItemPerKg).toFixed(2))
+            : null;
+
+        if (
+          flourKg !== null &&
+          !isNaN(flourKg) &&
+          totalNang !== null &&
+          !isNaN(totalNang) &&
+          totalNang > 0
+        ) {
+          try {
+            await fetch(`${API_BASE_URL}/annkut-sidhu-saman`, {
+              method: "POST",
+              credentials: 'include',
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                mithai_id: Number(mithai.id),
+                mithai_name: String(mithai.vangiName),
+                total_nang: Number(totalNang),
+                total_flour: Number(flourKg),
+                nos_per_kg: Number(nosFromItemPerKg),
+                eventId: Number(selectedAnnkutEvent),
+              }),
+            });
+          } catch (err) {
+            console.error("Error auto-saving mithai data:", err);
+          }
+        }
       }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const savedIds = new Set<number>();
-        const savedEntries = new Map<number, { total_nang: number; total_flour: number }>();
-        
-        data.forEach((entry: any) => {
-          savedIds.add(Number(entry.mithai_id));
-          savedEntries.set(Number(entry.mithai_id), {
-            total_nang: Number(entry.total_nang),
-            total_flour: Number(entry.total_flour)
-          });
-        });
-        
-        setStoredMithaiIds(savedIds);
-        
-        // Check if any calculated values differ from saved values
-        const hasChangedData = mithais.some((mithai) => {
-          const totalNang = getTotalNang(mithai);
-          const savedEntry = savedEntries.get(mithai.id);
-          
-          // Calculate flour for comparison
-          const gramEntry = weightEntries.find(
-            (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
-          );
-          const gram = gramEntry ? Number(gramEntry.gram) : null;
-          const mithaiBase = baseName(mithai.vangiName || "");
-          const recipeEntry = recipes.find(
-            (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
-          );
-          let itemPerKg = null;
-          if (
-            recipeEntry &&
-            recipeEntry.items_per_kg !== undefined &&
-            recipeEntry.items_per_kg !== null &&
-            String(recipeEntry.items_per_kg).trim() !== ""
-          ) {
-            itemPerKg = Number(
-              String(recipeEntry.items_per_kg)
-                .replace(",", ".")
-                .replace(/[^0-9.]/g, "")
-            );
-          }
-          const nosFromItemPerKg =
-            gram !== null &&
-            !isNaN(gram) &&
-            itemPerKg !== null &&
-            !isNaN(itemPerKg) &&
-            gram > 0
-              ? Math.floor((itemPerKg * 1000) / gram)
-              : null;
-          const flourKg =
-            typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
-              ? Number((totalNang / nosFromItemPerKg).toFixed(2))
-              : null;
-          
-          console.log(`Checking mithai ${mithai.vangiName}:`, {
-            calculatedNang: totalNang,
-            calculatedFlour: flourKg,
-            savedNang: savedEntry?.total_nang,
-            savedFlour: savedEntry?.total_flour,
-            hasEntry: !!savedEntry
-          });
-          
-          if (!savedEntry) {
-            // New entry - show save button if we have valid data
-            return totalNang > 0 && flourKg !== null && !isNaN(flourKg);
-          }
-          
-          // Check if calculated values differ from saved values
-          const nangDiffers = Math.abs(savedEntry.total_nang - totalNang) > 0.01;
-          const flourDiffers = flourKg !== null && Math.abs(savedEntry.total_flour - flourKg) > 0.01;
-          
-          console.log(`Differences: nang=${nangDiffers} (${savedEntry.total_nang} vs ${totalNang}), flour=${flourDiffers} (${savedEntry.total_flour} vs ${flourKg})`);
-          
-          return nangDiffers || flourDiffers;
-        });
-
-        console.log('Has changed data:', hasChangedData);
-        setHasUnsavedData(hasChangedData);
-      })
-      .catch((error) => {
-        console.error('Error fetching saved entries:', error);
-        setStoredMithaiIds(new Set());
-      });
-  }, [API_BASE_URL, selectedAnnkutEvent, mithais, boxTotals, pieces, weightEntries, recipes]);
-
-  // Force re-check when data changes
-  useEffect(() => {
-    if (!selectedAnnkutEvent || !mithais.length) {
-      setHasUnsavedData(false);
-      return;
-    }
-
-    // Check if any mithai has valid calculated data that differs from saved data
-    const hasChanges = mithais.some((mithai) => {
-      const totalNang = getTotalNang(mithai);
       
-      if (totalNang <= 0) return false; // Skip if no valid data
-      
-      // Always return true if we have valid data - let the fetch logic handle comparison
-      return true;
-    });
-    
-    console.log('Force re-check - hasChanges:', hasChanges);
-    
-    if (hasChanges) {
-      setHasUnsavedData(true);
-    }
-  }, [mithais, boxTotals, pieces, storedMithaiIds]);
+      // Fetch updated data after saving
+      fetchCalculatedData();
+    };
 
-  const handleSave = async () => {
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveCalculatedData, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [mithais, boxTotals, pieces, weightEntries, recipes, selectedAnnkutEvent]);
+
+  // Fetch calculated data from database
+  const fetchCalculatedData = async () => {
     if (!selectedAnnkutEvent) {
-      setSnackbar({ open: true, message: 'Please select an Annkut event first', severity: 'error' });
+      setCalculatedData({});
       return;
     }
 
     const token = localStorage.getItem('token');
-    if (!token) {
-      setSnackbar({ open: true, message: 'Authentication required. Please login again.', severity: 'error' });
-      return;
-    }
+    if (!token) return;
 
-    let savedCount = 0;
-    let deletedCount = 0;
-    let errorCount = 0;
-
-    // Get current mithai IDs from weight calculation entries
-    const currentMithaiIds = new Set(mithais.map(m => m.id));
-
-    // First, delete entries that no longer exist in weight calculation
     try {
-      const existingEntries = await fetch(`${API_BASE_URL}/annkut-sidhu-saman?eventId=${selectedAnnkutEvent}`, {
+      const response = await fetch(`${API_BASE_URL}/annkut-sidhu-saman?eventId=${selectedAnnkutEvent}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         }
-      })
-        .then(res => res.json());
+      });
       
-      for (const entry of existingEntries) {
-        if (!currentMithaiIds.has(entry.mithai_id)) {
-          try {
-            const res = await fetch(`${API_BASE_URL}/annkut-sidhu-saman/${entry.id}`, {
-              method: 'DELETE',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              }
-            });
-            if (res.ok) {
-              deletedCount++;
-              setStoredMithaiIds(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(entry.mithai_id);
-                return newSet;
-              });
-            }
-          } catch (err) {
-            console.error('Error deleting obsolete entry:', err);
-          }
-        }
+      if (response.ok) {
+        const data = await response.json();
+        const calculatedMap: { [mithaiId: number]: { total_nang: number; total_flour: number; nos_per_kg: number } } = {};
+        
+        data.forEach((entry: any) => {
+          calculatedMap[entry.mithai_id] = {
+            total_nang: Number(entry.total_nang),
+            total_flour: Number(entry.total_flour),
+            nos_per_kg: Number(entry.nos_per_kg || 0)
+          };
+        });
+        
+        setCalculatedData(calculatedMap);
       }
-    } catch (err) {
-      console.error('Error fetching existing entries:', err);
-    }
-
-    // Then save/update current entries
-    for (const mithai of mithais) {
-      const totalNang = getTotalNang(mithai);
-      const gramEntry = weightEntries.find(
-        (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
-      );
-      const gram = gramEntry ? Number(gramEntry.gram) : null;
-
-      const mithaiBase = baseName(mithai.vangiName || "");
-      const recipeEntry = recipes.find(
-        (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
-      );
-
-      let itemPerKg = null;
-      if (
-        recipeEntry &&
-        recipeEntry.items_per_kg !== undefined &&
-        recipeEntry.items_per_kg !== null &&
-        String(recipeEntry.items_per_kg).trim() !== ""
-      ) {
-        itemPerKg = Number(
-          String(recipeEntry.items_per_kg)
-            .replace(",", ".")
-            .replace(/[^0-9.]/g, "")
-        );
-      }
-
-      const nosFromItemPerKg =
-        gram !== null &&
-        !isNaN(gram) &&
-        itemPerKg !== null &&
-        !isNaN(itemPerKg) &&
-        gram > 0
-          ? Math.floor((itemPerKg * 1000) / gram)
-          : null;
-
-      const flourKg =
-        typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
-          ? Number((totalNang / nosFromItemPerKg).toFixed(2))
-          : null;
-
-      // Add debugging before the save logic
-      console.log('Debug mithai:', mithai.vangiName);
-      console.log('Total nang:', totalNang);
-      console.log('Gram entry:', gramEntry);
-      console.log('Recipe entry:', recipeEntry);
-      console.log('Items per kg:', itemPerKg);
-      console.log('Nos from item per kg:', nosFromItemPerKg);
-      console.log('Flour kg:', flourKg);
-      console.log('Box totals:', boxTotals);
-      console.log('Pieces for this mithai:', Object.entries(pieces).filter(([key]) => key.startsWith(`${mithai.id}_`)));
-      console.log('Will save?', flourKg !== null && !isNaN(flourKg) && totalNang !== null && !isNaN(totalNang) && totalNang > 0);
-
-      if (
-        flourKg !== null &&
-        !isNaN(flourKg) &&
-        totalNang !== null &&
-        !isNaN(totalNang) &&
-        totalNang > 0
-      ) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/annkut-sidhu-saman`, {
-            method: "POST",
-            credentials: 'include',
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              mithai_id: Number(mithai.id),
-              mithai_name: String(mithai.vangiName),
-              total_nang: Number(totalNang),
-              total_flour: Number(flourKg),
-              eventId: Number(selectedAnnkutEvent),
-            }),
-          });
-
-          if (res.ok) {
-            setStoredMithaiIds((prev) => new Set(prev).add(mithai.id));
-            savedCount++;
-          } else {
-            console.error(`Failed to save ${mithai.vangiName}:`, await res.text());
-            errorCount++;
-          }
-        } catch (err) {
-          console.error("Error saving mithai to DB:", err);
-          errorCount++;
-        }
-      }
-    }
-
-    // Show success/error message
-    let message = '';
-    let severity: 'success' | 'error' = 'success';
-    
-    if (savedCount > 0) message += `Saved ${savedCount} entries. `;
-    if (deletedCount > 0) message += `Deleted ${deletedCount} obsolete entries. `;
-    if (errorCount > 0) {
-      message += `Failed to process ${errorCount} entries.`;
-      severity = 'error';
-    }
-    
-    if (message) {
-      setSnackbar({ open: true, message: message.trim(), severity });
-    } else {
-      setSnackbar({ open: true, message: 'No changes made.', severity: 'success' });
+    } catch (error) {
+      console.error('Error fetching calculated data:', error);
     }
   };
+
+  // Fetch calculated data when event changes
+  useEffect(() => {
+    fetchCalculatedData();
+  }, [selectedAnnkutEvent]);
 
   return (
     <>
@@ -669,8 +421,26 @@ const AnnkutNosSummary: React.FC = () => {
             </Box>
           ) : (
             <>
-              <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
-                <Table sx={{ minWidth: 1000, width: "100%" }}>
+              <TableContainer 
+                sx={{ 
+                  width: "100%", 
+                  overflowX: "auto",
+                  maxHeight: "70vh", // Set maximum height
+                  overflowY: "auto", // Enable vertical scrolling
+                  "&::-webkit-scrollbar": {
+                    width: "8px",
+                    height: "8px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: "rgba(36, 93, 107, 0.5)",
+                    borderRadius: "4px",
+                  },
+                  "&::-webkit-scrollbar-track": {
+                    backgroundColor: "rgba(0, 0, 0, 0.1)",
+                  },
+                }}
+              >
+                <Table sx={{ minWidth: 1000, width: "100%" }} stickyHeader>
                   <TableHead>
                     <TableRow>
                       <TableCell
@@ -682,7 +452,8 @@ const AnnkutNosSummary: React.FC = () => {
                           wordBreak: "break-word",
                           position: "sticky",
                           left: 0,
-                          zIndex: 3,
+                          top: 0,
+                          zIndex: 4,
                           width: 100,
                           minWidth: 100,
                           maxWidth: 100,
@@ -698,7 +469,8 @@ const AnnkutNosSummary: React.FC = () => {
                           whiteSpace: "nowrap",
                           position: "sticky",
                           left: 100,
-                          zIndex: 3,
+                          top: 0,
+                          zIndex: 4,
                           width: 100,
                           minWidth: 100,
                           maxWidth: 100,
@@ -714,9 +486,16 @@ const AnnkutNosSummary: React.FC = () => {
                             color: "#fff",
                             background: "#245D6B",
                             whiteSpace: "nowrap",
+                            textAlign: "center",
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 3,
                           }}
                         >
-                          {box.priceRange}
+                          <div>{box.priceRange}</div>
+                          <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
+                            ({boxTotals[box.priceRange] || 0})
+                          </div>
                         </TableCell>
                       ))}
                       <TableCell
@@ -725,6 +504,10 @@ const AnnkutNosSummary: React.FC = () => {
                           color: "#fff",
                           background: "#245D6B",
                           whiteSpace: "nowrap",
+                          textAlign: "center",
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 3,
                         }}
                       >
                         Total Nang
@@ -735,6 +518,10 @@ const AnnkutNosSummary: React.FC = () => {
                           color: "#fff",
                           background: "#245D6B",
                           whiteSpace: "nowrap",
+                          textAlign: "center",
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 3,
                         }}
                       >
                         Nos per 1 Kg
@@ -745,6 +532,10 @@ const AnnkutNosSummary: React.FC = () => {
                           color: "#fff",
                           background: "#245D6B",
                           whiteSpace: "nowrap",
+                          textAlign: "center",
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 3,
                         }}
                       >
                         Flour (kg)
@@ -752,20 +543,19 @@ const AnnkutNosSummary: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {paginatedMithais.map((mithai: any, idx: number) => {
-                      // Exact match for gram
+                    {displayedMithais.map((mithai: any, idx: number) => {
+                      // Get calculated data from database first, fallback to live calculation
+                      const savedData = calculatedData[mithai.id];
+                      
+                      // Live calculation for comparison/fallback
                       const gramEntry = weightEntries.find(
-                        (w) =>
-                          w.vangiName &&
-                          w.vangiName.trim() === mithai.vangiName.trim()
+                        (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
                       );
                       const gram = gramEntry ? Number(gramEntry.gram) : null;
 
-                      // Base name match for recipe
                       const mithaiBase = baseName(mithai.vangiName || "");
                       const recipeEntry = recipes.find(
-                        (r) =>
-                          r.vangiName && baseName(r.vangiName) === mithaiBase
+                        (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
                       );
 
                       let itemPerKg = null;
@@ -781,22 +571,23 @@ const AnnkutNosSummary: React.FC = () => {
                             .replace(/[^0-9.]/g, "")
                         );
                       }
-                      const nosFromItemPerKg =
+
+                      // Use saved data if available, otherwise calculate live
+                      const totalNang = savedData ? savedData.total_nang : getTotalNang(mithai);
+                      const nosFromItemPerKg = savedData && savedData.nos_per_kg > 0 ? savedData.nos_per_kg : (
                         gram !== null &&
                         !isNaN(gram) &&
                         itemPerKg !== null &&
                         !isNaN(itemPerKg) &&
                         gram > 0
                           ? Math.floor((itemPerKg * 1000) / gram)
-                          : "-";
-
-                      const totalNang = getTotalNang(mithai);
-
-                      const flourKg =
-                        typeof nosFromItemPerKg === "number" &&
-                        nosFromItemPerKg > 0
+                          : null
+                      );
+                      const flourKg = savedData && savedData.total_flour > 0 ? savedData.total_flour : (
+                        typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
                           ? Number((totalNang / nosFromItemPerKg).toFixed(2))
-                          : "-";
+                          : null
+                      );
 
                       const rowBg = idx % 2 === 0 ? "#f7fbfc" : "#eaf3f6";
 
@@ -820,7 +611,7 @@ const AnnkutNosSummary: React.FC = () => {
                               maxWidth: 100,
                             }}
                           >
-                            {gram}
+                            {gram ? `${gram}g` : '-'}
                           </TableCell>
                           <TableCell
                             sx={{
@@ -848,7 +639,7 @@ const AnnkutNosSummary: React.FC = () => {
                                   background: rowBg,
                                 }}
                               >
-                                {nang * totalBoxes}
+                                {nang * totalBoxes} nos
                               </TableCell>
                             );
                           })}
@@ -861,7 +652,7 @@ const AnnkutNosSummary: React.FC = () => {
                               textAlign: "center",
                             }}
                           >
-                            {totalNang}
+                            {totalNang} nos
                           </TableCell>
                           <TableCell
                             sx={{
@@ -872,7 +663,7 @@ const AnnkutNosSummary: React.FC = () => {
                               color: "#245D6B",
                             }}
                           >
-                            {nosFromItemPerKg}
+                            {nosFromItemPerKg && nosFromItemPerKg > 0 ? `${nosFromItemPerKg} nos` : "-"}
                           </TableCell>
                           <TableCell
                             sx={{
@@ -883,7 +674,7 @@ const AnnkutNosSummary: React.FC = () => {
                               color: "#245D6B",
                             }}
                           >
-                            {flourKg}
+                            {flourKg && flourKg > 0 ? `${flourKg} kg` : "-"}
                           </TableCell>
                         </TableRow>
                       );
@@ -895,22 +686,6 @@ const AnnkutNosSummary: React.FC = () => {
             </>
           )}
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
-            {hasUnsavedData && (
-              <Button
-                variant="contained"
-                sx={{
-                  background: "#245D6B",
-                  fontWeight: 700,
-                  textTransform: "none",
-                  "&:hover": {
-                    background: "#4A7D91",
-                  },
-                }}
-                onClick={handleSave}
-              >
-                Save
-              </Button>
-            )}
             <Button
               variant="contained"
               sx={{
@@ -924,29 +699,7 @@ const AnnkutNosSummary: React.FC = () => {
             </Button>
           </Box>
         </Paper>
-        {!printing && pageCount > 1 && (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-            <Pagination
-              count={pageCount}
-              page={page}
-              onChange={(_, value) => setPage(value)}
-              sx={{
-                "& .MuiPaginationItem-root": {
-                  color: "#245D6B",
-                  borderColor: "#245D6B",
-                },
-                "& .Mui-selected": {
-                  backgroundColor: "#4A7D91 !important",
-                  color: "#fff",
-                  borderColor: "#245D6B",
-                },
-                "& .MuiPaginationItem-root:hover": {
-                  backgroundColor: "#E3F2FD",
-                },
-              }}
-            />
-          </Box>
-        )}
+        {/* Remove the entire pagination section */}
       </Box>
       <Dialog
         open={printDialogOpen}
@@ -1027,7 +780,7 @@ const AnnkutNosSummary: React.FC = () => {
                     >
                       Mithai
                     </TableCell>
-                    {boxRanges.map((box: any) => (
+                                        {boxRanges.map((box: any) => (
                       <TableCell
                         key={box.id}
                         sx={{
@@ -1035,9 +788,13 @@ const AnnkutNosSummary: React.FC = () => {
                           color: "#fff",
                           background: "#245D6B",
                           whiteSpace: "nowrap",
+                          textAlign: "center",
                         }}
                       >
-                        {box.priceRange}
+                        <div>{box.priceRange}</div>
+                        <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
+                          ({boxTotals[box.priceRange] || 0})
+                        </div>
                       </TableCell>
                     ))}
                     <TableCell
@@ -1046,6 +803,7 @@ const AnnkutNosSummary: React.FC = () => {
                         color: "#fff",
                         background: "#245D6B",
                         whiteSpace: "nowrap",
+                        textAlign: "center",
                       }}
                     >
                       Total Nang
@@ -1056,6 +814,7 @@ const AnnkutNosSummary: React.FC = () => {
                         color: "#fff",
                         background: "#245D6B",
                         whiteSpace: "nowrap",
+                        textAlign: "center",
                       }}
                     >
                       Nos per 1 Kg
@@ -1066,6 +825,7 @@ const AnnkutNosSummary: React.FC = () => {
                         color: "#fff",
                         background: "#245D6B",
                         whiteSpace: "nowrap",
+                        textAlign: "center",
                       }}
                     >
                       Flour (kg)
@@ -1108,7 +868,7 @@ const AnnkutNosSummary: React.FC = () => {
                       !isNaN(itemPerKg) &&
                       gram > 0
                         ? Math.floor((itemPerKg * 1000) / gram)
-                        : "-";
+                        : null;
 
                     const totalNang = getTotalNang(mithai);
 
@@ -1140,7 +900,7 @@ const AnnkutNosSummary: React.FC = () => {
                             maxWidth: 100,
                           }}
                         >
-                          {gram}
+                          {gram ? `${gram}g` : '-'}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1168,7 +928,7 @@ const AnnkutNosSummary: React.FC = () => {
                                 background: rowBg,
                               }}
                             >
-                              {nang * totalBoxes}
+                              {nang * totalBoxes} nos
                             </TableCell>
                           );
                         })}
@@ -1181,7 +941,7 @@ const AnnkutNosSummary: React.FC = () => {
                             textAlign: "center",
                           }}
                         >
-                          {totalNang}
+                          {totalNang} nos
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1192,7 +952,7 @@ const AnnkutNosSummary: React.FC = () => {
                             color: "#245D6B",
                           }}
                         >
-                          {nosFromItemPerKg}
+                          {nosFromItemPerKg && nosFromItemPerKg > 0 ? `${nosFromItemPerKg} nos` : "-"}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1203,7 +963,7 @@ const AnnkutNosSummary: React.FC = () => {
                             color: "#245D6B",
                           }}
                         >
-                          {flourKg}
+                          {flourKg === null ? "-" : `${flourKg} kg`}
                         </TableCell>
                       </TableRow>
                     );

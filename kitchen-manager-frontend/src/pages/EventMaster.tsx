@@ -17,18 +17,23 @@ import {
 import EventIcon from '@mui/icons-material/Event';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DescriptionIcon from '@mui/icons-material/Description';
+import CategoryIcon from '@mui/icons-material/Category';
 import Pagination from '@mui/material/Pagination';
 import MuiAlert from '@mui/material/Alert';
 import axios from 'axios';
 import { useApiBaseUrl } from '../config/config';
 
 const EventMaster: React.FC = () => {
+    const [eventType, setEventType] = useState('');
+    const [annkutType, setAnnkutType] = useState('');
+    const [customAnnkutType, setCustomAnnkutType] = useState('');
     const [eventName, setEventName] = useState('');
     const [eventYear, setEventYear] = useState('');
     const [description, setDescription] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [events, setEvents] = useState<any[]>([]); // Replace any with your event type
+    const [events, setEvents] = useState<any[]>([]);
+    
     const currentYear = new Date().getFullYear();
     const years = [];
     for (let y = currentYear; y >= 1900; y--) years.push(y);
@@ -37,11 +42,43 @@ const EventMaster: React.FC = () => {
 
     const paginatedEvents = events.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
 
-    const API_BASE_URL = useApiBaseUrl(); // or use your config
+    const API_BASE_URL = useApiBaseUrl();
 
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [snackbarType, setSnackbarType] = useState<'success' | 'error'>('success');
     const [snackbarMsg, setSnackbarMsg] = useState('');
+
+    const eventTypes = ['Annkut', 'Other'];
+    const annkutTypes = ['Diwali Annkut', 'Patotsav Annkut', 'Other Annkut'];
+
+    // Update event name when selections change
+    useEffect(() => {
+        if (eventType === 'Annkut') {
+            if (annkutType === 'Other Annkut' && customAnnkutType) {
+                setEventName(customAnnkutType);
+            } else if (annkutType && annkutType !== 'Other Annkut') {
+                setEventName(annkutType);
+            }
+        } else if (eventType === 'Other') {
+            setEventName('');
+        }
+    }, [eventType, annkutType, customAnnkutType]);
+
+    // Reset dependent fields when event type changes
+    const handleEventTypeChange = (value: string) => {
+        setEventType(value);
+        setAnnkutType('');
+        setCustomAnnkutType('');
+        setEventName('');
+    };
+
+    // Reset custom field when annkut type changes
+    const handleAnnkutTypeChange = (value: string) => {
+        setAnnkutType(value);
+        if (value !== 'Other Annkut') {
+            setCustomAnnkutType('');
+        }
+    };
 
     // Fetch events from backend
     const fetchEvents = async () => {
@@ -78,10 +115,27 @@ const EventMaster: React.FC = () => {
         e.preventDefault();
         setError('');
         setSuccess('');
-        if (!eventName || !eventYear) {
-            setError('Event Name and Year are required.');
+        
+        if (!eventType || !eventYear) {
+            setError('Event Type and Year are required.');
             return;
         }
+
+        if (eventType === 'Annkut' && !annkutType) {
+            setError('Please select Annkut type.');
+            return;
+        }
+
+        if (eventType === 'Annkut' && annkutType === 'Other Annkut' && !customAnnkutType) {
+            setError('Please enter custom Annkut type.');
+            return;
+        }
+
+        if (eventType === 'Other' && !eventName) {
+            setError('Please enter event name.');
+            return;
+        }
+
         try {
             await axios.post(`${API_BASE_URL}/api/events`, {
                 eventName,
@@ -94,10 +148,13 @@ const EventMaster: React.FC = () => {
                 }
             });
             setSuccess('Event saved successfully!');
+            setEventType('');
+            setAnnkutType('');
+            setCustomAnnkutType('');
             setEventName('');
             setEventYear('');
             setDescription('');
-            fetchEvents(); // Refresh the table from DB
+            fetchEvents();
         } catch (err) {
             setError('Failed to save event');
         }
@@ -126,95 +183,156 @@ const EventMaster: React.FC = () => {
                     onSubmit={handleSubmit}
                     sx={{
                         display: 'flex',
-                        flexDirection: 'row',
-                        gap: 2,
-                        alignItems: 'center',
+                        flexDirection: 'column',
+                        gap: 3,
                         width: '100%',
                     }}
                 >
-                    <TextField
-                        label="Event Name"
-                        value={eventName}
-                        onChange={e => setEventName(e.target.value)}
-                        required
-                        fullWidth
-                        sx={{ flex: 1 }}
-                        InputProps={{
-                            startAdornment: (
-                                <EventIcon sx={{ color: '#245D6B', mr: 1 }} />
-                            ),
-                        }}
-                    />
-                    <TextField
-                        select
-                        label="Event Year"
-                        value={eventYear}
-                        onChange={e => setEventYear(e.target.value)}
-                        required
-                        fullWidth
-                        sx={{ flex: 1 }}
-                        SelectProps={{
-                            MenuProps: {
-                                PaperProps: {
-                                    style: {
-                                        maxHeight: 5 * 48,
-                                        overflowY: 'auto',
+                    {/* First Row */}
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <TextField
+                            select
+                            label="Event Type"
+                            value={eventType}
+                            onChange={e => handleEventTypeChange(e.target.value)}
+                            required
+                            fullWidth
+                            sx={{ flex: 1 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <CategoryIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                ),
+                            }}
+                        >
+                            {eventTypes.map(type => (
+                                <MenuItem key={type} value={type}>
+                                    {type}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+
+                        {eventType === 'Annkut' && (
+                            <TextField
+                                select
+                                label="Annkut Type"
+                                value={annkutType}
+                                onChange={e => handleAnnkutTypeChange(e.target.value)}
+                                required
+                                fullWidth
+                                sx={{ flex: 1 }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <EventIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                    ),
+                                }}
+                            >
+                                {annkutTypes.map(type => (
+                                    <MenuItem key={type} value={type}>
+                                        {type}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        )}
+
+                        {eventType === 'Annkut' && annkutType === 'Other Annkut' && (
+                            <TextField
+                                label="Custom Annkut Type"
+                                value={customAnnkutType}
+                                onChange={e => setCustomAnnkutType(e.target.value)}
+                                required
+                                fullWidth
+                                sx={{ flex: 1 }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <EventIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                    ),
+                                }}
+                            />
+                        )}
+
+                        {eventType === 'Other' && (
+                            <TextField
+                                label="Event Name"
+                                value={eventName}
+                                onChange={e => setEventName(e.target.value)}
+                                required
+                                fullWidth
+                                sx={{ flex: 1 }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <EventIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                    ),
+                                }}
+                            />
+                        )}
+                    </Box>
+
+                    {/* Second Row */}
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <TextField
+                            select
+                            label="Event Year"
+                            value={eventYear}
+                            onChange={e => setEventYear(e.target.value)}
+                            required
+                            fullWidth
+                            sx={{ flex: 1 }}
+                            SelectProps={{
+                                MenuProps: {
+                                    PaperProps: {
+                                        style: {
+                                            maxHeight: 5 * 48,
+                                            overflowY: 'auto',
+                                        },
                                     },
                                 },
-                                anchorOrigin: {
-                                    vertical: 'bottom',
-                                    horizontal: 'left',
+                            }}
+                            InputProps={{
+                                startAdornment: (
+                                    <CalendarMonthIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                ),
+                            }}
+                        >
+                            {years.map(year => (
+                                <MenuItem key={year} value={year}>
+                                    {year}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+
+                        <TextField
+                            label="Description"
+                            value={description}
+                            onChange={e => setDescription(e.target.value)}
+                            fullWidth
+                            sx={{ flex: 2 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <DescriptionIcon sx={{ color: '#245D6B', mr: 1 }} />
+                                ),
+                            }}
+                        />
+
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            sx={{
+                                bgcolor: '#245D6B',
+                                fontWeight: 600,
+                                letterSpacing: 1,
+                                height: '56px',
+                                minWidth: '120px',
+                                transition: 'background 0.3s, color 0.3s',
+                                '&:hover': {
+                                    bgcolor: '#4A7D91',
+                                    color: '#fff',
                                 },
-                                transformOrigin: {
-                                    vertical: 'top',
-                                    horizontal: 'left',
-                                },
-                            },
-                        }}
-                        InputProps={{
-                            startAdornment: (
-                                <CalendarMonthIcon sx={{ color: '#245D6B', mr: 1 }} />
-                            ),
-                        }}
-                    >
-                        {years.map(year => (
-                            <MenuItem key={year} value={year}>
-                                {year}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField
-                        label="Description"
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        fullWidth
-                        sx={{ flex: 2 }}
-                        InputProps={{
-                            startAdornment: (
-                                <DescriptionIcon sx={{ color: '#245D6B', mr: 1 }} />
-                            ),
-                        }}
-                    />
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        sx={{
-                            bgcolor: '#245D6B',
-                            fontWeight: 600,
-                            letterSpacing: 1,
-                            height: '56px',
-                            minWidth: '90px',
-                            transition: 'background 0.3s, color 0.3s',
-                            '&:hover': {
-                                bgcolor: '#4A7D91',
-                                color: '#fff',
-                            },
-                            alignSelf: 'stretch',
-                        }}
-                        size="large"
-                    >
-                        Save Event
-                    </Button>
+                            }}
+                            size="large"
+                        >
+                            Save Event
+                        </Button>
+                    </Box>
                 </Box>
             </Paper>
 

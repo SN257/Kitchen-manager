@@ -56,7 +56,7 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
   useEffect(() => {
     const fetchAnnkutEvents = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/events?eventName=Annkut`, {
+        const res = await fetch(`${API_BASE_URL}/api/events`, {
           credentials: 'include',
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -66,7 +66,9 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
           throw new Error(`Failed to fetch Annkut events: ${res.status}`);
         }
         const data = await res.json();
-        const filteredAnnkutEvents = data.filter((event: any) => event.eventName === 'Annkut');
+        const filteredAnnkutEvents = data.filter((event: any) => 
+          event.eventName.toLowerCase().includes('annkut')
+        );
         setAnnkutEvents(filteredAnnkutEvents);
         
         // Validate saved event still exists after events are loaded

@@ -14,6 +14,7 @@ import WeightCalculation from './pages/WeightCalculation';
 import AnnkutNosSummary from './pages/AnnkutNosSummary';
 import BoxRangeEntry from './pages/BoxRangeMaster';
 import AnnkutSidhuSaman from './pages/AnnkutIngredientSummary';
+import AnnkutComparison from './pages/AnnkutComparison';
 import { AnnkutEventProvider } from './contexts/AnnkutEventContext';
 
 function App() {
@@ -34,7 +35,8 @@ function App() {
           <Route path="box-annkut/WeightCalculation" element={<WeightCalculation />} /> 
           <Route path="box-annkut/AnnkutNosSummary" element={<AnnkutNosSummary/>} />   
           <Route path="box-annkut/AnnkutSidhuSaman" element={<AnnkutSidhuSaman/>} />   
-          <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />      
+          <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />
+          <Route path="box-annkut/annkut-comparison" element={<AnnkutComparison />} />
         </Route>
       </Routes>
     </AnnkutEventProvider>

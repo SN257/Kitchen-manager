@@ -37,6 +37,7 @@ const BoxWeightEntry: React.FC = () => {
   const [page, setPage] = useState(1);
   const [editOpen, setEditOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<{ id: number; priceRange: string; totalBoxes: number; boxType: string; displayId?: number } | null>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -440,7 +441,7 @@ const BoxWeightEntry: React.FC = () => {
       {/* Table Section */}
       <Box sx={{ mt: 4 }}>
         {/* Search Bar */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 2 }}>
           <TextField
             placeholder="Search Box Range or Type"
             value={boxSearch}
@@ -466,6 +467,24 @@ const BoxWeightEntry: React.FC = () => {
               },
             }}
           />
+          {selectedAnnkutEvent && filteredBoxEntries.length > 0 && (
+            <Button
+              variant="outlined"
+              sx={{
+                color: '#245D6B',
+                borderColor: '#245D6B',
+                fontWeight: 600,
+                height: 40,
+                '&:hover': {
+                  bgcolor: '#f5fafd',
+                  borderColor: '#4A7D91',
+                },
+              }}
+              onClick={() => setPrintDialogOpen(true)}
+            >
+              Print
+            </Button>
+          )}
         </Box>
         {/* Table Section */}
         <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
@@ -595,6 +614,201 @@ const BoxWeightEntry: React.FC = () => {
           <Button onClick={() => setEditOpen(false)}>Cancel</Button>
           <Button onClick={handleEditSave} variant="contained" color="primary">
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Print Dialog */}
+      <Dialog
+        open={printDialogOpen}
+        onClose={() => setPrintDialogOpen(false)}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle>
+          Print Preview
+          <Button
+            variant="contained"
+            sx={{ float: "right", bgcolor: "#245D6B", ml: 2 }}
+            onClick={() => window.print()}
+          >
+            Print
+          </Button>
+        </DialogTitle>
+        <DialogContent>
+          <Box id="box-numbers-print">
+            <div
+              style={{
+                textAlign: "left",
+                marginBottom: 24,
+                borderBottom: "2px solid #245D6B",
+                paddingBottom: 12,
+              }}
+            >
+              <h1
+                style={{
+                  color: "#245D6B",
+                  margin: 0,
+                  fontSize: 32,
+                  letterSpacing: 2,
+                  fontWeight: 700,
+                }}
+              >
+                Box Numbers Master Report
+              </h1>
+              <div style={{ color: "#555", fontSize: 16, marginTop: 4 }}>
+                {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
+                {selectedEventDetails && (
+                  <span>
+                    &nbsp;|&nbsp; Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "12px",
+                marginTop: "20px",
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: "#f8f9fa" }}>
+                  <th
+                    style={{
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      fontWeight: 600,
+                      color: "#245D6B",
+                      textAlign: "left",
+                    }}
+                  >
+                    Sr. No.
+                  </th>
+                  <th
+                    style={{
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      fontWeight: 600,
+                      color: "#245D6B",
+                      textAlign: "left",
+                    }}
+                  >
+                    Box Price Range
+                  </th>
+                  <th
+                    style={{
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      fontWeight: 600,
+                      color: "#245D6B",
+                      textAlign: "left",
+                    }}
+                  >
+                    Box Type
+                  </th>
+                  <th
+                    style={{
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      fontWeight: 600,
+                      color: "#245D6B",
+                      textAlign: "left",
+                    }}
+                  >
+                    Total Boxes
+                  </th>
+                  <th
+                    style={{
+                      padding: "8px",
+                      border: "1px solid #ddd",
+                      fontWeight: 600,
+                      color: "#245D6B",
+                      textAlign: "left",
+                    }}
+                  >
+                    Event
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredBoxEntries.map((entry, index) => (
+                  <tr
+                    key={entry.id}
+                    style={{
+                      backgroundColor: index % 2 === 0 ? "#fff" : "#fafafa",
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: "1px solid #ddd",
+                        color: "#333",
+                      }}
+                    >
+                      {index + 1}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: "1px solid #ddd",
+                        color: "#333",
+                      }}
+                    >
+                      {entry.priceRange}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: "1px solid #ddd",
+                        color: "#333",
+                      }}
+                    >
+                      {entry.boxType}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: "1px solid #ddd",
+                        color: "#333",
+                      }}
+                    >
+                      {entry.totalBoxes}
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        border: "1px solid #ddd",
+                        color: "#333",
+                      }}
+                    >
+                      {selectedEventDetails?.eventName || 'N/A'} - {selectedEventDetails?.eventYear || 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {filteredBoxEntries.length === 0 && (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "#999",
+                  fontStyle: "italic",
+                  padding: "40px",
+                  fontSize: "16px",
+                }}
+              >
+                No box entries data available for printing.
+              </div>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrintDialogOpen(false)} sx={{ color: '#245D6B', fontWeight: 600 }}>
+            Close
           </Button>
         </DialogActions>
       </Dialog>

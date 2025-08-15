@@ -231,7 +231,14 @@ const WeightEntry: React.FC = () => {
 
     const handleDelete = async (id: number) => {
         try {
-            await fetch(`${API_BASE_URL}/weight-entries/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/weight-entries/${id}`, { 
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+            });
             fetchWeightEntries();
             setSuccess('Entry deleted!');
             setError('');
@@ -259,7 +266,11 @@ const WeightEntry: React.FC = () => {
         try {
             await fetch(`${API_BASE_URL}/weight-entries/${editEntry.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({
                     vangiName: editEntry.vangiName,
                     gram: Number(editEntry.gram),
@@ -511,7 +522,7 @@ const WeightEntry: React.FC = () => {
                                                     </TextField>
                                                 )}
                                                 <TextField
-                                                    label="1 Piece Weight"
+                                                    label="Weight (g)"
                                                     value={selectedItems[item.id]?.gram || ''}
                                                     onChange={e =>
                                                         setSelectedItems(prev => ({
@@ -624,7 +635,7 @@ const WeightEntry: React.FC = () => {
                         <TableRow>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Id</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Food Name</TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>1 Piece Weight</TableCell>
+                            <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>1 Piece Weight (g)</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Event</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Date</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Actions</TableCell>
@@ -644,7 +655,7 @@ const WeightEntry: React.FC = () => {
                                     <TableRow key={item.id}>
                                         <TableCell>{(page - 1) * ROWS_PER_PAGE + idx + 1}</TableCell>
                                         <TableCell>{item.vangiName}</TableCell>
-                                        <TableCell>{item.gram}</TableCell>
+                                        <TableCell>{item.gram} g</TableCell>
                                         <TableCell>{item.event?.eventName || 'N/A'} - {item.event?.eventYear || 'N/A'}</TableCell>
                                         <TableCell>{new Date(item.createdAt).toLocaleString()}</TableCell>
                                         <TableCell>
@@ -725,7 +736,7 @@ const WeightEntry: React.FC = () => {
                         fullWidth
                     />
                     <TextField
-                        label="Gram"
+                        label="1 Piece Weight (g)"
                         type="number"
                         value={editEntry?.gram || ''}
                         onChange={e => handleEditChange('gram', e.target.value)}
@@ -737,66 +748,134 @@ const WeightEntry: React.FC = () => {
                     <Button onClick={handleEditSave} variant="contained" color="primary">Save</Button>
                 </DialogActions>
             </Dialog>
-            <Dialog open={printDialogOpen} onClose={() => setPrintDialogOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Print Preview</DialogTitle>
-                <DialogContent>
-                    <Box sx={{ overflowX: 'auto' }}>
-                        <div id="print-section">
-                            {/* Content inside the div */}
-                        </div>
-                        <div style={{
-                            textAlign: 'left',
-                            marginBottom: 24,
-                            borderBottom: '2px solid #245D6B',
-                            paddingBottom: 12
-                        }}>
-                            <h1 style={{
-                                color: '#245D6B',
-                                margin: 0,
-                                fontSize: 32,
-                                letterSpacing: 2,
-                                fontWeight: 700
-                            }}>
-                                Weight Entry Report
-                            </h1>
-                            <div style={{ color: '#555', fontSize: 16, marginTop: 4 }}>
-                                {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
-                            </div>
-                        </div>
-                        <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
-                            <thead>
-                                <tr>
-                                    <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Id</th>
-                                    <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Food Name</th>
-                                    <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Gram</th>
-                                    <th style={{ border: '1px solid #ccc', padding: 8, background: '#f5fafd', color: '#245D6B' }}>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {weightEntries
-                                    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                                    .map((item, idx) => (
-                                        <tr key={item.id}>
-                                            <td style={{ border: '1px solid #ccc', padding: 8 }}>{idx + 1}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.vangiName}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.gram}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: 8 }}>{new Date(item.createdAt).toLocaleString()}</td>
-                                        </tr>
-                                    ))}
-                            </tbody>
-                        </table>
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button
-                        sx={{ color: '#245D6B', fontWeight: 600 }}
-                        onClick={() => setPrintDialogOpen(false)}>Close</Button>
+            <Dialog open={printDialogOpen} onClose={() => setPrintDialogOpen(false)} maxWidth="xl" fullWidth>
+                <DialogTitle>
+                    Print Preview
                     <Button
                         variant="contained"
-                        sx={{ bgcolor: '#245D6B', color: '#fff', fontWeight: 600 }}
+                        sx={{ float: "right", bgcolor: "#245D6B", ml: 2 }}
                         onClick={() => window.print()}
                     >
                         Print
+                    </Button>
+                </DialogTitle>
+                <DialogContent>
+                    <Box id="print-section">
+                        <div
+                            style={{
+                                textAlign: "left",
+                                marginBottom: 24,
+                                borderBottom: "2px solid #245D6B",
+                                paddingBottom: 12,
+                            }}
+                        >
+                            <h1
+                                style={{
+                                    color: "#245D6B",
+                                    margin: 0,
+                                    fontSize: 32,
+                                    letterSpacing: 2,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                Weight Master Report
+                            </h1>
+                            <div style={{ color: "#555", fontSize: 16, marginTop: 4 }}>
+                                {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by
+                                Kitchen Manager
+                                {selectedEventDetails && (
+                                    <span>
+                                        &nbsp;|&nbsp; Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {filteredWeightEntries.length === 0 ? (
+                            <div
+                                style={{
+                                    textAlign: "center",
+                                    color: "#999",
+                                    fontStyle: "italic",
+                                    padding: "40px",
+                                    fontSize: "16px",
+                                }}
+                            >
+                                No weight entry data available for printing.
+                            </div>
+                        ) : (
+                            <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
+                                <thead>
+                                    <tr>
+                                        <th
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "8px",
+                                                background: "#245D6B",
+                                                color: "#fff",
+                                                fontWeight: 700,
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            Id
+                                        </th>
+                                        <th
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "8px",
+                                                background: "#245D6B",
+                                                color: "#fff",
+                                                fontWeight: 700,
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            Food Name
+                                        </th>
+                                        <th
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "8px",
+                                                background: "#245D6B",
+                                                color: "#fff",
+                                                fontWeight: 700,
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            1 Piece Weight (g)
+                                        </th>
+                                        <th
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "8px",
+                                                background: "#245D6B",
+                                                color: "#fff",
+                                                fontWeight: 700,
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            Date
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredWeightEntries
+                                        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                                        .map((item, idx) => (
+                                            <tr key={item.id}>
+                                                <td style={{ border: '1px solid #ccc', padding: 8 }}>{idx + 1}</td>
+                                                <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.vangiName}</td>
+                                                <td style={{ border: '1px solid #ccc', padding: 8 }}>{item.gram} g</td>
+                                                <td style={{ border: '1px solid #ccc', padding: 8 }}>{new Date(item.createdAt).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPrintDialogOpen(false)} sx={{ color: '#245D6B', fontWeight: 600 }}>
+                        Close
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -37,6 +37,7 @@ const BoxRangeEntry: React.FC = () => {
     const [search, setSearch] = useState('');
     const [boxTypeOptions, setBoxTypeOptions] = useState<string[]>([]);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [printDialogOpen, setPrintDialogOpen] = useState(false);
     const [boxRanges, setBoxRanges] = useState<{ 
         id: number; 
         priceRange: string; 
@@ -489,7 +490,7 @@ const BoxRangeEntry: React.FC = () => {
                 </Box>
             </Paper>
             {/* Search Field */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2, gap: 2 }}>
                 <TextField
                     label="Search by Price Range or Box Type"
                     variant="outlined"
@@ -508,6 +509,24 @@ const BoxRangeEntry: React.FC = () => {
                         '& .MuiInputBase-input': { color: '#245D6B' },
                     }}
                 />
+                {selectedAnnkutEvent && filteredBoxRanges.length > 0 && (
+                    <Button
+                        variant="outlined"
+                        sx={{
+                            color: '#245D6B',
+                            borderColor: '#245D6B',
+                            fontWeight: 600,
+                            height: 40,
+                            '&:hover': {
+                                bgcolor: '#f5fafd',
+                                borderColor: '#4A7D91',
+                            },
+                        }}
+                        onClick={() => setPrintDialogOpen(true)}
+                    >
+                        Print
+                    </Button>
+                )}
             </Box>
             <TableContainer
                 component={Paper}
@@ -692,6 +711,205 @@ const BoxRangeEntry: React.FC = () => {
                     {success || error}
                 </Alert>
             </Snackbar>
+
+            {/* Print Dialog */}
+            <Dialog
+                open={printDialogOpen}
+                onClose={() => setPrintDialogOpen(false)}
+                maxWidth="xl"
+                fullWidth
+            >
+                <DialogTitle>
+                    Print Preview
+                    <Button
+                        variant="contained"
+                        sx={{ float: "right", bgcolor: "#245D6B", ml: 2 }}
+                        onClick={() => window.print()}
+                    >
+                        Print
+                    </Button>
+                </DialogTitle>
+                <DialogContent>
+                    <Box id="box-range-print">
+                        <div
+                            style={{
+                                textAlign: "left",
+                                marginBottom: 24,
+                                borderBottom: "2px solid #245D6B",
+                                paddingBottom: 12,
+                            }}
+                        >
+                            <h1
+                                style={{
+                                    color: "#245D6B",
+                                    margin: 0,
+                                    fontSize: 32,
+                                    letterSpacing: 2,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                Box Range Master Report
+                            </h1>
+                            <div style={{ color: "#555", fontSize: 16, marginTop: 4 }}>
+                                {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
+                                {selectedEventDetails && (
+                                    <span>
+                                        &nbsp;|&nbsp; Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <table
+                            style={{
+                                width: "100%",
+                                borderCollapse: "collapse",
+                                fontSize: "14px",
+                                marginTop: "20px",
+                            }}
+                        >
+                            <thead>
+                                <tr>
+                                    <th
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            padding: "12px 8px",
+                                            background: "#245D6B",
+                                            color: "#fff",
+                                            fontWeight: 700,
+                                            textAlign: "left",
+                                            fontSize: "14px",
+                                        }}
+                                    >
+                                        Sr. No.
+                                    </th>
+                                    <th
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            padding: "12px 8px",
+                                            background: "#245D6B",
+                                            color: "#fff",
+                                            fontWeight: 700,
+                                            textAlign: "left",
+                                            fontSize: "14px",
+                                        }}
+                                    >
+                                        Price Range
+                                    </th>
+                                    <th
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            padding: "12px 8px",
+                                            background: "#245D6B",
+                                            color: "#fff",
+                                            fontWeight: 700,
+                                            textAlign: "left",
+                                            fontSize: "14px",
+                                        }}
+                                    >
+                                        Box Type
+                                    </th>
+                                    <th
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            padding: "12px 8px",
+                                            background: "#245D6B",
+                                            color: "#fff",
+                                            fontWeight: 700,
+                                            textAlign: "left",
+                                            fontSize: "14px",
+                                        }}
+                                    >
+                                        Gram per Box
+                                    </th>
+                                    <th
+                                        style={{
+                                            border: "1px solid #ccc",
+                                            padding: "12px 8px",
+                                            background: "#245D6B",
+                                            color: "#fff",
+                                            fontWeight: 700,
+                                            textAlign: "left",
+                                        }}
+                                    >
+                                        Event
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredBoxRanges.map((box, index) => (
+                                    <tr key={box.id}>
+                                        <td
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "12px 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {index + 1}
+                                        </td>
+                                        <td
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "12px 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {box.priceRange}
+                                        </td>
+                                        <td
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "12px 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {Array.isArray(box.boxType) ? box.boxType.join(', ') : 'N/A'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "12px 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {box.gramPerBox ? `${box.gramPerBox} g` : 'N/A'}
+                                        </td>
+                                        <td
+                                            style={{
+                                                border: "1px solid #ccc",
+                                                padding: "12px 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {box.event?.eventName || 'N/A'} - {box.event?.eventYear || 'N/A'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {filteredBoxRanges.length === 0 && (
+                            <div
+                                style={{
+                                    textAlign: "center",
+                                    color: "#999",
+                                    fontStyle: "italic",
+                                    padding: "40px",
+                                    fontSize: "16px",
+                                }}
+                            >
+                                No box range data available for printing.
+                            </div>
+                        )}
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPrintDialogOpen(false)} sx={{ color: '#245D6B', fontWeight: 600 }}>
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

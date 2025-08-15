@@ -39,6 +39,7 @@ import CalculateIcon from "@mui/icons-material/Calculate";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import "../App.css";
 import AnnkutEventSelector from '../components/AnnkutEventSelector';
+import CompareIcon from "@mui/icons-material/Compare";
 const drawerWidth = 250;
 
 const sidebarItemSx = {
@@ -124,7 +125,16 @@ const Dashboard: React.FC = () => {
 
   // Add helper function to check if current page is an Annkut page
   const isAnnkutPage = (pathname: string) => {
-    return pathname.includes('/box-annkut/') || pathname.includes('/section-annkut/');
+    const annkutPages = [
+      '/dashboard/box-annkut/weight-entry',
+      '/dashboard/box-annkut/box-weight-entry', 
+      '/dashboard/box-annkut/BoxRangeEntry',
+      '/dashboard/box-annkut/WeightCalculation',
+      '/dashboard/box-annkut/AnnkutNosSummary',
+      '/dashboard/box-annkut/AnnkutSidhuSaman'
+      // Excluded '/dashboard/box-annkut/annkut-comparison'
+    ];
+    return annkutPages.some(page => pathname.includes(page));
   };
 
   const drawer = (
@@ -340,6 +350,16 @@ const Dashboard: React.FC = () => {
                     <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
                   </ListItemIcon>
                   <ListItemText primary="Annakut Sidhu Saman" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/box-annkut/annkut-comparison")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/box-annkut/annkut-comparison")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <CompareIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Annkut Comparison" />
                 </ListItemButton>
               </List>
             </Collapse>
