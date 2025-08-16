@@ -8,8 +8,8 @@ async function bootstrap() {
 
   // Add your new user here
   await userService.create({
-    username: 'Griva',
-    password: 'Griva@1009',
+    username: '',
+    password: '',
     role: 'admin',
     center: 'Ghanshyamnagar',
   });

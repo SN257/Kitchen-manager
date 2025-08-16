@@ -7,8 +7,12 @@ import {
   Avatar,
   Paper,
   Alert,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 import { useApiBaseUrl } from '../config/config'; 
 const Login: React.FC = () => {
@@ -16,6 +20,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const API_BASE_URL = useApiBaseUrl();
   const navigate = useNavigate();
 
@@ -24,6 +29,10 @@ const Login: React.FC = () => {
       navigate('/dashboard');
     }
   }, [navigate]);
+
+  const handleTogglePassword = () => {
+    setShowPassword((prev) => !prev);
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -168,11 +177,23 @@ const Login: React.FC = () => {
               margin="normal"
               fullWidth
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={handleTogglePassword}
+                      edge="end"
+                      aria-label="toggle password visibility"
+                      sx={{ color: '#245D6B' }}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
                 sx: {
                   borderRadius: 2,
                   bgcolor: '#fff',

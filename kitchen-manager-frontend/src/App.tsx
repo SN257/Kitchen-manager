@@ -16,6 +16,8 @@ import BoxRangeEntry from './pages/BoxRangeMaster';
 import AnnkutSidhuSaman from './pages/AnnkutIngredientSummary';
 import AnnkutComparison from './pages/AnnkutComparison';
 import { AnnkutEventProvider } from './contexts/AnnkutEventContext';
+import SectionMaster from './pages/SectionMaster';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -37,6 +39,8 @@ function App() {
           <Route path="box-annkut/AnnkutSidhuSaman" element={<AnnkutSidhuSaman/>} />   
           <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />
           <Route path="box-annkut/annkut-comparison" element={<AnnkutComparison />} />
+          <Route path="section-master" element={<SectionMaster />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>
     </AnnkutEventProvider>

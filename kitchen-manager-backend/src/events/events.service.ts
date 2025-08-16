@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Event } from '../entities/event.entity';
@@ -26,9 +26,53 @@ export class EventsService {
       whereCondition.eventName = eventName;
     }
     
-    return this.eventRepo.find({ 
+    const events = await this.eventRepo.find({ 
       where: whereCondition,
-      order: { id: 'DESC' } 
+      order: { eventName: 'ASC', eventYear: 'ASC' } 
     });
+    
+    // Group events by name and sort by year within each group
+    const groupedEvents = events.reduce((acc, event) => {
+      const key = event.eventName;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(event);
+      return acc;
+    }, {} as Record<string, Event[]>);
+    
+    // Sort each group by year and flatten
+    const sortedEvents = Object.keys(groupedEvents)
+      .sort() // Sort event names alphabetically
+      .flatMap(eventName => 
+        groupedEvents[eventName].sort((a, b) => 
+          parseInt(a.eventYear) - parseInt(b.eventYear)
+        )
+      );
+    
+    return sortedEvents;
+  }
+
+  async update(id: number, data: CreateEventDto, userId: number): Promise<Event> {
+    const event = await this.eventRepo.findOne({ where: { id, userId } });
+    if (!event) {
+      throw new NotFoundException('Event not found or access denied');
+    }
+    
+    await this.eventRepo.update({ id, userId }, data);
+    const updatedEvent = await this.eventRepo.findOne({ where: { id, userId } });
+    if (!updatedEvent) {
+      throw new NotFoundException('Event not found after update');
+    }
+    return updatedEvent;
+  }
+
+  async remove(id: number, userId: number): Promise<void> {
+    const event = await this.eventRepo.findOne({ where: { id, userId } });
+    if (!event) {
+      throw new NotFoundException('Event not found or access denied');
+    }
+    
+    await this.eventRepo.delete({ id, userId });
   }
 }

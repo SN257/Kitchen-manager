@@ -1,8 +1,8 @@
-import { Controller, Post, Body, Req, UnauthorizedException, Get } from '@nestjs/common';
+import { Controller, Post, Body, Req, UnauthorizedException, Get, Put, Delete, Param } from '@nestjs/common';
 import { Request } from 'express';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
-import { Session } from 'express-session'; // Add this import
+import { Session } from 'express-session';
 
 interface CustomSession extends Session {
   userId?: number;
@@ -33,6 +33,17 @@ export class UserController {
     req.session.username = user.username;
     req.session.role = user.role;
     req.session.center = user.center;
+    
+    // Log login activity - create activity log entry directly
+    await this.userService.getActivityLogs(user.id); // This will ensure the repository is available
+    // Actually log the activity by creating a new entry
+    const activityLogRepository = this.userService['activityLogRepository'];
+    await activityLogRepository.save({
+      userId: user.id,
+      action: 'Login',
+      details: 'Successful login',
+      createdAt: new Date()
+    });
     
     // Force session save
     return new Promise((resolve, reject) => {
@@ -98,5 +109,71 @@ export class UserController {
     if (!userId || role !== 'sant') throw new UnauthorizedException();
 
     return this.userService.getAllCenterAdminsCenters();
+  }
+
+  @Put('profile')
+  async updateProfile(
+    @Body() body: { username: string },
+    @Req() req: Request & { session: CustomSession },
+  ) {
+    if (!req.session.userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+    
+    const updatedUser = await this.userService.updateProfile(req.session.userId, body);
+    
+    // Update session data
+    req.session.username = updatedUser.username;
+    
+    return {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      center: updatedUser.center,
+      role: updatedUser.role,
+    };
+  }
+
+  @Put('change-password')
+  async changePassword(
+    @Body() body: { currentPassword: string; newPassword: string },
+    @Req() req: Request & { session: CustomSession },
+  ) {
+    if (!req.session.userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+    
+    await this.userService.changePassword(req.session.userId, body.currentPassword, body.newPassword);
+    
+    return { message: 'Password changed successfully' };
+  }
+
+  @Get('activity-logs')
+  async getActivityLogs(@Req() req: Request & { session: CustomSession }) {
+    if (!req.session.userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+    
+    return this.userService.getActivityLogs(req.session.userId);
+  }
+
+  @Delete('activity-logs/:id')
+  async deleteActivityLog(
+    @Param('id') id: string,
+    @Req() req: Request & { session: CustomSession }
+  ) {
+    if (!req.session.userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+    
+    return this.userService.deleteActivityLog(req.session.userId, parseInt(id));
+  }
+
+  @Delete('activity-logs')
+  async clearAllActivityLogs(@Req() req: Request & { session: CustomSession }) {
+    if (!req.session.userId) {
+      throw new UnauthorizedException('Not logged in');
+    }
+    
+    return this.userService.clearAllActivityLogs(req.session.userId);
   }
 }

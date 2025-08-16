@@ -36,25 +36,33 @@
 
   /* Fit columns only for your print dialogs */
   #print-sections table,
-  #annkut-print-title table {
+  #annkut-print-title table,
+  #weight-calculation-print table {
     width: 100% !important;
     max-width: 100vw !important;
-    table-layout: auto !important;
-    font-size: 10px !important;
+    table-layout: fixed !important;
+    font-size: 14px !important;
     word-break: break-word !important;
   }
 
   #print-sections th, #print-sections td,
-  #annkut-print-title th, #annkut-print-title td {
-    padding: 2px 4px !important;
+  #annkut-print-title th, #annkut-print-title td,
+  #weight-calculation-print th, #weight-calculation-print td {
+    padding: 6px 8px !important;
     white-space: normal !important;
+    font-size: 14px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   /* Prevent table from being cut off horizontally */
   #print-section,
   #print-sections,
-  #annkut-print-title {
+  #annkut-print-title,
+  #weight-calculation-print {
     overflow-x: visible !important;
     margin-top: 24px !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }

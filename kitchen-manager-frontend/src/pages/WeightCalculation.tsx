@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, TableFooter } from '@mui/material';
+import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, DialogActions } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
@@ -24,9 +24,7 @@ interface BoxRange {
 }
 
 const WeightCalculation: React.FC = () => {
-  const getTotalNang = (mithai: Mithai): number => {
-    return boxRanges.reduce((sum, box) => sum + (Number(pieces[`${mithai.id}_${box.id}`]) || 0), 0);
-  };
+  
   const getTotalGram = (mithai: Mithai, boxId: number): number => {
     const piecesCount = Number(pieces[`${mithai.id}_${boxId}`]) || 0;
     return piecesCount * mithai.gram;
@@ -220,17 +218,35 @@ const WeightCalculation: React.FC = () => {
   }, [mithais, boxRanges, pieces, selectedAnnkutEvent]);
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, mt: 1 }}>
-        <CalculateIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
-        <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-          Weight Calculation
-        </Typography>
-        {selectedEventDetails && (
-          <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
-            - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
+    <Box sx={{ p: { xs: 2, sm: 1 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <CalculateIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
+          <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
+            Weight Calculation
           </Typography>
-        )}
+          {selectedEventDetails && (
+            <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>
+              - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
+            </Typography>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            sx={{ bgcolor: '#245D6B', fontWeight: 600, minWidth: 160 }}
+            onClick={handleSave}
+          >
+            {entryId ? 'Edit Save' : 'Save'}
+          </Button>
+          <Button
+            variant="outlined"
+            sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }}
+            onClick={() => setPrintPreviewOpen(true)}
+          >
+            Print
+          </Button>
+        </Box>
       </Box>
 
       <Paper
@@ -260,7 +276,6 @@ const WeightCalculation: React.FC = () => {
 
         <TableContainer
           sx={{
-            maxHeight: 450,
             overflowY: 'auto',
             overflowX: 'auto',
           }}
@@ -314,21 +329,6 @@ const WeightCalculation: React.FC = () => {
                     <span style={{ fontWeight: 400, fontSize: 12 }}>({box.gramPerBox}g)</span>
                   </TableCell>
                 ))}
-                <TableCell
-                  align="center"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#245D6B',
-                    position: 'sticky',
-                    right: 0,
-                    top: 0,
-                    background: '#f5f5f5',
-                    zIndex: 3,
-                    minWidth: 100,
-                  }}
-                >
-                  Total Nang
-                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -412,20 +412,6 @@ const WeightCalculation: React.FC = () => {
                         </div>
                       </TableCell>
                     ))}
-                    <TableCell
-                      align="center"
-                      sx={{
-                        position: 'sticky',
-                        right: 0,
-                        background: '#f5f5f5',
-                        color: '#245D6B',
-                        zIndex: 1,
-                        minWidth: 100,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {getTotalNang(mithai)}
-                    </TableCell>
                   </TableRow>
                 ))}
               <TableRow
@@ -482,20 +468,6 @@ const WeightCalculation: React.FC = () => {
           </Box>
         )}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, gap: 2 }}>
-          <Button
-            variant="contained"
-            sx={{ bgcolor: '#245D6B', fontWeight: 600, minWidth: 160 }}
-            onClick={handleSave}
-          >
-            {entryId ? 'Edit Save' : 'Save'}
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }}
-            onClick={() => setPrintPreviewOpen(true)}
-          >
-            Print Preview
-          </Button>
         </Box>
       </Paper>
       <Snackbar
@@ -526,32 +498,33 @@ const WeightCalculation: React.FC = () => {
           <Button
             variant="contained"
             sx={{ float: 'right', bgcolor: '#245D6B', ml: 2 }}
-            onClick={() => {
-              window.print();
-              setPrintPreviewOpen(false);
-            }}
+            onClick={() => window.print()}
           >
             Print
           </Button>
         </DialogTitle>
         <DialogContent>
-          <div id="print-sections">
-            <div style={{
-              textAlign: 'left',
-              marginBottom: 24,
-              borderBottom: '2px solid #245D6B',
-              paddingBottom: 12
-            }}>
-              <h1 style={{
-                color: '#245D6B',
-                margin: 0,
-                fontSize: 32,
-                letterSpacing: 2,
-                fontWeight: 700
-              }}>
+          <Box id="weight-calculation-print">
+            <div
+              style={{
+                textAlign: "left",
+                marginBottom: 24,
+                borderBottom: "2px solid #245D6B",
+                paddingBottom: 12,
+              }}
+            >
+              <h1
+                style={{
+                  color: "#245D6B",
+                  margin: 0,
+                  fontSize: 32,
+                  letterSpacing: 2,
+                  fontWeight: 700,
+                }}
+              >
                 Weight Calculation Report
               </h1>
-              <div style={{ color: '#555', fontSize: 16, marginTop: 4 }}>
+              <div style={{ color: "#555", fontSize: 16, marginTop: 4 }}>
                 {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
                 {selectedAnnkutEvent && (
                   <span>
@@ -560,77 +533,117 @@ const WeightCalculation: React.FC = () => {
                 )}
               </div>
             </div>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Gram</TableCell>
-                    <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Mithai</TableCell>
+
+            {mithais.length > 0 ? (
+              <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
+                <thead>
+                  <tr>
+                    <th
+                      style={{
+                        border: "1px solid #ccc",
+                        padding: "8px",
+                        background: "#245D6B",
+                        color: "#fff",
+                        fontWeight: 700,
+                        textAlign: "left",
+                      }}
+                    >
+                      Gram
+                    </th>
+                    <th
+                      style={{
+                        border: "1px solid #ccc",
+                        padding: "8px",
+                        background: "#245D6B",
+                        color: "#fff",
+                        fontWeight: 700,
+                        textAlign: "left",
+                      }}
+                    >
+                      Mithai
+                    </th>
                     {boxRanges.map(box => (
-                      <TableCell
+                      <th
                         key={box.id}
-                        style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}
+                        style={{
+                          border: "1px solid #ccc",
+                          padding: "8px",
+                          background: "#245D6B",
+                          color: "#fff",
+                          fontWeight: 700,
+                          textAlign: "center",
+                        }}
                       >
-                        {box.priceRange} <br />({box.gramPerBox}g)
-                      </TableCell>
+                        {box.priceRange}
+                        <br />
+                        ({box.gramPerBox}g)
+                      </th>
                     ))}
-                    <TableCell style={{ background: '#e3f2fd', color: '#245D6B', fontWeight: 700 }}>Total Nang</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+                  </tr>
+                </thead>
+                <tbody>
                   {mithais
                     .slice()
                     .sort((a, b) => a.id - b.id)
                     .map(mithai => (
-                      <TableRow key={mithai.id}>
-                        <TableCell>{mithai.gram}</TableCell>
-                        <TableCell>{mithai.vangiName}</TableCell>
+                      <tr key={mithai.id}>
+                        <td style={{ border: '1px solid #ccc', padding: 8 }}>{mithai.gram}</td>
+                        <td style={{ border: '1px solid #ccc', padding: 8 }}>{mithai.vangiName}</td>
                         {boxRanges.map(box => (
-                          <TableCell key={box.id}>
-                            <div>
-                              {pieces[`${mithai.id}_${box.id}`] ?? ''}
-                              <div style={{ fontSize: 11, color: '#245D6B' }}>
-                                {pieces[`${mithai.id}_${box.id}`]
-                                  ? `${Number(pieces[`${mithai.id}_${box.id}`]) * mithai.gram}g`
-                                  : ''}
-                              </div>
-                            </div>
-                          </TableCell>
+                          <td key={box.id} style={{ border: '1px solid #ccc', padding: 8, textAlign: 'center' }}>
+                            {pieces[`${mithai.id}_${box.id}`] || '0'}
+                          </td>
                         ))}
-                        <TableCell>
-                          {boxRanges.reduce((sum, box) => sum + (Number(pieces[`${mithai.id}_${box.id}`]) || 0), 0)}
-                        </TableCell>
-                      </TableRow>
+                      </tr>
                     ))}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={2} style={{
+                  <tr>
+                    <td colSpan={2} style={{
+                      border: '1px solid #ccc',
+                      padding: 8,
                       fontWeight: 700,
                       color: '#245D6B',
                       background: '#f5f5f5'
                     }}>
                       Total Gram
-                    </TableCell>
+                    </td>
                     {boxRanges.map(box => (
-                      <TableCell
+                      <td
                         key={box.id}
                         style={{
+                          border: '1px solid #ccc',
+                          padding: 8,
+                          textAlign: 'center',
                           fontWeight: 700,
                           color: '#245D6B',
                           background: '#f5f5f5'
                         }}
                       >
                         {mithais.reduce((sum, mithai) => sum + ((Number(pieces[`${mithai.id}_${box.id}`]) || 0) * mithai.gram), 0)}
-                      </TableCell>
+                      </td>
                     ))}
-                    <TableCell style={{ background: '#f5f5f5' }} />
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </TableContainer>
-          </div>
+                  </tr>
+                </tbody>
+              </table>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "#999",
+                  fontStyle: "italic",
+                  padding: "40px",
+                  fontSize: "16px",
+                }}
+              >
+                No weight calculation data available for printing.
+              </div>
+            )}
+          </Box>
         </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrintPreviewOpen(false)} sx={{ color: '#245D6B', fontWeight: 600 }}>
+            Close
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

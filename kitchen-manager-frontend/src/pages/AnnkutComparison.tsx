@@ -673,9 +673,25 @@ const AnnkutComparison: React.FC = () => {
                           key={id}
                           label={event ? `${event.eventName} ${event.eventYear}` : ''}
                           size="small"
+                          onDelete={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedEvents(prev => prev.filter(eventId => eventId !== id));
+                          }}
+                          onMouseDown={(e) => {
+                            if ((e.target as Element).closest('.MuiChip-deleteIcon')) {
+                              e.stopPropagation();
+                            }
+                          }}
                           sx={{ 
                             backgroundColor: '#245D6B',
-                            color: '#fff'
+                            color: '#fff',
+                            '& .MuiChip-deleteIcon': {
+                              color: '#fff',
+                              '&:hover': {
+                                color: '#ffcccb'
+                              }
+                            }
                           }}
                         />
                       );
@@ -711,69 +727,84 @@ const AnnkutComparison: React.FC = () => {
       </Paper>
 
       {/* Results Section */}
-      {showComparison && selectedEvents.length >= 2 && (
-        <Paper elevation={3} sx={{ p: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6" sx={{ 
-              color: '#245D6B', 
-              fontWeight: 600
-            }}>
-              Comparison Results
-            </Typography>
-            <Button
-              variant="contained"
-              sx={{
-                bgcolor: '#245D6B',
-                fontWeight: 700,
-                textTransform: 'none',
-                '&:hover': { bgcolor: '#1e4d57' }
-              }}
-              onClick={() => setPrintDialogOpen(true)}
-            >
-              Print
-            </Button>
-          </Box>
-          
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: `repeat(${selectedEvents.length}, 1fr)`,
-            gap: 2,
-            width: '100%'
-          }}>
-            {selectedEvents.map((eventId) => (
-              <Paper 
-                key={eventId}
-                elevation={2} 
-                sx={{ 
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  border: '1px solid #e0e0e0',
-                  width: '100%'
-                }}
-              >
-                <Box sx={{ 
-                  p: 2, 
+      {(selectedEvents.length >= 2 && selectedPage) ? (
+        showComparison && (
+          <Paper elevation={3} sx={{ p: 2, borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6" sx={{ 
+                color: '#245D6B', 
+                fontWeight: 600
+              }}>
+                Comparison Results
+              </Typography>
+              <Button
+                variant="contained"
+                sx={{
                   bgcolor: '#245D6B',
-                  color: '#fff',
-                  textAlign: 'center'
-                }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    {getEventName(eventId)}
-                  </Typography>
-                  <Chip 
-                    label={`${(comparisonData[eventId] || []).length} records`}
-                    size="small"
-                    sx={{ 
-                      backgroundColor: 'rgba(255,255,255,0.2)',
-                      color: '#fff',
-                      mt: 1
-                    }}
-                  />
-                </Box>
-                
-                {renderDataTable(comparisonData[eventId] || [])}
-              </Paper>
-            ))}
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  '&:hover': { bgcolor: '#1e4d57' }
+                }}
+                onClick={() => setPrintDialogOpen(true)}
+              >
+                Print
+              </Button>
+            </Box>
+            
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: `repeat(${selectedEvents.length}, 1fr)`,
+              gap: 2,
+              width: '100%'
+            }}>
+              {selectedEvents.map((eventId) => (
+                <Paper 
+                  key={eventId}
+                  elevation={2} 
+                  sx={{ 
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    border: '1px solid #e0e0e0',
+                    width: '100%'
+                  }}
+                >
+                  <Box sx={{ 
+                    p: 2, 
+                    bgcolor: '#245D6B',
+                    color: '#fff',
+                    textAlign: 'center'
+                  }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      {getEventName(eventId)}
+                    </Typography>
+                    <Chip 
+                      label={`${(comparisonData[eventId] || []).length} records`}
+                      size="small"
+                      sx={{ 
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: '#fff',
+                        mt: 1
+                      }}
+                    />
+                  </Box>
+                  
+                  {renderDataTable(comparisonData[eventId] || [])}
+                </Paper>
+              ))}
+            </Box>
+          </Paper>
+        )
+      ) : (
+        <Paper elevation={3} sx={{ p: 2, borderRadius: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <Typography variant="h6" sx={{ color: "#245D6B", fontStyle: "italic" }}>
+              {selectedEvents.length < 2 && selectedPage 
+                ? 'Please select at least two events to compare'
+                : !selectedPage && selectedEvents.length >= 2
+                ? 'Please select a page to compare'
+                : 'Please select at least two events and a page to compare'
+              }
+            </Typography>
           </Box>
         </Paper>
       )}

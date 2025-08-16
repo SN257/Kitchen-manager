@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import axios from "axios";
 import {
   AppBar,
@@ -40,6 +40,7 @@ import SummarizeIcon from "@mui/icons-material/Summarize";
 import "../App.css";
 import AnnkutEventSelector from '../components/AnnkutEventSelector';
 import CompareIcon from "@mui/icons-material/Compare";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
 const drawerWidth = 250;
 
 const sidebarItemSx = {
@@ -113,7 +114,19 @@ const Dashboard: React.FC = () => {
         });
     };
 
+    // Listen for user updates from Profile page
+    const handleUserUpdate = (event: CustomEvent) => {
+      if (event.detail && event.detail.username) {
+        setUsername(event.detail.username);
+      }
+    };
+
+    window.addEventListener('userUpdated', handleUserUpdate as EventListener);
     fetchUsername();
+
+    return () => {
+      window.removeEventListener('userUpdated', handleUserUpdate as EventListener);
+    };
   }, []);
 
   const handleDrawerToggle = () => {
@@ -131,11 +144,35 @@ const Dashboard: React.FC = () => {
       '/dashboard/box-annkut/BoxRangeEntry',
       '/dashboard/box-annkut/WeightCalculation',
       '/dashboard/box-annkut/AnnkutNosSummary',
-      '/dashboard/box-annkut/AnnkutSidhuSaman'
-      // Excluded '/dashboard/box-annkut/annkut-comparison'
+      '/dashboard/box-annkut/AnnkutSidhuSaman',
+      '/dashboard/section-master'
     ];
     return annkutPages.some(page => pathname.includes(page));
   };
+
+  // Add useEffect to close dropdowns when navigating outside their sections
+  useEffect(() => {
+    const currentPath = location.pathname;
+    
+    // Close Annkut dropdown if navigating outside Annkut pages
+    if (!currentPath.includes('/box-annkut/') && 
+        !currentPath.includes('/section-master') && 
+        !currentPath.includes('/annkut-comparison')) {
+      setAnnkutOpen(false);
+      setBoxAnnkutOpen(false);
+      setSectionAnnkutOpen(false);
+    }
+    
+    // Close Box Annkut dropdown if navigating outside Box Annkut pages
+    if (!currentPath.includes('/box-annkut/')) {
+      setBoxAnnkutOpen(false);
+    }
+    
+    // Close Section Annkut dropdown if navigating outside Section Annkut pages  
+    if (!currentPath.includes('/section-master')) {
+      setSectionAnnkutOpen(false);
+    }
+  }, [location.pathname]);
 
   const drawer = (
     <Box
@@ -373,6 +410,16 @@ const Dashboard: React.FC = () => {
             <Collapse in={sectionAnnkutOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 <ListItemButton
+                  selected={isActive("/dashboard/section-master")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-master")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <AccountTreeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Section Master" />
+                </ListItemButton>
+                <ListItemButton
                   selected={isActive("/dashboard/section-annkut/submenu1")}
                   sx={{ pl: 8, ...sidebarItemSx }}
                   onClick={() => navigate("/dashboard/section-annkut/submenu1")}
@@ -526,6 +573,7 @@ const Dashboard: React.FC = () => {
               aria-controls="menu-appbar"
               aria-haspopup="true"
               sx={{ color: "#245D6B", ml: 0 }}
+              onClick={() => navigate("/dashboard/profile")}
             >
               <AccountCircle sx={{ fontSize: 40 }} />
             </IconButton>
