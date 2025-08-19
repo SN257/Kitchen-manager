@@ -13,6 +13,7 @@ import { WeightCalculationEntryModule } from './weight-calculation-entry/weight-
 import { BoxRangeModule } from './box-range/box-range.module';
 import { AnnkutSidhuSamanModule } from './annkut-sidhu-saman/annkut-sidhu-saman.module';
 import { SectionsModule } from './sections/sections.module';
+import { VasanModule } from './vasan/vasan.module';
 
 @Module({
   imports: [
@@ -28,7 +29,8 @@ import { SectionsModule } from './sections/sections.module';
     WeightCalculationEntryModule,
     BoxRangeModule,
     AnnkutSidhuSamanModule,
-    SectionsModule,
+  SectionsModule,
+  VasanModule,
   ]
 })
 export class AppModule {}

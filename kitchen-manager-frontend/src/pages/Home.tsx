@@ -145,7 +145,8 @@ const Dashboard: React.FC = () => {
       '/dashboard/box-annkut/WeightCalculation',
       '/dashboard/box-annkut/AnnkutNosSummary',
       '/dashboard/box-annkut/AnnkutSidhuSaman',
-      '/dashboard/section-master'
+      '/dashboard/section-master',
+      '/dashboard/section-annkut/vasan-master'
     ];
     return annkutPages.some(page => pathname.includes(page));
   };
@@ -444,6 +445,16 @@ const Dashboard: React.FC = () => {
                     />
                   </ListItemIcon>
                   <ListItemText primary="Submenu 2" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/vasan-master")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/vasan-master")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Vasan Master" />
                 </ListItemButton>
               </List>
             </Collapse>
