@@ -8,15 +8,9 @@ export class Vasan {
 
   @Column()
   vasanName: string;
-
-  @Column()
-  foodName: string;
-
-  @Column('float')
-  totalWeight: number; // total weight value
-
-  @Column('int')
-  totalVasan: number; // count of vasan
+  
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  description?: string;
 
   @Column({ nullable: true })
   eventId: number;

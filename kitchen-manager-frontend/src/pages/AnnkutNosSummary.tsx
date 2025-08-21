@@ -70,7 +70,6 @@ const AnnkutNosSummary: React.FC = () => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('No token found, user not logged in');
       setLoading(false);
       return;
     }
@@ -85,7 +84,6 @@ const AnnkutNosSummary: React.FC = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log('Weight calculation data:', data);
         if (data && data.entries && data.entries.length > 0) {
           const sortedMithais = data.entries
             .map((entry: any) => ({
@@ -96,7 +94,6 @@ const AnnkutNosSummary: React.FC = () => {
             }))
             .sort((a: any, b: any) => a.id - b.id);
           
-          console.log('Processed mithais:', sortedMithais);
           setMithais(sortedMithais);
 
           const allBoxes = data.entries.flatMap((entry: any) =>
@@ -109,7 +106,6 @@ const AnnkutNosSummary: React.FC = () => {
             new Map(allBoxes.map((b: { id: any }) => [b.id, b])).values()
           );
           
-          console.log('Box ranges:', uniqueBoxes);
           setBoxRanges(uniqueBoxes.sort((a: any, b: any) => a.id - b.id));
 
           // Build pieces map
@@ -121,7 +117,6 @@ const AnnkutNosSummary: React.FC = () => {
             });
           });
           
-          console.log('Pieces map:', newPieces);
           setPieces(newPieces);
         } else {
           setMithais([]);
@@ -129,12 +124,7 @@ const AnnkutNosSummary: React.FC = () => {
           setPieces({});
         }
       })
-      .catch((error) => {
-        console.error('Error fetching data:', error);
-        setMithais([]);
-        setBoxRanges([]);
-        setPieces({});
-      })
+  .catch(() => { setMithais([]); setBoxRanges([]); setPieces({}); })
       .finally(() => setLoading(false));
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
@@ -147,7 +137,6 @@ const AnnkutNosSummary: React.FC = () => {
     
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('No token found, user not logged in');
       return;
     }
     
@@ -160,7 +149,6 @@ const AnnkutNosSummary: React.FC = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log('Box weight entries data:', data);
         
         const filteredData = data.filter((box: any) => {
           const boxEventId = box.eventId?.toString();
@@ -170,15 +158,11 @@ const AnnkutNosSummary: React.FC = () => {
         
         const totals: { [priceRange: string]: number } = {};
         filteredData.forEach((box: any) => {
-          console.log('Processing box entry:', box);
           totals[box.priceRange] = Number(box.totalBoxes) || Number(box.nos) || 0;
         });
-        console.log('Box totals after filtering:', totals);
         setBoxTotals(totals);
       })
-      .catch((error) => {
-        console.error('Error fetching box weight entries:', error);
-      });
+  .catch(() => {});
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   useEffect(() => {
@@ -186,7 +170,6 @@ const AnnkutNosSummary: React.FC = () => {
     
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('No token found, user not logged in');
       return;
     }
     
@@ -234,10 +217,8 @@ const AnnkutNosSummary: React.FC = () => {
     const total = boxRanges.reduce((sum: number, box: any) => {
       const nang = pieces[`${mithai.id}_${box.id}`] || 0;
       const totalBoxes = boxTotals[box.priceRange] || 0;
-      console.log(`Box ${box.priceRange}: nang=${nang}, totalBoxes=${totalBoxes}, contribution=${nang * totalBoxes}`);
       return sum + nang * totalBoxes;
     }, 0);
-    console.log(`Total nang for ${mithai.vangiName}: ${total}`);
     return total;
   };
 
@@ -329,7 +310,6 @@ const AnnkutNosSummary: React.FC = () => {
               }),
             });
           } catch (err) {
-            console.error("Error auto-saving mithai data:", err);
           }
         }
       }
@@ -377,7 +357,6 @@ const AnnkutNosSummary: React.FC = () => {
         setCalculatedData(calculatedMap);
       }
     } catch (error) {
-      console.error('Error fetching calculated data:', error);
     }
   };
 

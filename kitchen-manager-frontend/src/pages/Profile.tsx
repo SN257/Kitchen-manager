@@ -113,7 +113,6 @@ const Profile: React.FC = () => {
         setError('Failed to fetch user profile');
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
       setError('Network error occurred');
     } finally {
       setLoading(false);
@@ -155,7 +154,6 @@ const Profile: React.FC = () => {
         showSnackbar('Failed to update profile', 'error');
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
       showSnackbar('Network error occurred', 'error');
     }
   };
@@ -200,7 +198,6 @@ const Profile: React.FC = () => {
         showSnackbar(errorData.message || 'Failed to change password', 'error');
       }
     } catch (error) {
-      console.error('Error changing password:', error);
       showSnackbar('Network error occurred', 'error');
     }
   };
@@ -219,14 +216,11 @@ const Profile: React.FC = () => {
 
       if (response.ok) {
         const logs = await response.json();
-        console.log('Activity logs from API:', logs);
         setActivityLogs(logs);
       } else {
-        console.error('Failed to fetch activity logs:', response.status);
         setActivityLogs([]);
       }
     } catch (error) {
-      console.error('Error fetching activity logs:', error);
       setActivityLogs([]);
     } finally {
       setActivityLoading(false);
@@ -280,7 +274,6 @@ const Profile: React.FC = () => {
         showSnackbar('Failed to delete activity log', 'error');
       }
     } catch (error) {
-      console.error('Error deleting activity log:', error);
       showSnackbar('Network error occurred', 'error');
     }
     setDeleteLogDialogOpen(false);
@@ -306,7 +299,6 @@ const Profile: React.FC = () => {
         showSnackbar('Failed to clear activity logs', 'error');
       }
     } catch (error) {
-      console.error('Error clearing activity logs:', error);
       showSnackbar('Network error occurred', 'error');
     }
     setClearAllDialogOpen(false);

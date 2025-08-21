@@ -19,6 +19,11 @@ import { AnnkutEventProvider } from './contexts/AnnkutEventContext';
 import SectionMaster from './pages/SectionMaster';
 import Profile from './pages/Profile';
 import VasanMaster from './pages/VasanMaster';
+import VasanNosCalculation from './pages/VasanNosCalculation';
+import SectionIngredientSummary from './pages/SectionIngredientSummary';
+import SectionNosSummary from './pages/SectionNosSummary';
+import VasanFillPlan from './pages/VasanFillPlan';
+import SectionLayoutPlanner from './pages/SectionLayoutPlanner';
 
 function App() {
   return (
@@ -40,8 +45,15 @@ function App() {
           <Route path="box-annkut/AnnkutSidhuSaman" element={<AnnkutSidhuSaman/>} />   
           <Route path="box-annkut/BoxRangeEntry" element={<BoxRangeEntry />} />
           <Route path="box-annkut/annkut-comparison" element={<AnnkutComparison />} />
+          <Route path="section-annkut/section-master" element={<SectionMaster />} />
           <Route path="section-annkut/vasan-master" element={<VasanMaster />} />
-          <Route path="section-master" element={<SectionMaster />} />
+          <Route path="section-annkut/vasan-nos-calculation" element={<VasanNosCalculation />} />
+          <Route path="section-annkut/section-ingredient-summary" element={<SectionIngredientSummary />} />
+          <Route path="section-annkut/section-nos-summary" element={<SectionNosSummary />} />
+          <Route path="section-annkut/vasan-fill-plan" element={<VasanFillPlan />} />
+          <Route path="section-annkut/layout-planner" element={<SectionLayoutPlanner />} />
+          {/* Legacy path redirect */}
+          <Route path="section-master" element={<Navigate to="/dashboard/section-annkut/section-master" replace />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>

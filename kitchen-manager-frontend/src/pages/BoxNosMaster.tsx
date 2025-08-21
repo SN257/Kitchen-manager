@@ -55,7 +55,6 @@ const BoxWeightEntry: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        console.log('No token found, user not logged in');
         return;
       }
 
@@ -72,21 +71,18 @@ const BoxWeightEntry: React.FC = () => {
       });
 
       if (!res.ok) {
-        if (res.status === 401) {
-          console.error('Authentication failed - session expired');
+  if (res.status === 401) {
           localStorage.clear();
           window.location.href = '/login';
           return;
         }
-        console.error('Failed to fetch box entries:', res.status);
         setBoxEntries([]);
         return;
       }
 
       const data = await res.json();
       setBoxEntries(selectedAnnkutEvent ? data : []);
-    } catch (error) {
-      console.error('Error fetching box entries:', error);
+  } catch (error) {
       setSnackbar({ open: true, message: 'Failed to fetch box entries.', severity: 'error' });
     }
   };
@@ -108,7 +104,6 @@ const BoxWeightEntry: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
-          console.log('No token found, user not logged in');
           return;
         }
 
@@ -126,20 +121,17 @@ const BoxWeightEntry: React.FC = () => {
 
         if (!res.ok) {
           if (res.status === 401) {
-            console.error('Authentication failed - session expired');
             localStorage.clear();
             window.location.href = '/login';
             return;
           }
-          console.error('Failed to fetch box ranges:', res.status);
           setBoxRanges([]);
           return;
         }
 
         const data = await res.json();
         setBoxRanges(selectedAnnkutEvent ? data : []);
-      } catch (error) {
-        console.error('Error fetching box ranges:', error);
+  } catch (error) {
         setSnackbar({ open: true, message: 'Failed to fetch box ranges.', severity: 'error' });
       }
     };
@@ -205,8 +197,7 @@ const BoxWeightEntry: React.FC = () => {
         setAvailableBoxTypes([]);
         setTotalBoxesByType({});
         setSnackbar({ open: true, message: 'Entries added successfully!', severity: 'success' });
-      } catch (error) {
-        console.error('Error adding entries:', error);
+  } catch (error) {
         setSnackbar({ open: true, message: 'Failed to add entries.', severity: 'error' });
       }
     } else {

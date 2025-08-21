@@ -32,7 +32,6 @@ import { useApiBaseUrl } from "../config/config";
 import LunchDiningIcon from "@mui/icons-material/LunchDining";
 import BoxIcon from "@mui/icons-material/Inventory2"; // For Box wise Annkut
 import GroupWorkIcon from "@mui/icons-material/GroupWork"; // For Section wise Annkut
-import SubdirectoryArrowRightIcon from "@mui/icons-material/SubdirectoryArrowRight"; // For submenus
 import ScaleIcon from "@mui/icons-material/Scale";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import CalculateIcon from "@mui/icons-material/Calculate";
@@ -41,6 +40,8 @@ import "../App.css";
 import AnnkutEventSelector from '../components/AnnkutEventSelector';
 import CompareIcon from "@mui/icons-material/Compare";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import AddTaskIcon from "@mui/icons-material/AddTask";
+import ViewModuleIcon from "@mui/icons-material/ViewModule";
 const drawerWidth = 250;
 
 const sidebarItemSx = {
@@ -71,7 +72,7 @@ const Dashboard: React.FC = () => {
 
   const [annkutOpen, setAnnkutOpen] = React.useState(
     location.pathname.startsWith("/dashboard/box-annkut") ||
-      location.pathname.startsWith("/dashboard/section-annkut")
+    location.pathname.startsWith("/dashboard/section-annkut")
   );
 
   const [boxAnnkutOpen, setBoxAnnkutOpen] = React.useState(
@@ -108,10 +109,7 @@ const Dashboard: React.FC = () => {
             setUsername("User");
           }
         })
-        .catch((err) => {
-          setUsername("User");
-          console.error("Failed to fetch user:", err);
-        });
+  .catch(() => { setUsername("User"); });
     };
 
     // Listen for user updates from Profile page
@@ -140,13 +138,18 @@ const Dashboard: React.FC = () => {
   const isAnnkutPage = (pathname: string) => {
     const annkutPages = [
       '/dashboard/box-annkut/weight-entry',
-      '/dashboard/box-annkut/box-weight-entry', 
+      '/dashboard/box-annkut/box-weight-entry',
       '/dashboard/box-annkut/BoxRangeEntry',
       '/dashboard/box-annkut/WeightCalculation',
       '/dashboard/box-annkut/AnnkutNosSummary',
       '/dashboard/box-annkut/AnnkutSidhuSaman',
-      '/dashboard/section-master',
-      '/dashboard/section-annkut/vasan-master'
+  '/dashboard/section-annkut/section-master',
+      '/dashboard/section-annkut/vasan-master',
+  '/dashboard/section-annkut/vasan-nos-calculation',
+  '/dashboard/section-annkut/section-ingredient-summary',
+  '/dashboard/section-annkut/section-nos-summary',
+  '/dashboard/section-annkut/vasan-fill-plan',
+  '/dashboard/section-annkut/layout-planner'
     ];
     return annkutPages.some(page => pathname.includes(page));
   };
@@ -154,25 +157,21 @@ const Dashboard: React.FC = () => {
   // Add useEffect to close dropdowns when navigating outside their sections
   useEffect(() => {
     const currentPath = location.pathname;
-    
-    // Close Annkut dropdown if navigating outside Annkut pages
-    if (!currentPath.includes('/box-annkut/') && 
-        !currentPath.includes('/section-master') && 
-        !currentPath.includes('/annkut-comparison')) {
+    const isBoxAnnkut = currentPath.startsWith('/dashboard/box-annkut/');
+    const isSectionAnnkut = currentPath.startsWith('/dashboard/section-annkut/');
+    const isAnnkutComparison = currentPath.includes('/annkut-comparison');
+    const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isAnnkutComparison;
+
+    if (!isAnyAnnkut) {
       setAnnkutOpen(false);
       setBoxAnnkutOpen(false);
       setSectionAnnkutOpen(false);
+      return;
     }
-    
-    // Close Box Annkut dropdown if navigating outside Box Annkut pages
-    if (!currentPath.includes('/box-annkut/')) {
-      setBoxAnnkutOpen(false);
-    }
-    
-    // Close Section Annkut dropdown if navigating outside Section Annkut pages  
-    if (!currentPath.includes('/section-master')) {
-      setSectionAnnkutOpen(false);
-    }
+    // Ensure parent open
+    setAnnkutOpen(true);
+    setBoxAnnkutOpen(isBoxAnnkut);
+    setSectionAnnkutOpen(isSectionAnnkut);
   }, [location.pathname]);
 
   const drawer = (
@@ -411,40 +410,14 @@ const Dashboard: React.FC = () => {
             <Collapse in={sectionAnnkutOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 <ListItemButton
-                  selected={isActive("/dashboard/section-master")}
+                  selected={isActive("/dashboard/section-annkut/section-master")}
                   sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/section-master")}
+                  onClick={() => navigate("/dashboard/section-annkut/section-master")}
                 >
                   <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
                     <AccountTreeIcon fontSize="small" sx={{ fontSize: 20 }} />
                   </ListItemIcon>
                   <ListItemText primary="Section Master" />
-                </ListItemButton>
-                <ListItemButton
-                  selected={isActive("/dashboard/section-annkut/submenu1")}
-                  sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/section-annkut/submenu1")}
-                >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
-                    <SubdirectoryArrowRightIcon
-                      fontSize="small"
-                      sx={{ fontSize: 20 }}
-                    />
-                  </ListItemIcon>
-                  <ListItemText primary="Submenu 1" />
-                </ListItemButton>
-                <ListItemButton
-                  selected={isActive("/dashboard/section-annkut/submenu2")}
-                  sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/section-annkut/submenu2")}
-                >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
-                    <SubdirectoryArrowRightIcon
-                      fontSize="small"
-                      sx={{ fontSize: 20 }}
-                    />
-                  </ListItemIcon>
-                  <ListItemText primary="Submenu 2" />
                 </ListItemButton>
                 <ListItemButton
                   selected={isActive("/dashboard/section-annkut/vasan-master")}
@@ -455,6 +428,56 @@ const Dashboard: React.FC = () => {
                     <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
                   </ListItemIcon>
                   <ListItemText primary="Vasan Master" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/vasan-fill-plan")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/vasan-fill-plan")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <AddTaskIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Vasan Fill Plan" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/vasan-nos-calculation")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/vasan-nos-calculation")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <CalculateIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Vasan Nos Calculation" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/section-nos-summary")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/section-nos-summary")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Nos Summary" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/section-ingredient-summary")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/section-ingredient-summary")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Ingredient Summary" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/layout-planner")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/layout-planner")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <ViewModuleIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Layout Planner" />
                 </ListItemButton>
               </List>
             </Collapse>
@@ -473,7 +496,7 @@ const Dashboard: React.FC = () => {
         <List>
           {localStorage.getItem("user") &&
             JSON.parse(localStorage.getItem("user") || "{}")?.role ===
-              "super-admin" && (
+            "super-admin" && (
               <ListItem
                 sx={{ cursor: "pointer", mt: 0 }}
                 onClick={() => navigate("/dashboard/create-user")}
@@ -489,7 +512,7 @@ const Dashboard: React.FC = () => {
               cursor: "pointer",
               mt:
                 localStorage.getItem("user") &&
-                JSON.parse(localStorage.getItem("user") || "{}")?.role ===
+                  JSON.parse(localStorage.getItem("user") || "{}")?.role ===
                   "super-admin"
                   ? 0 // No margin if super-admin
                   : 0, // Explicitly set to 0 to remove unnecessary space
@@ -498,7 +521,7 @@ const Dashboard: React.FC = () => {
               await fetch(`${API_BASE_URL}/user/logout`, {
                 method: "POST",
                 credentials: "include",
-              }).catch(() => {});
+              }).catch(() => { });
 
               localStorage.clear();
               sessionStorage.clear();

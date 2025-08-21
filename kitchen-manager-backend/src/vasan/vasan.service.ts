@@ -30,10 +30,12 @@ export class VasanService {
   }
 
   async update(id: number, dto: CreateVasanDto, userId: number) {
-    const existing = await this.repo.findOne({ where: { id, userId }, relations: ['event'] });
-    if (!existing) throw new NotFoundException('Vasan entry not found or access denied');
-    Object.assign(existing, dto);
-    return this.repo.save(existing);
+  const existing = await this.repo.findOne({ where: { id, userId }, relations: ['event'] });
+  if (!existing) throw new NotFoundException('Vasan entry not found or access denied');
+  existing.vasanName = dto.vasanName;
+  existing.description = dto.description;
+  if (dto.eventId !== undefined) existing.eventId = dto.eventId;
+  return this.repo.save(existing);
   }
 
   async remove(id: number, userId: number) {

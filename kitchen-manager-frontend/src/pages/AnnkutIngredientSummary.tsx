@@ -41,7 +41,6 @@ const AnnkutSidhuSaman = () => {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('No token found, user not logged in');
       setLoading(false);
       return;
     }
@@ -64,16 +63,10 @@ const AnnkutSidhuSaman = () => {
       }).then((res) => (res.ok ? res.json() : []))
     ])
       .then(([recipesData, annkutData]) => {
-        console.log('Recipes:', recipesData);
-        console.log('Annkut Data:', annkutData);
         setRecipes(Array.isArray(recipesData) ? recipesData : []);
         setAnnkutData(Array.isArray(annkutData) ? annkutData : []);
       })
-      .catch((err) => {
-        console.error("Error fetching data:", err);
-        setRecipes([]);
-        setAnnkutData([]);
-      })
+  .catch(() => { setRecipes([]); setAnnkutData([]); })
       .finally(() => setLoading(false));
   }, [API_BASE_URL, selectedAnnkutEvent]);
 

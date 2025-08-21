@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination } from '@mui/material';
-import Autocomplete from '@mui/material/Autocomplete';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PrintIcon from '@mui/icons-material/Print';
 import CategoryIcon from '@mui/icons-material/Category';
-import RestaurantIcon from '@mui/icons-material/Restaurant';
-import ScaleIcon from '@mui/icons-material/Scale';
-import NumbersIcon from '@mui/icons-material/Numbers';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -17,10 +14,7 @@ const VasanMaster: React.FC = () => {
   const API_BASE_URL = useApiBaseUrl();
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const [vasanName, setVasanName] = useState('');
-  const [foodName, setFoodName] = useState('');
-  const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
-  const [totalWeight, setTotalWeight] = useState('');
-  const [totalVasan, setTotalVasan] = useState('');
+  const [description, setDescription] = useState('');
   const [entries, setEntries] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -47,21 +41,6 @@ const VasanMaster: React.FC = () => {
     fetchCurrentUser();
   }, [API_BASE_URL]);
 
-  // Fetch food items from Food Master
-  useEffect(() => {
-    const fetchFoodItems = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/food-item`, { method: 'GET' });
-        if (res.ok) {
-          const data = await res.json();
-            // Expecting array with vangiName
-          setFoodItems(Array.isArray(data) ? data.map((d: any) => ({ id: d.id, vangiName: d.vangiName })) : []);
-        }
-      } catch {}
-    };
-    fetchFoodItems();
-  }, [API_BASE_URL]);
-
   const fetchEntries = async () => {
     if (!selectedAnnkutEvent) { setEntries([]); return; }
     try {
@@ -74,16 +53,17 @@ const VasanMaster: React.FC = () => {
 
   useEffect(() => { fetchEntries(); }, [selectedAnnkutEvent]);
 
-  const clearForm = () => { setVasanName(''); setFoodName(''); setTotalWeight(''); setTotalVasan(''); };
+  const clearForm = () => { setVasanName(''); setDescription(''); };
 
   const handleAdd = async () => {
     if (!currentUser) { setError('Not authenticated'); setSuccess(''); setOpenSnackbar(true); return; }
     if (!selectedAnnkutEvent) { setError('Select event first'); setSuccess(''); setOpenSnackbar(true); return; }
-    if (!vasanName || !foodName || !totalWeight || !totalVasan) { setError('Fill all fields'); setSuccess(''); setOpenSnackbar(true); return; }
+    if (!vasanName) { setError('Vasan name required'); setSuccess(''); setOpenSnackbar(true); return; }
     try {
-      const res = await fetch(`${API_BASE_URL}/vasans`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify({ vasanName, foodName, totalWeight: Number(totalWeight), totalVasan: Number(totalVasan), eventId: selectedAnnkutEvent }) });
+      const res = await fetch(`${API_BASE_URL}/vasans`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify({ vasanName, description, eventId: selectedAnnkutEvent }) });
       if (!res.ok) throw new Error();
-      setSuccess('Vasan entry added'); setError(''); setOpenSnackbar(true); clearForm(); fetchEntries();
+  setSuccess('Vasan entry added'); setError(''); setOpenSnackbar(true); clearForm(); fetchEntries();
+  window.dispatchEvent(new CustomEvent('vasansChanged'));
     } catch { setError('Add failed'); setSuccess(''); setOpenSnackbar(true); }
   };
 
@@ -91,9 +71,10 @@ const VasanMaster: React.FC = () => {
   const handleEditSave = async () => {
     if (!editingEntry) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/vasans/${editingEntry.id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify({ vasanName: editingEntry.vasanName, foodName: editingEntry.foodName, totalWeight: Number(editingEntry.totalWeight), totalVasan: Number(editingEntry.totalVasan), eventId: editingEntry.eventId }) });
+  const res = await fetch(`${API_BASE_URL}/vasans/${editingEntry.id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify({ vasanName: editingEntry.vasanName, description: editingEntry.description, eventId: editingEntry.eventId }) });
       if (!res.ok) throw new Error();
-      setSuccess('Updated successfully'); setError(''); setOpenSnackbar(true); setEditDialogOpen(false); setEditingEntry(null); fetchEntries();
+  setSuccess('Updated successfully'); setError(''); setOpenSnackbar(true); setEditDialogOpen(false); setEditingEntry(null); fetchEntries();
+  window.dispatchEvent(new CustomEvent('vasansChanged'));
     } catch { setError('Update failed'); setSuccess(''); setOpenSnackbar(true); }
   };
 
@@ -103,11 +84,12 @@ const VasanMaster: React.FC = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/vasans/${deleteId}`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` } });
       if (!res.ok) throw new Error();
-      setSuccess('Deleted'); setError(''); setOpenSnackbar(true); setDeleteDialogOpen(false); setDeleteId(null); fetchEntries();
+  setSuccess('Deleted'); setError(''); setOpenSnackbar(true); setDeleteDialogOpen(false); setDeleteId(null); fetchEntries();
+  window.dispatchEvent(new CustomEvent('vasansChanged'));
     } catch { setError('Delete failed'); setSuccess(''); setOpenSnackbar(true); }
   };
 
-  const filtered = entries.filter(e => e.vasanName.toLowerCase().includes(search.toLowerCase()) || e.foodName.toLowerCase().includes(search.toLowerCase()));
+  const filtered = entries.filter(e => e.vasanName.toLowerCase().includes(search.toLowerCase()) || (e.description || '').toLowerCase().includes(search.toLowerCase()));
   const pageCount = Math.ceil(filtered.length / ROWS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
 
@@ -120,60 +102,32 @@ const VasanMaster: React.FC = () => {
       <Paper elevation={4} sx={{ p: { xs: 2, sm: 4 }, mt: 3, width: '100%', borderRadius: 2, boxShadow: '0 4px 24px rgba(36,93,107,0.08)', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
         <Box
           sx={{
-            display: 'grid',
+            display: 'flex',
             gap: 2,
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(5, 1fr)'
-            },
-            alignItems: 'start'
+            alignItems: 'stretch',
+            width: '100%',
+            '& > .vasan-field': { flex: 1 },
           }}
         >
           <TextField
-            fullWidth
+            className="vasan-field"
             label="Vasan Name"
             value={vasanName}
             onChange={e => setVasanName(e.target.value)}
-            InputProps={{
-              startAdornment: <CategoryIcon sx={{ color: '#245D6B', mr: 1 }} />,
-            }}
-          />
-          <Autocomplete
-            fullWidth
-            options={foodItems}
-            getOptionLabel={(option) => option.vangiName}
-            value={foodItems.find(f => f.vangiName === foodName) || null}
-            onChange={(_, val) => setFoodName(val ? val.vangiName : '')}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Food Name"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: <RestaurantIcon sx={{ color: '#245D6B', mr: 1 }} />,
-                }}
-              />
-            )}
-            clearOnEscape
+            InputProps={{ startAdornment: <CategoryIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
           />
           <TextField
-            fullWidth
-            label="Total Weight"
-            value={totalWeight}
-            onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setTotalWeight(e.target.value); }}
-            InputProps={{ startAdornment: <ScaleIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
-          />
-          <TextField
-            fullWidth
-            label="Total Vasan"
-            value={totalVasan}
-            onChange={e => { if (/^\d*$/.test(e.target.value)) setTotalVasan(e.target.value); }}
-            InputProps={{ startAdornment: <NumbersIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
+            className="vasan-field"
+            label="Description"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            multiline
+            minRows={1}
+            InputProps={{ startAdornment: <DescriptionIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
           />
           <Button
             variant="contained"
-            sx={{ bgcolor: '#245D6B', height: 56, fontWeight: 600, letterSpacing: 0.5 }}
+            sx={{ bgcolor: '#245D6B', height: 56, fontWeight: 600, letterSpacing: 0.5, flex: '0 0 140px' }}
             onClick={handleAdd}
           >
             Add
@@ -190,9 +144,7 @@ const VasanMaster: React.FC = () => {
             <TableRow>
               <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>ID</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Vasan Name</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Food Name</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Total Weight</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Total Vasan</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Description</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Event</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#245D6B' }}>Actions</TableCell>
             </TableRow>
@@ -204,9 +156,7 @@ const VasanMaster: React.FC = () => {
               <TableRow key={entry.id}>
                 <TableCell>{(page - 1) * ROWS_PER_PAGE + idx + 1}</TableCell>
                 <TableCell>{entry.vasanName}</TableCell>
-                <TableCell>{entry.foodName}</TableCell>
-                <TableCell>{entry.totalWeight}</TableCell>
-                <TableCell>{entry.totalVasan}</TableCell>
+                <TableCell>{entry.description}</TableCell>
                 <TableCell>{entry.event?.eventName || 'N/A'} - {entry.event?.eventYear || 'N/A'}</TableCell>
                 <TableCell>
                   <IconButton size="small" sx={{ color: '#245D6B' }} onClick={() => handleEditOpen(entry)}><EditIcon fontSize="small" /></IconButton>
@@ -234,36 +184,12 @@ const VasanMaster: React.FC = () => {
             onChange={e => setEditingEntry({ ...editingEntry, vasanName: e.target.value })}
             InputProps={{ startAdornment: <CategoryIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
           />
-          <Autocomplete
-            options={foodItems}
-            getOptionLabel={(option) => option.vangiName}
-            value={foodItems.find(f => f.vangiName === (editingEntry?.foodName || '')) || null}
-            onChange={(_, val) => setEditingEntry({ ...editingEntry, foodName: val ? val.vangiName : '' })}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Food Name"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: <RestaurantIcon sx={{ color: '#245D6B', mr: 1 }} />,
-                }}
-              />
-            )}
-            clearOnEscape
-          />
           <TextField
-            label="Total Weight"
-            type="number"
-            value={editingEntry?.totalWeight || ''}
-            onChange={e => setEditingEntry({ ...editingEntry, totalWeight: e.target.value })}
-            InputProps={{ startAdornment: <ScaleIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
-          />
-          <TextField
-            label="Total Vasan"
-            type="number"
-            value={editingEntry?.totalVasan || ''}
-            onChange={e => setEditingEntry({ ...editingEntry, totalVasan: e.target.value })}
-            InputProps={{ startAdornment: <NumbersIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
+            label="Description"
+            value={editingEntry?.description || ''}
+            onChange={e => setEditingEntry({ ...editingEntry, description: e.target.value })}
+            InputProps={{ startAdornment: <DescriptionIcon sx={{ color: '#245D6B', mr: 1 }} /> }}
+            multiline
           />
         </DialogContent>
         <DialogActions>
@@ -303,9 +229,7 @@ const VasanMaster: React.FC = () => {
                   <tr>
                     <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Sr. No.</th>
                     <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Vasan Name</th>
-                    <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Food Name</th>
-                    <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Total Weight</th>
-                    <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Total Vasan</th>
+                    <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Description</th>
                     <th style={{ border: '1px solid #ccc', padding: '12px 8px', background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'left' }}>Event</th>
                   </tr>
                 </thead>
@@ -314,9 +238,7 @@ const VasanMaster: React.FC = () => {
                     <tr key={entry.id}>
                       <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{idx + 1}</td>
                       <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.vasanName}</td>
-                      <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.foodName}</td>
-                      <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.totalWeight}</td>
-                      <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.totalVasan}</td>
+                      <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.description}</td>
                       <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{entry.event?.eventName || 'N/A'} - {entry.event?.eventYear || 'N/A'}</td>
                     </tr>
                   ))}

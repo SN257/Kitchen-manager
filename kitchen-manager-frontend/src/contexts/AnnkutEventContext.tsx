@@ -64,9 +64,9 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
         throw new Error(`Failed to fetch Annkut events: ${res.status}`);
       }
       const data = await res.json();
-      const filteredAnnkutEvents = data.filter((event: any) => 
-        event.eventName.toLowerCase().includes('annkut')
-      );
+      const filteredAnnkutEvents = data
+        .filter((event: any) => event.eventName && event.eventName.toLowerCase().includes('annkut'))
+        .map((event: any) => ({ ...event, id: String(event.id) })); // ensure id is a string for stable comparisons
       setAnnkutEvents(filteredAnnkutEvents);
       
       const savedEventId = localStorage.getItem('selectedAnnkutEvent');
@@ -75,7 +75,6 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
         setSelectedAnnkutEvent('');
       }
     } catch (err) {
-      console.error('Failed to fetch Annkut events:', err);
     } finally {
       setLoading(false);
     }

@@ -12,23 +12,16 @@ export class SectionsService {
   ) {}
 
   async findAll(userId: number, eventId?: number): Promise<Section[]> {
-    console.log('Finding sections for userId:', userId, 'eventId:', eventId);
-    
     const whereCondition: any = { userId };
     
     if (eventId) {
       whereCondition.eventId = eventId;
     }
-    
-    console.log('Where condition:', whereCondition);
-    
     const sections = await this.sectionRepo.find({
       where: whereCondition,
       relations: ['event'],
       order: { id: 'DESC' }
     });
-    
-    console.log('Found sections:', sections);
     return sections;
   }
 

@@ -74,13 +74,8 @@ const RecipeEntry: React.FC = () => {
     if (role === 'sant') {
       fetch(`${API_BASE_URL}/user/center`, { credentials: 'include' })
         .then(res => res.json())
-        .then(data => {
-          console.log('Fetched centers:', data); // Debugging log
-          setCenters(data);
-        })
-        .catch(error => {
-          console.error('Failed to fetch centers:', error);
-        });
+  .then(data => { setCenters(data); })
+  .catch(() => {});
     }
   }, [role]);
 
@@ -91,10 +86,8 @@ const RecipeEntry: React.FC = () => {
     }
     fetch(url, { credentials: 'include' })
       .then(res => res.json())
-      .then(data => {
-        console.log('Fetched recipes:', data);
-        setRecipes(data);
-      });
+  .then(data => { setRecipes(data); })
+  .catch(() => {});
   }, [selectedCenter, role]);
 
   useEffect(() => {
@@ -265,8 +258,7 @@ const RecipeEntry: React.FC = () => {
         credentials: 'include',
 
       });
-      const data = await res.json();
-      console.log('POST response:', data);
+  await res.json();
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to save recipe.', severity: 'error' });
         return;

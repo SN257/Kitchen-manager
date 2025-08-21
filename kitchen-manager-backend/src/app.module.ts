@@ -14,6 +14,10 @@ import { BoxRangeModule } from './box-range/box-range.module';
 import { AnnkutSidhuSamanModule } from './annkut-sidhu-saman/annkut-sidhu-saman.module';
 import { SectionsModule } from './sections/sections.module';
 import { VasanModule } from './vasan/vasan.module';
+import { VasanNosCalculationEntryModule } from './vasan-nos-calculation-entry/vasan-nos-calculation-entry.module';
+import { VasanFillPlanModule } from './vasan-fill-plan/vasan-fill-plan.module';
+import { SectionVasanSummaryModule } from './section-vasan-summary/section-vasan-summary.module';
+import { SectionLayoutModule } from './section-layout/section-layout.module';
 
 @Module({
   imports: [
@@ -31,6 +35,10 @@ import { VasanModule } from './vasan/vasan.module';
     AnnkutSidhuSamanModule,
   SectionsModule,
   VasanModule,
+  VasanNosCalculationEntryModule,
+  VasanFillPlanModule,
+  SectionVasanSummaryModule,
+  SectionLayoutModule,
   ]
 })
 export class AppModule {}

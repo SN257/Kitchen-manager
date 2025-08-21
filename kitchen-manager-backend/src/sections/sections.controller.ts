@@ -27,7 +27,6 @@ export class SectionsController {
     @Req() req: Request & { session: CustomSession },
     @Query('eventId') eventId?: string
   ) {
-    console.log('GET /api/sections called with eventId:', eventId);
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
     
@@ -37,7 +36,6 @@ export class SectionsController {
 
   @Post()
   async create(@Body() dto: CreateSectionDto, @Req() req: Request & { session: CustomSession }) {
-    console.log('POST /api/sections called with:', dto);
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
     

@@ -58,12 +58,9 @@ const WeightEntry: React.FC = () => {
                 if (res.ok) {
                     const userData = await res.json();
                     setCurrentUser(userData);
-                    console.log('Current user:', userData);
                 } else {
-                    console.error('Failed to fetch user data');
                 }
             } catch (error) {
-                console.error('Error fetching user data:', error);
             }
         };
         fetchCurrentUser();
@@ -88,7 +85,6 @@ const WeightEntry: React.FC = () => {
             // Check if user is logged in
             const token = localStorage.getItem('token');
             if (!token) {
-                console.log('No token found, user not logged in');
                 return;
             }
 
@@ -106,13 +102,11 @@ const WeightEntry: React.FC = () => {
             
             if (!res.ok) {
                 if (res.status === 401) {
-                    console.error('Authentication failed - session expired');
                     // Clear local storage and redirect to login
                     localStorage.clear();
                     window.location.href = '/login';
                     return;
                 }
-                console.error('Failed to fetch weight entries:', res.status);
                 setWeightEntries([]);
                 return;
             }
@@ -120,7 +114,6 @@ const WeightEntry: React.FC = () => {
             const data = await res.json();
             setWeightEntries(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error('Error fetching weight entries:', error);
             setWeightEntries([]);
         }
     };
@@ -199,7 +192,6 @@ const WeightEntry: React.FC = () => {
                 if (item.vangiName.startsWith("મગજ") && item.subType) {
                     vangiName = `મગજ (${item.subType})`;
                 }
-                console.log('Saving with user:', currentUser.id, vangiName, item);
                 await fetch(`${API_BASE_URL}/weight-entries`, {
                     method: 'POST',
                     credentials: 'include',
@@ -397,14 +389,10 @@ const WeightEntry: React.FC = () => {
                                         // Filter out items that are already saved for the selected event
                                         if (!selectedAnnkutEvent) return true;
                                         
-                                        console.log('Filtering item:', item.vangiName);
-                                        console.log('Selected event ID:', selectedAnnkutEvent);
-                                        console.log('Weight entries for this item:', weightEntries.filter(e => e.vangiName === item.vangiName));
                                         
                                         const isAlreadySaved = weightEntries.some(entry => {
                                             const match = entry.vangiName === item.vangiName && 
                                                          entry.eventId?.toString() === selectedAnnkutEvent.toString();
-                                            console.log(`Checking ${entry.vangiName} (eventId: ${entry.eventId}) against ${item.vangiName} (selectedEvent: ${selectedAnnkutEvent}): ${match}`);
                                             return match;
                                         });
                                         
@@ -416,11 +404,9 @@ const WeightEntry: React.FC = () => {
                                                     entry.eventId?.toString() === selectedAnnkutEvent.toString()
                                                 )
                                             );
-                                            console.log(`મગજ subtype check for ${item.vangiName}: ${hasAnyMagajSubtype}`);
                                             return !hasAnyMagajSubtype;
                                         }
                                         
-                                        console.log(`Final result for ${item.vangiName}: ${!isAlreadySaved}`);
                                         return !isAlreadySaved;
                                     })
                                     .map(item => (

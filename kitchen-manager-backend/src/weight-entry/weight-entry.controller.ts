@@ -15,7 +15,6 @@ export class WeightEntryController {
 
   @Post()
   async create(@Body() dto: CreateWeightEntryDto, @Req() req: Request & { session: CustomSession }) {
-    console.log('Session data:', req.session);
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
     
@@ -24,12 +23,8 @@ export class WeightEntryController {
 
   @Get()
   async findAll(@Req() req: Request & { session: CustomSession }, @Query('eventId') eventId?: string) {
-    console.log('Session ID:', req.sessionID);
-    console.log('Session data:', req.session);
-    
-    // Try to regenerate session if userId is missing but session exists
+    // Guard against invalid session
     if (!req.session.userId && req.session.cookie) {
-      console.log('Session exists but userId missing - possible session corruption');
       throw new UnauthorizedException('Session invalid - please login again');
     }
     

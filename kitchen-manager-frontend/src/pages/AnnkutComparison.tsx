@@ -63,17 +63,14 @@ const AnnkutComparison: React.FC = () => {
         },
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const annkutEvents = data.filter((event: AnnkutEvent) => 
-          event.eventName.toLowerCase().includes('annkut')
-        );
-        setEvents(annkutEvents);
-      } else {
-        console.error('Failed to fetch events:', response.status);
-      }
+      if (!response.ok) return;
+      const data = await response.json();
+      const annkutEvents = data.filter((event: AnnkutEvent) =>
+        event.eventName.toLowerCase().includes('annkut')
+      );
+      setEvents(annkutEvents);
     } catch (error) {
-      console.error('Error fetching events:', error);
+      // ignore
     } finally {
       setLoading(false);
     }
@@ -117,7 +114,6 @@ const AnnkutComparison: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log(`Data for ${page}:`, data);
         
         // Handle weight-calculation
         if (page === 'weight-calculation') {
@@ -139,7 +135,6 @@ const AnnkutComparison: React.FC = () => {
       }
       return [];
     } catch (error) {
-      console.error('Error fetching data:', error);
       return [];
     }
   };
@@ -170,7 +165,6 @@ const AnnkutComparison: React.FC = () => {
       }));
 
     } catch (error) {
-      console.error('Error fetching Annkut Nos Summary data:', error);
       return [];
     }
   };
@@ -283,7 +277,6 @@ const AnnkutComparison: React.FC = () => {
       })).filter(item => item.totalWeight > 0); // Only show ingredients with weight
 
     } catch (error) {
-      console.error('Error fetching Annkut Sidhu Saman data:', error);
       return [];
     }
   };

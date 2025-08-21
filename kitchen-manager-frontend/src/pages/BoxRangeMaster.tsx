@@ -86,12 +86,9 @@ const BoxRangeEntry: React.FC = () => {
                 if (res.ok) {
                     const userData = await res.json();
                     setCurrentUser(userData);
-                    console.log('Current user:', userData);
                 } else {
-                    console.error('Failed to fetch user data');
                 }
             } catch (error) {
-                console.error('Error fetching user data:', error);
             }
         };
         fetchCurrentUser();
@@ -102,7 +99,6 @@ const BoxRangeEntry: React.FC = () => {
         try {
             const token = localStorage.getItem('token');
             if (!token) {
-                console.log('No token found, user not logged in');
                 return;
             }
 
@@ -120,12 +116,10 @@ const BoxRangeEntry: React.FC = () => {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    console.error('Authentication failed - session expired');
                     localStorage.clear();
                     window.location.href = '/login';
                     return;
                 }
-                console.error('Failed to fetch box ranges:', response.status);
                 setBoxRanges([]);
                 return;
             }
@@ -146,7 +140,6 @@ const BoxRangeEntry: React.FC = () => {
             );
             setBoxTypeOptions(uniqueBoxTypes);
         } catch (error) {
-            console.error('Error fetching box ranges:', error);
         }
     };
 

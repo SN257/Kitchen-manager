@@ -73,11 +73,9 @@ const SectionMaster: React.FC = () => {
         try {
             const token = localStorage.getItem('token');
             if (!token) {
-                console.log('No token found, user not logged in');
                 return;
             }
 
-            console.log('Fetching sections for eventId:', selectedAnnkutEvent);
             const response = await fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, {
                 credentials: 'include',
                 headers: {
@@ -88,21 +86,16 @@ const SectionMaster: React.FC = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log('Received sections data:', data);
                 setSections(Array.isArray(data) ? data : []);
             } else {
-                console.error('Failed to fetch sections:', response.status);
                 setSections([]);
             }
         } catch (error) {
-            console.error('Error fetching sections:', error);
             setSections([]);
         }
     };
 
     useEffect(() => {
-        console.log('Selected Annkut Event changed:', selectedAnnkutEvent);
-        console.log('Selected Event Details:', selectedEventDetails);
         fetchSections();
     }, [selectedAnnkutEvent]);
 

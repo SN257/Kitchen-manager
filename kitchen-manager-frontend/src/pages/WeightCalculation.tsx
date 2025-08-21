@@ -74,11 +74,10 @@ const WeightCalculation: React.FC = () => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('No token found, user not logged in');
-      return;
-    }
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return;
+      }
 
     fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, {
       credentials: 'include',

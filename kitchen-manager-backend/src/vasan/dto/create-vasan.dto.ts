@@ -1,7 +1,5 @@
 export class CreateVasanDto {
   vasanName: string;
-  foodName: string;
-  totalWeight: number;
-  totalVasan: number;
+  description?: string;
   eventId?: number;
 }
