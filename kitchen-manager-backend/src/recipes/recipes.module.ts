@@ -8,7 +8,7 @@ import { RecipesController } from './recipes.controller';
 import { UserService } from '../user/user.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Recipe, User, ActivityLog])], 
+  imports: [TypeOrmModule.forFeature([Recipe, User, ActivityLog])],
   providers: [RecipesService, UserService],
   controllers: [RecipesController],
 })

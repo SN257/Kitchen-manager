@@ -1,7 +1,17 @@
-import { Controller, Get, Post, Body, Req, UnauthorizedException, Param, Put, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  UnauthorizedException,
+  Param,
+  Put,
+  Delete,
+} from '@nestjs/common';
 import { RecipesService } from './recipes.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
-import { Request } from 'express'; 
+import { Request } from 'express';
 import { UserService } from '../user/user.service'; // <-- import UserService
 
 @Controller('recipe')
@@ -27,21 +37,24 @@ export class RecipesController {
   @Post()
   async create(
     @Body() createRecipeDto: CreateRecipeDto,
-    @Req() req: Request & { session: any }
+    @Req() req: Request & { session: any },
   ) {
     const userId = req.session.userId;
     if (!userId) throw new UnauthorizedException('Not logged in');
-    const user = await this.userService.findById(userId); 
+    const user = await this.userService.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
     return this.recipesService.create({
       ...createRecipeDto,
       userId,
-      center: user.center, 
+      center: user.center,
     });
   }
 
   @Put(':id')
-  async update(@Param('id') id: number, @Body() updateRecipeDto: CreateRecipeDto) {
+  async update(
+    @Param('id') id: number,
+    @Body() updateRecipeDto: CreateRecipeDto,
+  ) {
     return this.recipesService.update(id, updateRecipeDto);
   }
 

@@ -8,6 +8,6 @@ import { VasanNosCalculationEntryController } from './vasan-nos-calculation-entr
 @Module({
   imports: [TypeOrmModule.forFeature([VasanNosCalculationEntry, Event])],
   providers: [VasanNosCalculationEntryService],
-  controllers: [VasanNosCalculationEntryController]
+  controllers: [VasanNosCalculationEntryController],
 })
 export class VasanNosCalculationEntryModule {}

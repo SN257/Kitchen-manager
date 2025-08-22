@@ -25,12 +25,18 @@ export class AnnkutSidhuSamanController {
   constructor(private readonly sidhuSamanService: AnnkutSidhuSamanService) {}
 
   @Get()
-  async findAll(@Req() req: Request & { session: CustomSession }, @Query('eventId') eventId?: string) {
+  async findAll(
+    @Req() req: Request & { session: CustomSession },
+    @Query('eventId') eventId?: string,
+  ) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
 
     if (eventId) {
-      return this.sidhuSamanService.findByEventIdAndUser(Number(eventId), userId);
+      return this.sidhuSamanService.findByEventIdAndUser(
+        Number(eventId),
+        userId,
+      );
     }
     return this.sidhuSamanService.findAllByUser(userId);
   }
@@ -39,15 +45,18 @@ export class AnnkutSidhuSamanController {
   findOne(@Param('id') id: number, @Req() req: Request & { session: any }) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
-    
+
     return this.sidhuSamanService.findOneByUser(id, userId);
   }
 
   @Post()
-  async create(@Body() dto: any, @Req() req: Request & { session: CustomSession }) {
+  async create(
+    @Body() dto: any,
+    @Req() req: Request & { session: CustomSession },
+  ) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
-    
+
     return this.sidhuSamanService.create(dto, userId);
   }
 
@@ -55,19 +64,22 @@ export class AnnkutSidhuSamanController {
   update(
     @Param('id') id: number,
     @Body() data: Partial<CreateAnnkutSidhuSamanDto>,
-    @Req() req: Request & { session: any }
+    @Req() req: Request & { session: any },
   ) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
-    
+
     return this.sidhuSamanService.update(id, data, userId);
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string, @Req() req: Request & { session: CustomSession }) {
+  async delete(
+    @Param('id') id: string,
+    @Req() req: Request & { session: CustomSession },
+  ) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
-    
+
     return this.sidhuSamanService.deleteByIdAndUser(Number(id), userId);
   }
 }

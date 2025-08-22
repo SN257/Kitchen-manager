@@ -294,7 +294,7 @@ const WeightCalculation: React.FC = () => {
                     minWidth: 100,
                   }}
                 >
-                  Gram
+                  Gram (g)
                 </TableCell>
                 <TableCell
                   sx={{
@@ -345,7 +345,7 @@ const WeightCalculation: React.FC = () => {
                         minWidth: 100,
                       }}
                     >
-                      {mithai.gram}
+                      {mithai.gram} g
                     </TableCell>
                     <TableCell
                       sx={{
@@ -433,7 +433,7 @@ const WeightCalculation: React.FC = () => {
                     zIndex: 3,
                   }}
                 >
-                  Total Gram
+                  Total Gram (g)
                 </TableCell>
                 {boxRanges.map(box => (
                   <TableCell
@@ -448,7 +448,7 @@ const WeightCalculation: React.FC = () => {
                       zIndex: 2,
                     }}
                   >
-                    {mithais.reduce((sum, mithai) => sum + getTotalGram(mithai, box.id), 0)}
+                    {`${mithais.reduce((sum, mithai) => sum + getTotalGram(mithai, box.id), 0)} g`}
                   </TableCell>
                 ))}
                 <TableCell sx={{ background: '#f5f5f5', position: 'sticky', bottom: 0, right: 0, zIndex: 2 }} />
@@ -547,7 +547,7 @@ const WeightCalculation: React.FC = () => {
                         textAlign: "left",
                       }}
                     >
-                      Gram
+                      Gram (g)
                     </th>
                     <th
                       style={{
@@ -586,7 +586,7 @@ const WeightCalculation: React.FC = () => {
                     .sort((a, b) => a.id - b.id)
                     .map(mithai => (
                       <tr key={mithai.id}>
-                        <td style={{ border: '1px solid #ccc', padding: 8 }}>{mithai.gram}</td>
+                        <td style={{ border: '1px solid #ccc', padding: 8 }}>{mithai.gram} g</td>
                         <td style={{ border: '1px solid #ccc', padding: 8 }}>{mithai.vangiName}</td>
                         {boxRanges.map(box => (
                           <td key={box.id} style={{ border: '1px solid #ccc', padding: 8, textAlign: 'center' }}>
@@ -603,7 +603,7 @@ const WeightCalculation: React.FC = () => {
                       color: '#245D6B',
                       background: '#f5f5f5'
                     }}>
-                      Total Gram
+                      Total Gram (g)
                     </td>
                     {boxRanges.map(box => (
                       <td
@@ -617,7 +617,7 @@ const WeightCalculation: React.FC = () => {
                           background: '#f5f5f5'
                         }}
                       >
-                        {mithais.reduce((sum, mithai) => sum + ((Number(pieces[`${mithai.id}_${box.id}`]) || 0) * mithai.gram), 0)}
+                        {`${mithais.reduce((sum, mithai) => sum + ((Number(pieces[`${mithai.id}_${box.id}`]) || 0) * mithai.gram), 0)} g`}
                       </td>
                     ))}
                   </tr>

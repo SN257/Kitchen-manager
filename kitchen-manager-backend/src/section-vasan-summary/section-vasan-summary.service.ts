@@ -6,10 +6,15 @@ import { CreateSectionVasanSummaryDto } from './dto/create-section-vasan-summary
 
 @Injectable()
 export class SectionVasanSummaryService {
-  constructor(@InjectRepository(SectionVasanSummary) private readonly repo: Repository<SectionVasanSummary>) {}
+  constructor(
+    @InjectRepository(SectionVasanSummary)
+    private readonly repo: Repository<SectionVasanSummary>,
+  ) {}
 
   async createOrReplace(dto: CreateSectionVasanSummaryDto, userId: number) {
-    const existing = await this.repo.findOne({ where: { eventId: dto.eventId, userId } });
+    const existing = await this.repo.findOne({
+      where: { eventId: dto.eventId, userId },
+    });
     if (existing) {
       existing.rows = dto.rows;
       return this.repo.save(existing);
@@ -19,6 +24,9 @@ export class SectionVasanSummaryService {
   }
 
   async latest(eventId: number, userId: number) {
-    return this.repo.findOne({ where: { eventId, userId }, order: { updatedAt: 'DESC' } });
+    return this.repo.findOne({
+      where: { eventId, userId },
+      order: { updatedAt: 'DESC' },
+    });
   }
 }

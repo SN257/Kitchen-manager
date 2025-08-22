@@ -9,7 +9,9 @@ describe('WeightCalculationEntryController', () => {
       controllers: [WeightCalculationEntryController],
     }).compile();
 
-    controller = module.get<WeightCalculationEntryController>(WeightCalculationEntryController);
+    controller = module.get<WeightCalculationEntryController>(
+      WeightCalculationEntryController,
+    );
   });
 
   it('should be defined', () => {

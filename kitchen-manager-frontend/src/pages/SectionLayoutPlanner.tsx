@@ -19,11 +19,15 @@ const SectionLayoutPlanner: React.FC = () => {
   const [vasanOptions, setVasanOptions] = useState<VasanOption[]>([]); // now one per fill plan
   const [layout, setLayout] = useState<CellData[]>([]);
   const [dragVasan, setDragVasan] = useState<VasanOption | null>(null);
+  const [dragSourceCellIndex, setDragSourceCellIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
   const [printAllLayouts, setPrintAllLayouts] = useState<{ section: Section; cells: CellData[] }[]>([]);
   const [snackbar, setSnackbar] = useState<{open:boolean; message:string; severity:'success'|'error'}>({open:false,message:'',severity:'success'});
+  // allowed counts from Vasan Nos Calculation (by section -> vasanId::foodName -> count)
+  const [allowedBySection, setAllowedBySection] = useState<Record<number, Record<string, number>>>({});
+  const [resetOpen, setResetOpen] = useState(false);
 
   // fetch vasans & sections for event
   useEffect(() => {
@@ -49,6 +53,27 @@ const SectionLayoutPlanner: React.FC = () => {
         }));
         setVasanOptions(optionList);
       });
+    // fetch allowed counts from latest vasan nos calculation entry
+    fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const map: Record<number, Record<string, number>> = {};
+        if (data && Array.isArray(data.entries)) {
+          data.entries.forEach((e: any) => {
+            const key = `${e.vasanId}::${(e.foodName || '').toString().trim().toLowerCase()}`;
+            if (Array.isArray(e.sectionEntries)) {
+              e.sectionEntries.forEach((se: any) => {
+                const sId = Number(se.sectionId);
+                const count = Number(se.count) || 0;
+                if (!map[sId]) map[sId] = {};
+                map[sId][key] = (map[sId][key] || 0) + count;
+              });
+            }
+          });
+        }
+        setAllowedBySection(map);
+      })
+      .catch(() => { /* ignore missing calc; treat as unlimited */ });
     fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r=> r.ok? r.json(): [])
       .then(data => {
@@ -124,6 +149,55 @@ const SectionLayoutPlanner: React.FC = () => {
 
   const handleDrop = (cellIndex:number) => {
     if (!dragVasan) return;
+    const food = (dragVasan.foodName || '').trim().toLowerCase();
+    const key = `${dragVasan.vasanId}::${food}`;
+
+    // If dragging from another cell, perform move/swap without altering allowed totals
+    if (dragSourceCellIndex !== null) {
+      const srcIndex = dragSourceCellIndex;
+      if (srcIndex === cellIndex) { setDragSourceCellIndex(null); setDragVasan(null); return; }
+      setLayout(prev => {
+        const next = prev.map((c) => ({ ...c }));
+        const src = (next[srcIndex] as any);
+        const tgt = (next[cellIndex] as any);
+        const srcContent = src && src.fillPlanId ? { vasanId: src.vasanId, fillPlanId: src.fillPlanId } : null;
+        const tgtContent = tgt && tgt.fillPlanId ? { vasanId: tgt.vasanId, fillPlanId: tgt.fillPlanId } : null;
+        // move/swap
+        if (srcContent) {
+          next[cellIndex] = { id: (next[cellIndex] as any).id, ...srcContent } as any;
+        } else {
+          next[cellIndex] = { id: (next[cellIndex] as any).id } as any;
+        }
+        if (tgtContent) {
+          next[srcIndex] = { id: (next[srcIndex] as any).id, ...tgtContent } as any;
+        } else {
+          next[srcIndex] = { id: (next[srcIndex] as any).id } as any;
+        }
+        persist(next as any);
+        return next;
+      });
+      setDragSourceCellIndex(null);
+      setDragVasan(null);
+      return;
+    }
+
+    // From chip to cell: enforce per-section allowed counts
+    const allowed = allowedForCurrentSection[key];
+    if (typeof allowed === 'number') {
+      const currentCell = layout[cellIndex] as any;
+      const currentFpId = currentCell?.fillPlanId as number | undefined;
+      let currentKeyAtCell: string | undefined;
+      if (currentFpId) {
+        const v = fillPlanLookup.get(currentFpId);
+        if (v) currentKeyAtCell = `${v.vasanId}::${(v.foodName || '').trim().toLowerCase()}`;
+      }
+      const increment = currentKeyAtCell === key ? 0 : 1;
+      const currentPlaced = placedByKey[key] || 0;
+      if (currentPlaced + increment > allowed) {
+        setSnackbar({ open:true, message:'Limit reached for this item in this section', severity:'error' });
+        return;
+      }
+    }
     setLayout(prev => {
       const next = prev.map((c, idx) => idx === cellIndex ? { ...c, vasanId: dragVasan.vasanId, fillPlanId: dragVasan.fillPlanId } : c);
       persist(next);
@@ -146,6 +220,25 @@ const SectionLayoutPlanner: React.FC = () => {
   }, [layout]);
 
   const fillPlanLookup = useMemo(() => new Map(vasanOptions.map(v => [v.fillPlanId, v])), [vasanOptions]);
+
+  // placed count per vasanId::foodName key within the current section layout
+  const placedByKey = useMemo(() => {
+    const map: Record<string, number> = {};
+    layout.forEach(c => {
+      const fpId = (c as any).fillPlanId as number | undefined;
+      if (!fpId) return;
+      const v = fillPlanLookup.get(fpId);
+      if (!v) return;
+      const key = `${v.vasanId}::${(v.foodName || '').trim().toLowerCase()}`;
+      map[key] = (map[key] || 0) + 1;
+    });
+    return map;
+  }, [layout, fillPlanLookup]);
+
+  const allowedForCurrentSection = useMemo(() => {
+    const sId = typeof selectedSectionId === 'number' ? selectedSectionId : -1;
+    return allowedBySection[sId] || {};
+  }, [allowedBySection, selectedSectionId]);
 
   // Unique color per unique food (case-insensitive). Same food across vasans shares color.
   const foodColorMap = useMemo(() => {
@@ -215,6 +308,11 @@ const SectionLayoutPlanner: React.FC = () => {
           {selectedEventDetails && <Typography variant='body2' sx={{ color:'#555' }}> - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
         </Box>
         <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+            <Button variant='outlined' size='small' color='error'
+              onClick={()=> setResetOpen(true)}
+              disabled={!sections.length || selectedSectionId === '' || rows*cols === 0 || saving}
+              sx={{ textTransform:'none' }}
+            >Reset Section</Button>
           <Button variant='contained' size='small' onClick={preparePrintAll} disabled={!sections.length} sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' }}}>Print All Sections</Button>
           {saving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Saving...</Typography>}
         </Box>
@@ -258,6 +356,13 @@ const SectionLayoutPlanner: React.FC = () => {
               const food = (v.foodName && v.foodName.trim()) || '';
               const color = getFoodColor(food);
               const textColor = getContrast(color);
+              const key = `${v.vasanId}::${food.toLowerCase()}`;
+              const allowed = allowedForCurrentSection[key];
+              const placed = placedByKey[key] || 0;
+              const remaining = typeof allowed === 'number' ? Math.max(allowed - placed, 0) : undefined;
+              if (typeof allowed === 'number' && remaining === 0) {
+                return null; // hide when fully used in this section
+              }
               return (
                 <Box key={v.fillPlanId}
                   draggable
@@ -265,7 +370,7 @@ const SectionLayoutPlanner: React.FC = () => {
                   onDragEnd={()=> setDragVasan(null)}
                   sx={{ px:1, py:0.5, border:`1px solid ${color}`, borderRadius:1, fontSize:12, cursor:'grab', background:color, color:textColor, userSelect:'none', boxShadow:'0 0 0 1px rgba(255,255,255,0.3)' }}>
                   {v.vasanName}{food ? ` (${food})` : ''}
-                  {assignedCounts[v.fillPlanId] ? ` (${assignedCounts[v.fillPlanId]})` : ''}
+                  {typeof remaining === 'number' ? ` (${remaining} left)` : (assignedCounts[v.fillPlanId] ? ` (${assignedCounts[v.fillPlanId]})` : '')}
                 </Box>
               );
             })}
@@ -297,6 +402,22 @@ const SectionLayoutPlanner: React.FC = () => {
                   key={cell.id}
                   onDragOver={e=> e.preventDefault()}
                   onDrop={()=> handleDrop(idx)}
+                  draggable={Boolean(vasan)}
+                  onDragStart={() => {
+                    if (vasan) {
+                      setDragSourceCellIndex(idx);
+                      setDragVasan({
+                        fillPlanId: (cell as any).fillPlanId,
+                        vasanId: vasan.vasanId,
+                        vasanName: vasan.vasanName,
+                        foodName: vasan.foodName,
+                      });
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDragSourceCellIndex(null);
+                    setDragVasan(null);
+                  }}
                   sx={{
                     height:90,
                     border:'2px dashed #bbb',
@@ -312,6 +433,8 @@ const SectionLayoutPlanner: React.FC = () => {
                     textAlign:'center',
                     p:1,
                     transition:'background .2s',
+                    cursor: vasan ? (dragSourceCellIndex === idx ? 'grabbing' : 'grab') : 'default',
+                    userSelect:'none',
           zIndex:1,
                   }}
                 >
@@ -428,6 +551,26 @@ const SectionLayoutPlanner: React.FC = () => {
         <DialogActions>
           <Button onClick={()=> window.print()} variant='contained' sx={{ bgcolor:'#245D6B' }}>Print</Button>
           <Button onClick={()=> setPrintOpen(false)} sx={{ color:'#245D6B' }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={resetOpen} onClose={()=> setResetOpen(false)}>
+        <DialogTitle>Reset Section Layout</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant='body2'>This will clear all placements for the current section. Are you sure?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=> setResetOpen(false)} sx={{ color:'#245D6B' }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setResetOpen(false);
+              const total = rows * cols;
+              const cleared = Array.from({ length: total }, (_, i) => ({ id:`cell-${i}` }));
+              setLayout(cleared);
+              persist(cleared);
+            }}
+            color='error'
+            variant='contained'
+          >Reset</Button>
         </DialogActions>
       </Dialog>
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={()=> setSnackbar({...snackbar, open:false})} anchorOrigin={{ vertical:'bottom', horizontal:'right' }}>

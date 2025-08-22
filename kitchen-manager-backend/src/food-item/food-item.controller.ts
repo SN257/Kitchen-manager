@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Delete, Param, Put } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Delete,
+  Param,
+  Put,
+} from '@nestjs/common';
 import { FoodItemService } from './food-item.service';
 import { FoodItem } from '../entities/food-item.entity';
 

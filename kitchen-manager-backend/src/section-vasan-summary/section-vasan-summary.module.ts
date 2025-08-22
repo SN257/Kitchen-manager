@@ -8,6 +8,6 @@ import { SectionVasanSummaryController } from './section-vasan-summary.controlle
   imports: [TypeOrmModule.forFeature([SectionVasanSummary])],
   controllers: [SectionVasanSummaryController],
   providers: [SectionVasanSummaryService],
-  exports: [SectionVasanSummaryService]
+  exports: [SectionVasanSummaryService],
 })
 export class SectionVasanSummaryModule {}

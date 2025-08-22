@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, MenuItem } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import EditIcon from '@mui/icons-material/Edit';
@@ -16,6 +16,7 @@ interface Plan { id: number; vasanId: number; foodName: string; fillWeightKg: nu
 interface FoodItem { id: number; vangiName: string; category: string; }
 
 const ROWS_PER_PAGE = 5; // align with other master pages
+const MAGAJ_SUBTYPES = ["લાડુડી", "લાડવા", "ચોસલા"];
 
 const VasanFillPlan: React.FC = () => {
   const API_BASE_URL = useApiBaseUrl();
@@ -25,9 +26,11 @@ const VasanFillPlan: React.FC = () => {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [vasanId, setVasanId] = useState<number | ''>('');
   const [foodName, setFoodName] = useState('');
+  const [magajSubType, setMagajSubType] = useState<string>('');
   const [fillWeightKg, setFillWeightKg] = useState('');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Plan | null>(null);
+  const [editingSubType, setEditingSubType] = useState<string>('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -87,15 +90,17 @@ const VasanFillPlan: React.FC = () => {
       .catch(() => {});
   }, [API_BASE_URL]);
 
-  const clearForm = () => { setVasanId(''); setFoodName(''); setFillWeightKg(''); };
+  const clearForm = () => { setVasanId(''); setFoodName(''); setMagajSubType(''); setFillWeightKg(''); };
 
   const handleAdd = async () => {
   if (!currentUser) { setSnackbar({ open: true, message: 'Not authenticated', severity: 'error' }); return; }
   if (!selectedAnnkutEvent) { setSnackbar({ open: true, message: 'Select event first', severity: 'error' }); return; }
   if (!vasanId || !foodName || !fillWeightKg) { setSnackbar({ open: true, message: 'Fill all fields', severity: 'error' }); return; }
+  if (foodName.trim().startsWith('મગજ') && !magajSubType) { setSnackbar({ open: true, message: 'Select Magaj type', severity: 'error' }); return; }
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: Number(vasanId), foodName, fillWeightKg: Number(fillWeightKg), eventId: selectedAnnkutEvent }) });
+      const nameToSave = foodName.trim().startsWith('મગજ') && magajSubType ? `${foodName} (${magajSubType})` : foodName;
+      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: Number(vasanId), foodName: nameToSave, fillWeightKg: Number(fillWeightKg), eventId: selectedAnnkutEvent }) });
       if (!res.ok) throw new Error();
       setSnackbar({ open: true, message: 'Plan added', severity: 'success' }); clearForm(); fetchPlans();
     } catch { setSnackbar({ open: true, message: 'Add failed', severity: 'error' }); }
@@ -105,7 +110,9 @@ const VasanFillPlan: React.FC = () => {
     if (!editing) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: editing.vasanId, foodName: editing.foodName, fillWeightKg: Number(editing.fillWeightKg), eventId: selectedAnnkutEvent }) });
+      const baseName = (editing.foodName || '').split('(')[0].trim();
+      const nameToSave = baseName.startsWith('મગજ') && editingSubType ? `${baseName} (${editingSubType})` : editing.foodName;
+      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: editing.vasanId, foodName: nameToSave, fillWeightKg: Number(editing.fillWeightKg), eventId: selectedAnnkutEvent }) });
       if (!res.ok) throw new Error();
       setSnackbar({ open: true, message: 'Updated', severity: 'success' }); setEditDialogOpen(false); setEditing(null); fetchPlans();
     } catch { setSnackbar({ open: true, message: 'Update failed', severity: 'error' }); }
@@ -162,7 +169,10 @@ const VasanFillPlan: React.FC = () => {
             options={foodItems}
             getOptionLabel={(o) => o ? `${o.vangiName}${o.category ? ' – ' + o.category : ''}` : ''}
             value={foodItems.find(fi => fi.vangiName === foodName) || null}
-            onChange={(_, val) => setFoodName(val ? val.vangiName : '')}
+            onChange={(_, val) => {
+              setFoodName(val ? val.vangiName : '');
+              if (val && val.vangiName.trim().startsWith('મગજ')) setMagajSubType(MAGAJ_SUBTYPES[0]); else setMagajSubType('');
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -176,6 +186,20 @@ const VasanFillPlan: React.FC = () => {
             )}
             clearOnEscape
           />
+          {foodName.trim().startsWith('મગજ') && (
+            <TextField
+              className="plan-field"
+              select
+              label="Magaj Type"
+              value={magajSubType || MAGAJ_SUBTYPES[0]}
+              onChange={(e) => setMagajSubType(e.target.value)}
+              size="small"
+            >
+              {MAGAJ_SUBTYPES.map(sub => (
+                <MenuItem key={sub} value={sub}>{sub}</MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField className="plan-field" label="Planned Fill Weight" value={fillWeightKg} onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setFillWeightKg(e.target.value); }} InputProps={{ startAdornment: <ScaleIcon sx={{ color: '#245D6B', mr: 1 }} />, endAdornment: <span style={{ color: '#245D6B', fontWeight: 600, marginLeft: 4 }}>Kg</span> }} />
           <Button variant="contained" sx={{ bgcolor: '#245D6B', height: 56, fontWeight: 600, letterSpacing: 0.5, flex: '0 0 140px' }} onClick={handleAdd}>Add</Button>
         </Box>
@@ -250,8 +274,14 @@ const VasanFillPlan: React.FC = () => {
           <Autocomplete
             options={foodItems}
             getOptionLabel={(o) => o ? `${o.vangiName}${o.category ? ' – ' + o.category : ''}` : ''}
-            value={foodItems.find(fi => fi.vangiName === (editing?.foodName || '')) || null}
-            onChange={(_, val) => setEditing(editing ? { ...editing, foodName: val ? val.vangiName : editing.foodName } : editing)}
+            value={foodItems.find(fi => fi.vangiName === ((editing?.foodName || '').split('(')[0].trim())) || null}
+            onChange={(_, val) => {
+              if (!editing) return;
+              const newFood = val ? val.vangiName : editing.foodName;
+              const isMagaj = !!val && val.vangiName.trim().startsWith('મગજ');
+              setEditing({ ...editing, foodName: newFood });
+              setEditingSubType(isMagaj ? (editingSubType || MAGAJ_SUBTYPES[0]) : '');
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -265,6 +295,19 @@ const VasanFillPlan: React.FC = () => {
             )}
             clearOnEscape
           />
+          {((editing?.foodName || '').split('(')[0].trim().startsWith('મગજ')) && (
+            <TextField
+              select
+              label="Magaj Type"
+              value={editingSubType || (() => { const m = /\(([^)]+)\)/.exec(editing?.foodName || ''); return m ? m[1] : MAGAJ_SUBTYPES[0]; })()}
+              onChange={(e) => setEditingSubType(e.target.value)}
+              size="small"
+            >
+              {MAGAJ_SUBTYPES.map(sub => (
+                <MenuItem key={sub} value={sub}>{sub}</MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField label="Planned Fill Weight (Kg)" value={editing?.fillWeightKg ?? ''} onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setEditing(editing ? { ...editing, fillWeightKg: Number(e.target.value) } : editing); }} />
         </DialogContent>
         <DialogActions>

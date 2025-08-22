@@ -72,7 +72,9 @@ const Dashboard: React.FC = () => {
 
   const [annkutOpen, setAnnkutOpen] = React.useState(
     location.pathname.startsWith("/dashboard/box-annkut") ||
-    location.pathname.startsWith("/dashboard/section-annkut")
+    location.pathname.startsWith("/dashboard/section-annkut") ||
+  location.pathname === "/dashboard/FinalNosSummary" ||
+  location.pathname === "/dashboard/FinalIngredientSummary"
   );
 
   const [boxAnnkutOpen, setBoxAnnkutOpen] = React.useState(
@@ -143,13 +145,15 @@ const Dashboard: React.FC = () => {
       '/dashboard/box-annkut/WeightCalculation',
       '/dashboard/box-annkut/AnnkutNosSummary',
       '/dashboard/box-annkut/AnnkutSidhuSaman',
-  '/dashboard/section-annkut/section-master',
+      '/dashboard/section-annkut/section-master',
       '/dashboard/section-annkut/vasan-master',
-  '/dashboard/section-annkut/vasan-nos-calculation',
-  '/dashboard/section-annkut/section-ingredient-summary',
-  '/dashboard/section-annkut/section-nos-summary',
-  '/dashboard/section-annkut/vasan-fill-plan',
-  '/dashboard/section-annkut/layout-planner'
+      '/dashboard/section-annkut/vasan-nos-calculation',
+      '/dashboard/section-annkut/section-ingredient-summary',
+      '/dashboard/section-annkut/section-nos-summary',
+      '/dashboard/section-annkut/vasan-fill-plan',
+      '/dashboard/section-annkut/layout-planner',
+  '/dashboard/FinalNosSummary',
+  '/dashboard/FinalIngredientSummary'
     ];
     return annkutPages.some(page => pathname.includes(page));
   };
@@ -160,7 +164,9 @@ const Dashboard: React.FC = () => {
     const isBoxAnnkut = currentPath.startsWith('/dashboard/box-annkut/');
     const isSectionAnnkut = currentPath.startsWith('/dashboard/section-annkut/');
     const isAnnkutComparison = currentPath.includes('/annkut-comparison');
-    const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isAnnkutComparison;
+  const isFinalNosSummary = currentPath === '/dashboard/FinalNosSummary';
+  const isFinalIngredientSummary = currentPath === '/dashboard/FinalIngredientSummary';
+  const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isAnnkutComparison || isFinalNosSummary || isFinalIngredientSummary;
 
     if (!isAnyAnnkut) {
       setAnnkutOpen(false);
@@ -378,6 +384,7 @@ const Dashboard: React.FC = () => {
                   </ListItemIcon>
                   <ListItemText primary="Annkut Nos Summary" />
                 </ListItemButton>
+
                 <ListItemButton
                   selected={isActive("/dashboard/box-annkut/AnnkutSidhuSaman")}
                   sx={{ pl: 8, ...sidebarItemSx }}
@@ -481,8 +488,29 @@ const Dashboard: React.FC = () => {
                 </ListItemButton>
               </List>
             </Collapse>
+            <ListItemButton
+              selected={isActive("/dashboard/FinalNosSummary")}
+              sx={{ pl: 4, ...sidebarItemSx }}
+              onClick={() => navigate("/dashboard/FinalNosSummary")}
+            >
+              <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              <ListItemText primary="Final Nos Summary" />
+            </ListItemButton>
+            <ListItemButton
+              selected={isActive("/dashboard/FinalIngredientSummary")}
+              sx={{ pl: 4, ...sidebarItemSx }}
+              onClick={() => navigate("/dashboard/FinalIngredientSummary")}
+            >
+              <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              <ListItemText primary="Final Ingredient Summary" />
+            </ListItemButton>
           </List>
         </Collapse>
+        
       </List>
       <Divider sx={{ bgcolor: "rgba(255,255,255,0.3)" }} />
       <Box

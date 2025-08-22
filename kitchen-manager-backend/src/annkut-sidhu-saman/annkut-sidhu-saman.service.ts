@@ -12,17 +12,17 @@ export class AnnkutSidhuSamanService {
   ) {}
 
   async findAllByUser(userId: number) {
-    return this.repository.find({ 
+    return this.repository.find({
       where: { userId },
       order: { id: 'ASC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 
   async findOneByUser(id: number, userId: number): Promise<AnnkutSidhuSaman> {
     const result = await this.repository.findOne({
       where: { id, event: { userId } },
-      relations: ['event']
+      relations: ['event'],
     });
 
     if (!result) {
@@ -35,11 +35,11 @@ export class AnnkutSidhuSamanService {
   async create(dto: any, userId: number) {
     // Check if entry already exists for this mithai_id, eventId, and userId
     const existingEntry = await this.repository.findOne({
-      where: { 
-        mithai_id: dto.mithai_id, 
-        eventId: dto.eventId, 
-        userId 
-      }
+      where: {
+        mithai_id: dto.mithai_id,
+        eventId: dto.eventId,
+        userId,
+      },
     });
 
     if (existingEntry) {
@@ -47,33 +47,37 @@ export class AnnkutSidhuSamanService {
       await this.repository.update(existingEntry.id, {
         mithai_name: dto.mithai_name,
         total_nang: dto.total_nang,
-        total_flour: dto.total_flour
+        total_flour: dto.total_flour,
       });
       return this.repository.findOne({ where: { id: existingEntry.id } });
     } else {
       // Create new entry
       const entry = this.repository.create({
         ...dto,
-        userId
+        userId,
       });
       return this.repository.save(entry);
     }
   }
 
-  async update(id: number, data: Partial<CreateAnnkutSidhuSamanDto>, userId: number): Promise<AnnkutSidhuSaman> {
+  async update(
+    id: number,
+    data: Partial<CreateAnnkutSidhuSamanDto>,
+    userId: number,
+  ): Promise<AnnkutSidhuSaman> {
     await this.repository.update({ id, event: { userId } }, data);
     return this.findOneByUser(id, userId);
   }
 
   async deleteByIdAndUser(id: number, userId: number) {
     const entry = await this.repository.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
-    
+
     if (!entry) {
       throw new NotFoundException('Entry not found or access denied');
     }
-    
+
     return this.repository.remove(entry);
   }
 
@@ -81,7 +85,7 @@ export class AnnkutSidhuSamanService {
     return this.repository.find({
       where: { eventId, userId },
       order: { id: 'ASC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 }

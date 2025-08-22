@@ -11,24 +11,33 @@ export class WeightCalculationEntryService {
     private repo: Repository<WeightCalculationEntry>,
   ) {}
 
-  async create(dto: CreateWeightCalculationEntryDto, userId: number): Promise<WeightCalculationEntry> {
+  async create(
+    dto: CreateWeightCalculationEntryDto,
+    userId: number,
+  ): Promise<WeightCalculationEntry> {
     const entry = this.repo.create({
       ...dto,
-      userId
+      userId,
     });
     return this.repo.save(entry);
   }
 
-  async update(id: number, dto: CreateWeightCalculationEntryDto, userId: number): Promise<WeightCalculationEntry> {
+  async update(
+    id: number,
+    dto: CreateWeightCalculationEntryDto,
+    userId: number,
+  ): Promise<WeightCalculationEntry> {
     // Verify the entry belongs to the user
     const existingEntry = await this.repo.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
-    
+
     if (!existingEntry) {
-      throw new Error(`WeightCalculationEntry with id ${id} not found or access denied`);
+      throw new Error(
+        `WeightCalculationEntry with id ${id} not found or access denied`,
+      );
     }
-    
+
     await this.repo.update(id, dto);
     const entry = await this.repo.findOneBy({ id });
     if (!entry) {
@@ -37,9 +46,11 @@ export class WeightCalculationEntryService {
     return entry;
   }
 
-  async getLatest(eventId?: number): Promise<WeightCalculationEntry | undefined> {
+  async getLatest(
+    eventId?: number,
+  ): Promise<WeightCalculationEntry | undefined> {
     const whereCondition = eventId ? { eventId: Number(eventId) } : {};
-    
+
     const entry = await this.repo.findOne({
       where: whereCondition,
       relations: ['event'],
@@ -51,7 +62,9 @@ export class WeightCalculationEntryService {
     const entries = await this.repo.find();
 
     for (const entry of entries) {
-      const filteredEntries = entry.entries.filter((e: any) => e.boxId !== boxId);
+      const filteredEntries = entry.entries.filter(
+        (e: any) => e.boxId !== boxId,
+      );
       await this.repo.update(entry.id, { entries: filteredEntries });
     }
   }
@@ -60,7 +73,7 @@ export class WeightCalculationEntryService {
     return this.repo.findOne({
       where: { eventId, userId },
       order: { createdAt: 'DESC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 }

@@ -9,7 +9,9 @@ describe('WeightCalculationEntryService', () => {
       providers: [WeightCalculationEntryService],
     }).compile();
 
-    service = module.get<WeightCalculationEntryService>(WeightCalculationEntryService);
+    service = module.get<WeightCalculationEntryService>(
+      WeightCalculationEntryService,
+    );
   });
 
   it('should be defined', () => {

@@ -16,14 +16,25 @@ export class VasanNosCalculationEntryService {
     return this.repo.save(entry);
   }
 
-  async update(id: number, dto: CreateVasanNosCalculationEntryDto, userId: number) {
+  async update(
+    id: number,
+    dto: CreateVasanNosCalculationEntryDto,
+    userId: number,
+  ) {
     const existing = await this.repo.findOne({ where: { id, userId } });
     if (!existing) throw new Error('Entry not found or access denied');
-  await this.repo.update(id, { entries: dto.entries as any, eventId: dto.eventId ?? existing.eventId });
+    await this.repo.update(id, {
+      entries: dto.entries as any,
+      eventId: dto.eventId ?? existing.eventId,
+    });
     return this.repo.findOneBy({ id });
   }
 
   async findLatestByEventAndUser(eventId: number, userId: number) {
-    return this.repo.findOne({ where: { eventId, userId }, order: { createdAt: 'DESC' }, relations: ['event'] });
+    return this.repo.findOne({
+      where: { eventId, userId },
+      order: { createdAt: 'DESC' },
+      relations: ['event'],
+    });
   }
 }

@@ -18,6 +18,7 @@ import { VasanNosCalculationEntryModule } from './vasan-nos-calculation-entry/va
 import { VasanFillPlanModule } from './vasan-fill-plan/vasan-fill-plan.module';
 import { SectionVasanSummaryModule } from './section-vasan-summary/section-vasan-summary.module';
 import { SectionLayoutModule } from './section-layout/section-layout.module';
+import { FinalNosSummaryModule } from './final-nos-summary/final-nos-summary.module';
 
 @Module({
   imports: [
@@ -33,12 +34,13 @@ import { SectionLayoutModule } from './section-layout/section-layout.module';
     WeightCalculationEntryModule,
     BoxRangeModule,
     AnnkutSidhuSamanModule,
-  SectionsModule,
-  VasanModule,
-  VasanNosCalculationEntryModule,
-  VasanFillPlanModule,
-  SectionVasanSummaryModule,
-  SectionLayoutModule,
-  ]
+    SectionsModule,
+    VasanModule,
+    VasanNosCalculationEntryModule,
+    VasanFillPlanModule,
+    SectionVasanSummaryModule,
+    SectionLayoutModule,
+    FinalNosSummaryModule,
+  ],
 })
 export class AppModule {}

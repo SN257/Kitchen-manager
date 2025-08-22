@@ -6,10 +6,15 @@ import { SaveSectionLayoutDto } from './dto/save-section-layout.dto';
 
 @Injectable()
 export class SectionLayoutService {
-  constructor(@InjectRepository(SectionLayout) private readonly repo: Repository<SectionLayout>) {}
+  constructor(
+    @InjectRepository(SectionLayout)
+    private readonly repo: Repository<SectionLayout>,
+  ) {}
 
   async saveOrUpdate(dto: SaveSectionLayoutDto, userId: number) {
-    let existing = await this.repo.findOne({ where: { eventId: dto.eventId, sectionId: dto.sectionId, userId } });
+    let existing = await this.repo.findOne({
+      where: { eventId: dto.eventId, sectionId: dto.sectionId, userId },
+    });
     if (existing) {
       existing.cells = dto.cells;
       return this.repo.save(existing);
@@ -19,6 +24,9 @@ export class SectionLayoutService {
   }
 
   async get(eventId: number, sectionId: number, userId: number) {
-    return this.repo.findOne({ where: { eventId, sectionId, userId }, order: { updatedAt: 'DESC' } });
+    return this.repo.findOne({
+      where: { eventId, sectionId, userId },
+      order: { updatedAt: 'DESC' },
+    });
   }
 }

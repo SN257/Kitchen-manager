@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Event } from './event.entity';
 
 @Entity()
@@ -18,7 +25,7 @@ export class WeightEntry {
   @ManyToOne(() => Event, { eager: true })
   @JoinColumn({ name: 'eventId' })
   event: Event;
-  
+
   @CreateDateColumn()
   createdAt: Date;
 

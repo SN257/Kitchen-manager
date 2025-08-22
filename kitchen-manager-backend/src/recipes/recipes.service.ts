@@ -31,7 +31,7 @@ export class RecipesService {
   }
 
   async findByUser(userId: number, center?: string): Promise<Recipe[]> {
-     if (center) {
+    if (center) {
       const data = await this.recipeRepo.find({ where: { center } });
       return data;
     }

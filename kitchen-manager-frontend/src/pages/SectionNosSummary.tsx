@@ -8,6 +8,7 @@ interface VasanMasterEntry { id:number; vasanName:string; description?:string }
 interface VasanFillPlan { id:number; vasanId:number; foodName:string; fillWeightKg:number }
 interface VasanNosEntry { vasanId:number; vasanName:string; foodName:string; totalVasan:number; sectionEntries:{ sectionId:number; sectionName:string; count:number }[] }
 interface RecipeEntry { vangiName:string; items_per_kg:number; }
+interface WeightEntry { vangiName:string; gram:number }
 
 const SectionNosSummary: React.FC = () => {
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
@@ -17,6 +18,7 @@ const SectionNosSummary: React.FC = () => {
   const [fillPlans, setFillPlans] = useState<VasanFillPlan[]>([]);
   const [nosEntries, setNosEntries] = useState<VasanNosEntry[]>([]);
   const [recipes, setRecipes] = useState<RecipeEntry[]>([]);
+  const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [printOpen, setPrintOpen] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSavedSignature, setLastSavedSignature] = useState<string>('');
@@ -32,12 +34,14 @@ const SectionNosSummary: React.FC = () => {
       fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null),
-      fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
-    ]).then(([vasanData, planData, nosData, recipeData]) => {
+      fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
+      fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
+    ]).then(([vasanData, planData, nosData, recipeData, weightData]) => {
       setVasans(Array.isArray(vasanData)? vasanData: []);
       setFillPlans(Array.isArray(planData)? planData: []);
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
       setRecipes(Array.isArray(recipeData)? recipeData: []);
+      setWeights(Array.isArray(weightData)? weightData: []);
     }).finally(()=> setLoading(false));
     // fetch saved summary
     fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
@@ -56,6 +60,10 @@ const SectionNosSummary: React.FC = () => {
     nosEntries.forEach(e => {
       legacyAggregate.set(e.vasanId, (legacyAggregate.get(e.vasanId) || 0) + (e.totalVasan || 0));
     });
+    // Map foodName -> gram per piece from weight entries
+    const weightMap = new Map<string, number>(
+      (weights || []).map(w => [ (w.vangiName||'').trim().toLowerCase(), Number(w.gram) || 0 ])
+    );
     return fillPlans.map(plan => {
       const compositeKey = keyFor(plan.vasanId, plan.foodName);
       const nos = compositeMap.get(compositeKey);
@@ -65,8 +73,16 @@ const SectionNosSummary: React.FC = () => {
       }
       const weightPerVasanKg = plan.fillWeightKg || 0;
       const totalWeightKg = totalNos * weightPerVasanKg;
-      const recipe = recipes.find(r => r.vangiName.toLowerCase() === plan.foodName.toLowerCase());
+      // For flour calculation, if foodName starts with 'મગજ', match recipe for 'મગજ' only (ignore subtype)
+      let recipe: RecipeEntry | undefined;
+      if ((plan.foodName || '').trim().startsWith('મગજ')) {
+        recipe = recipes.find(r => r.vangiName.trim() === 'મગજ');
+      } else {
+        recipe = recipes.find(r => r.vangiName.toLowerCase() === plan.foodName.toLowerCase());
+      }
       const flourRequiredKg = recipe && Number(recipe.items_per_kg) > 0 ? (totalWeightKg / Number(recipe.items_per_kg)) : 0;
+      const gramPerPiece = weightMap.get((plan.foodName||'').trim().toLowerCase()) || 0;
+      const totalNang = gramPerPiece > 0 ? (totalWeightKg * 1000) / gramPerPiece : 0; // convert kg->g
       return {
         id: plan.id,
         vasanId: plan.vasanId,
@@ -76,9 +92,10 @@ const SectionNosSummary: React.FC = () => {
         totalNos,
         totalWeightKg,
         flourRequiredKg,
+        totalNang,
       };
     }).sort((a,b)=> a.vasanId - b.vasanId);
-  }, [fillPlans, nosEntries, recipes, vasans]);
+  }, [fillPlans, nosEntries, recipes, vasans, weights]);
 
   // Totals row removed per latest requirement; if needed later we can reintroduce.
 
@@ -90,7 +107,7 @@ const SectionNosSummary: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     // Build a lightweight signature to detect changes (avoid frequent identical saves)
-    const signature = JSON.stringify(rows.map(r => ({ vasanId:r.vasanId, w:r.weightPerVasanKg, n:r.totalNos, tw:r.totalWeightKg, f:r.flourRequiredKg })));
+  const signature = JSON.stringify(rows.map(r => ({ vasanId:r.vasanId, w:r.weightPerVasanKg, n:r.totalNos, tw:r.totalWeightKg, f:r.flourRequiredKg, tn: r.totalNang })));
     if (signature === lastSavedSignature) return;
     setAutoSaving(true);
     fetch(`${API_BASE_URL}/section-vasan-summary`, {
@@ -114,7 +131,20 @@ const SectionNosSummary: React.FC = () => {
   }, [rows, selectedAnnkutEvent, loading, API_BASE_URL, lastSavedSignature]);
 
   // Always prefer cachedRows (DB snapshot) if present so we display what's persisted
-  const displayRows = cachedRows.length ? cachedRows : rows;
+  // But compute totalNang on the fly if missing in snapshot
+  const displayRows = useMemo(() => {
+    const base = (cachedRows.length ? cachedRows : rows) as any[];
+    if (!base?.length) return base || [];
+    const weightMap = new Map<string, number>((weights||[]).map(w => [ (w.vangiName||'').trim().toLowerCase(), Number(w.gram)||0 ]));
+    return base.map(r => {
+      if (r && (r.totalNang === undefined || r.totalNang === null)) {
+        const gramPerPiece = weightMap.get((r.foodName||'').trim().toLowerCase()) || 0;
+        const tn = gramPerPiece > 0 ? (Number(r.totalWeightKg)||0) * 1000 / gramPerPiece : 0;
+        return { ...r, totalNang: tn };
+      }
+      return r;
+    });
+  }, [cachedRows, rows, weights]);
 
   return (
     <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
@@ -144,18 +174,20 @@ const SectionNosSummary: React.FC = () => {
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Weight / Vasan (Kg)</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nos</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nang</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Flour Required (Kg)</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {displayRows.map(r => (
+        {displayRows.map(r => (
                   <TableRow key={r.id}>
                     <TableCell sx={{ textAlign:'center' }}>{r.vasanId}</TableCell>
                     <TableCell sx={{ textAlign:'center' }}>{r.vasanName} ({r.foodName})</TableCell>
-                    <TableCell sx={{ textAlign:'center' }}>{r.weightPerVasanKg.toFixed(2)}</TableCell>
-                    <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{r.totalNos}</TableCell>
-                    <TableCell sx={{ textAlign:'center' }}>{r.totalWeightKg.toFixed(2)}</TableCell>
-                    <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{r.flourRequiredKg.toFixed(2)}</TableCell>
+          <TableCell sx={{ textAlign:'center' }}>{`${r.weightPerVasanKg.toFixed(2)} kg`}</TableCell>
+          <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${r.totalNos} nos`}</TableCell>
+          <TableCell sx={{ textAlign:'center' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
+          <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${Math.round(r.totalNang || 0)} nos`}</TableCell>
+          <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${r.flourRequiredKg.toFixed(2)} kg`}</TableCell>
                   </TableRow>
                 ))}
                 {/* Totals row intentionally removed */}
@@ -191,18 +223,20 @@ const SectionNosSummary: React.FC = () => {
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Weight / Vasan (Kg)</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nos</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Weight (Kg)</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nang</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Flour Required (Kg)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {displayRows.map(r => (
+          {displayRows.map(r => (
                     <TableRow key={r.id}>
                       <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanId}</TableCell>
                       <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanName} ({r.foodName})</TableCell>
-                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.weightPerVasanKg.toFixed(2)}</TableCell>
-                      <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{r.totalNos}</TableCell>
-                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.totalWeightKg.toFixed(2)}</TableCell>
-                      <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{r.flourRequiredKg.toFixed(2)}</TableCell>
+            <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.weightPerVasanKg.toFixed(2)} kg`}</TableCell>
+            <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.totalNos} nos`}</TableCell>
+            <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
+            <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${Math.round(r.totalNang || 0)} nos`}</TableCell>
+            <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.flourRequiredKg.toFixed(2)} kg`}</TableCell>
                     </TableRow>
                   ))}
                   {/* Totals row intentionally removed in print view as well */}

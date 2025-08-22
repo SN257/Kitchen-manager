@@ -1,4 +1,14 @@
-import { Controller, Post, Body, Req, UnauthorizedException, Get, Put, Delete, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Req,
+  UnauthorizedException,
+  Get,
+  Put,
+  Delete,
+  Param,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
@@ -16,24 +26,27 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) { }
+  ) {}
 
   @Post('login')
   async login(
     @Body() body: { username: string; password: string },
     @Req() req: Request & { session: CustomSession },
   ) {
-    const user = await this.userService.validateUser(body.username, body.password);
+    const user = await this.userService.validateUser(
+      body.username,
+      body.password,
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid username or password');
     }
-    
+
     // Set session data
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
     req.session.center = user.center;
-    
+
     // Log login activity - create activity log entry directly
     await this.userService.getActivityLogs(user.id); // This will ensure the repository is available
     // Actually log the activity by creating a new entry
@@ -42,9 +55,9 @@ export class UserController {
       userId: user.id,
       action: 'Login',
       details: 'Successful login',
-      createdAt: new Date()
+      createdAt: new Date(),
     });
-    
+
     // Force session save
     return new Promise((resolve, reject) => {
       req.session.save((err) => {
@@ -52,7 +65,7 @@ export class UserController {
           console.error('Session save error:', err);
           reject(new Error('Session save failed'));
         } else {
-          console.log('Session saved successfully:', req.session);
+          // Session saved successfully; avoid logging entire session to keep logs clean
           const result = this.authService.login(user);
           resolve({
             ...result,
@@ -62,7 +75,7 @@ export class UserController {
               username: user.username,
               center: user.center,
               role: user.role,
-            }
+            },
           });
         }
       });
@@ -84,7 +97,7 @@ export class UserController {
 
   @Post('logout')
   async logout(@Req() req: Request) {
-    req.session.destroy(() => { });
+    req.session.destroy(() => {});
     return { message: 'Logged out' };
   }
 
@@ -119,12 +132,15 @@ export class UserController {
     if (!req.session.userId) {
       throw new UnauthorizedException('Not logged in');
     }
-    
-    const updatedUser = await this.userService.updateProfile(req.session.userId, body);
-    
+
+    const updatedUser = await this.userService.updateProfile(
+      req.session.userId,
+      body,
+    );
+
     // Update session data
     req.session.username = updatedUser.username;
-    
+
     return {
       id: updatedUser.id,
       username: updatedUser.username,
@@ -141,9 +157,13 @@ export class UserController {
     if (!req.session.userId) {
       throw new UnauthorizedException('Not logged in');
     }
-    
-    await this.userService.changePassword(req.session.userId, body.currentPassword, body.newPassword);
-    
+
+    await this.userService.changePassword(
+      req.session.userId,
+      body.currentPassword,
+      body.newPassword,
+    );
+
     return { message: 'Password changed successfully' };
   }
 
@@ -152,19 +172,19 @@ export class UserController {
     if (!req.session.userId) {
       throw new UnauthorizedException('Not logged in');
     }
-    
+
     return this.userService.getActivityLogs(req.session.userId);
   }
 
   @Delete('activity-logs/:id')
   async deleteActivityLog(
     @Param('id') id: string,
-    @Req() req: Request & { session: CustomSession }
+    @Req() req: Request & { session: CustomSession },
   ) {
     if (!req.session.userId) {
       throw new UnauthorizedException('Not logged in');
     }
-    
+
     return this.userService.deleteActivityLog(req.session.userId, parseInt(id));
   }
 
@@ -173,7 +193,7 @@ export class UserController {
     if (!req.session.userId) {
       throw new UnauthorizedException('Not logged in');
     }
-    
+
     return this.userService.clearAllActivityLogs(req.session.userId);
   }
 }

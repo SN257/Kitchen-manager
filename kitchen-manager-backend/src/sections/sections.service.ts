@@ -13,14 +13,14 @@ export class SectionsService {
 
   async findAll(userId: number, eventId?: number): Promise<Section[]> {
     const whereCondition: any = { userId };
-    
+
     if (eventId) {
       whereCondition.eventId = eventId;
     }
     const sections = await this.sectionRepo.find({
       where: whereCondition,
       relations: ['event'],
-      order: { id: 'DESC' }
+      order: { id: 'DESC' },
     });
     return sections;
   }
@@ -33,11 +33,15 @@ export class SectionsService {
     return this.sectionRepo.save(section);
   }
 
-  async update(id: number, dto: CreateSectionDto, userId: number): Promise<Section> {
+  async update(
+    id: number,
+    dto: CreateSectionDto,
+    userId: number,
+  ): Promise<Section> {
     const section = await this.sectionRepo.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
-    
+
     if (!section) {
       throw new NotFoundException('Section not found');
     }
@@ -48,9 +52,9 @@ export class SectionsService {
 
   async remove(id: number, userId: number): Promise<void> {
     const section = await this.sectionRepo.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
-    
+
     if (!section) {
       throw new NotFoundException('Section not found');
     }

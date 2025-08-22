@@ -15,7 +15,7 @@ export class BoxWeightEntryService {
   findAll(): Promise<BoxWeightEntry[]> {
     return this.boxWeightEntryRepository.find({
       order: { id: 'DESC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 
@@ -33,7 +33,10 @@ export class BoxWeightEntryService {
     return this.boxWeightEntryRepository.save(entry);
   }
 
-  async update(id: number, dto: UpdateBoxWeightEntryDto): Promise<BoxWeightEntry> {
+  async update(
+    id: number,
+    dto: UpdateBoxWeightEntryDto,
+  ): Promise<BoxWeightEntry> {
     await this.boxWeightEntryRepository.update(id, {
       ...dto,
       totalBoxes: dto.totalBoxes ? Number(dto.totalBoxes) : undefined,
@@ -45,7 +48,9 @@ export class BoxWeightEntryService {
     await this.boxWeightEntryRepository.delete(id);
   }
 
-  async createOrUpdateEntries(entries: BoxWeightEntry[]): Promise<BoxWeightEntry[]> {
+  async createOrUpdateEntries(
+    entries: BoxWeightEntry[],
+  ): Promise<BoxWeightEntry[]> {
     const updatedEntries: BoxWeightEntry[] = [];
 
     for (const entry of entries) {
@@ -56,8 +61,10 @@ export class BoxWeightEntryService {
 
       if (existingEntry) {
         // Update totalBoxes for the existing entry
-        existingEntry.totalBoxes = Number(existingEntry.totalBoxes) + entry.totalBoxes;
-        const updatedEntry = await this.boxWeightEntryRepository.save(existingEntry);
+        existingEntry.totalBoxes =
+          Number(existingEntry.totalBoxes) + entry.totalBoxes;
+        const updatedEntry =
+          await this.boxWeightEntryRepository.save(existingEntry);
         updatedEntries.push(updatedEntry);
       } else {
         // Handle multiple boxType entries across all ranges
@@ -68,8 +75,10 @@ export class BoxWeightEntryService {
         if (otherRangeEntries.length > 0) {
           for (const otherRangeEntry of otherRangeEntries) {
             // Update totalBoxes for all matching ranges
-            otherRangeEntry.totalBoxes = Number(otherRangeEntry.totalBoxes) + entry.totalBoxes;
-            const updatedOtherRangeEntry = await this.boxWeightEntryRepository.save(otherRangeEntry);
+            otherRangeEntry.totalBoxes =
+              Number(otherRangeEntry.totalBoxes) + entry.totalBoxes;
+            const updatedOtherRangeEntry =
+              await this.boxWeightEntryRepository.save(otherRangeEntry);
             updatedEntries.push(updatedOtherRangeEntry);
           }
         } else {
@@ -85,10 +94,10 @@ export class BoxWeightEntryService {
   }
 
   async findAllByUser(userId: number) {
-    return this.boxWeightEntryRepository.find({ 
+    return this.boxWeightEntryRepository.find({
       where: { userId },
       order: { id: 'ASC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 
@@ -96,16 +105,16 @@ export class BoxWeightEntryService {
     return this.boxWeightEntryRepository.find({
       where: { eventId, userId },
       order: { id: 'ASC' },
-      relations: ['event']
+      relations: ['event'],
     });
   }
 
   async createMultiple(entries: Partial<BoxWeightEntry>[], userId: number) {
-    const newEntries = entries.map(entry => 
+    const newEntries = entries.map((entry) =>
       this.boxWeightEntryRepository.create({
         ...entry,
-        userId
-      })
+        userId,
+      }),
     );
     return this.boxWeightEntryRepository.save(newEntries);
   }
