@@ -21,6 +21,10 @@ import {
   ListItemText,
   ListItemIcon,
   InputAdornment,
+  Tooltip,
+  Stack,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LocationCityIcon from '@mui/icons-material/LocationCity';
@@ -36,6 +40,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearAllIcon from '@mui/icons-material/ClearAll';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useApiBaseUrl } from '../config/config';
 
 interface UserProfile {
@@ -48,7 +53,8 @@ interface UserProfile {
 interface ActivityLog {
   id: number;
   action: string;
-  timestamp: string;
+  createdAt?: string; // backend field
+  timestamp?: string; // legacy / alternative field
   details?: string;
 }
 
@@ -77,15 +83,20 @@ const Profile: React.FC = () => {
   // Activity log state
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
   
   const [deleteLogDialogOpen, setDeleteLogDialogOpen] = useState(false);
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
+  const [actionsAnchorEl, setActionsAnchorEl] = useState<null | HTMLElement>(null);
+  const actionsMenuOpen = Boolean(actionsAnchorEl);
   
   const API_BASE_URL = useApiBaseUrl();
 
   useEffect(() => {
     fetchUserProfile();
+  fetchRecentActivity();
   }, [API_BASE_URL]);
 
   const fetchUserProfile = async () => {
@@ -150,6 +161,8 @@ const Profile: React.FC = () => {
         
         setEditDialogOpen(false);
         showSnackbar('Profile updated successfully!', 'success');
+  // Refresh recent activity so user sees update action if logged
+  fetchRecentActivity();
       } else {
         showSnackbar('Failed to update profile', 'error');
       }
@@ -193,6 +206,8 @@ const Profile: React.FC = () => {
         setShowNewPassword(false);
         setShowConfirmPassword(false);
         showSnackbar('Password changed successfully!', 'success');
+  // Refresh recent activity to reflect password change action
+  fetchRecentActivity();
       } else {
         const errorData = await response.json();
         showSnackbar(errorData.message || 'Failed to change password', 'error');
@@ -203,7 +218,7 @@ const Profile: React.FC = () => {
   };
 
   const fetchActivityLogs = async () => {
-    setActivityLoading(true);
+  setActivityLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/user/activity-logs`, {
@@ -215,8 +230,9 @@ const Profile: React.FC = () => {
       });
 
       if (response.ok) {
-        const logs = await response.json();
-        setActivityLogs(logs);
+  const logs: ActivityLog[] = await response.json();
+  logs.sort((a,b)=> new Date(b.createdAt || b.timestamp || 0).getTime() - new Date(a.createdAt || a.timestamp || 0).getTime());
+  setActivityLogs(logs);
       } else {
         setActivityLogs([]);
       }
@@ -230,6 +246,32 @@ const Profile: React.FC = () => {
   const handleActivityLog = () => {
     setActivityDialogOpen(true);
     fetchActivityLogs();
+  };
+
+  const fetchRecentActivity = async () => {
+    setRecentLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setRecentActivity([]);
+        return;
+      }
+      const response = await fetch(`${API_BASE_URL}/user/activity-logs`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const logs: ActivityLog[] = await response.json();
+  logs.sort((a,b)=> new Date(b.createdAt || b.timestamp || 0).getTime() - new Date(a.createdAt || a.timestamp || 0).getTime());
+  setRecentActivity(logs);
+      } else {
+        setRecentActivity([]);
+      }
+    } catch {
+      setRecentActivity([]);
+    } finally {
+      setRecentLoading(false);
+    }
   };
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -270,6 +312,7 @@ const Profile: React.FC = () => {
       if (response.ok) {
         setActivityLogs(prev => prev.filter(log => log.id !== logId));
         showSnackbar('Activity log deleted successfully!', 'success');
+  setRecentActivity(prev => prev.filter(log => log.id !== logId));
       } else {
         showSnackbar('Failed to delete activity log', 'error');
       }
@@ -294,6 +337,7 @@ const Profile: React.FC = () => {
 
       if (response.ok) {
         setActivityLogs([]);
+        setRecentActivity([]);
         showSnackbar('All activity logs cleared successfully!', 'success');
       } else {
         showSnackbar('Failed to clear activity logs', 'error');
@@ -302,6 +346,26 @@ const Profile: React.FC = () => {
       showSnackbar('Network error occurred', 'error');
     }
     setClearAllDialogOpen(false);
+  };
+
+  const formatRelativeTime = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const diff = Date.now() - d.getTime();
+    const s = Math.floor(diff/1000);
+    if (s < 60) return 'just now';
+    const m = Math.floor(s/60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m/60);
+    if (h < 24) return `${h}h ago`;
+    const days = Math.floor(h/24);
+    if (days < 7) return `${days}d ago`;
+    const w = Math.floor(days/7);
+    if (w < 4) return `${w}w ago`;
+    const mo = Math.floor(days/30);
+    if (mo < 12) return `${mo}mo ago`;
+    const y = Math.floor(days/365);
+    return `${y}y ago`;
   };
 
   if (loading) {
@@ -336,298 +400,154 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <PersonIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
-        <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>
-          My Profile
-        </Typography>
+    <>
+      <Box sx={{ p: { xs: 2, sm: 3 }, minHeight: '80vh', bgcolor:'#f5f8f9' }}>
+        {/* Page Header */}
+        <Box sx={{ mb:4, display:'flex', alignItems:'center', gap:1 }}>
+          <PersonIcon sx={{ color:'#245D6B', fontSize:36 }} />
+          <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:0.5 }}>My Profile</Typography>
+        </Box>
+
+        {/* Top Grid: Left (Overview + Profile Info stacked) | Right (Recent Activity full height) */}
+  <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'2fr 1fr' }, gap:3, alignItems:'stretch' }}>
+          {/* Left Cell: stacked cards */}
+          <Box sx={{ display:'flex', flexDirection:'column', gap:3, height:'100%' }}>
+            {/* Overview */}
+            <Paper sx={{ p:3, borderRadius:3, boxShadow:'0 4px 18px rgba(0,0,0,0.06)', position:'relative', overflow:'hidden' }}>
+              <Box sx={{ position:'absolute', inset:0, background:'radial-gradient(circle at 85% 15%, rgba(36,93,107,0.08), transparent 60%)' }} />
+              <Box sx={{ position:'relative', display:'flex', flexDirection:{ xs:'column', md:'row'}, gap:3 }}>
+                <Avatar sx={{ width:90, height:90, bgcolor:'#245D6B', fontSize:40, fontWeight:700 }}>{user.username.charAt(0).toUpperCase()}</Avatar>
+                <Box sx={{ flex:1 }}>
+                  <Typography variant='h4' sx={{ fontWeight:700, color:'#1e3740', mb:1, fontSize:{ xs:'1.8rem', sm:'2.1rem' } }}>{user.username}</Typography>
+                  <Chip icon={<AdminPanelSettingsIcon sx={{ fontSize:18 }} />} label={getRoleDisplayName(user.role)} sx={{ bgcolor:getRoleColor(user.role), color:'#fff', fontWeight:600, px:1.5, '& .MuiChip-icon':{ color:'#fff' } }} />
+                  <Box sx={{ mt:2, display:'flex', flexWrap:'wrap', gap:1.2 }}>
+                    <Tooltip title='User ID'><Chip label={`#${user.id}`} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
+                    <Tooltip title='Center'><Chip label={user.center || 'No Center'} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
+                    <Tooltip title='Role'><Chip label={getRoleDisplayName(user.role)} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
+                  </Box>
+                </Box>
+                <Stack direction='row' spacing={0.5} sx={{ alignSelf:{ xs:'flex-end', md:'flex-start' }, mt:{ xs:2, md:0 } }}>
+                  <Tooltip title='Actions'>
+                    <IconButton
+                      aria-label='open actions menu'
+                      aria-controls={actionsMenuOpen ? 'profile-actions-menu' : undefined}
+                      aria-haspopup='true'
+                      aria-expanded={actionsMenuOpen ? 'true' : undefined}
+                      onClick={(e)=> setActionsAnchorEl(e.currentTarget)}
+                      size='small'
+                      sx={{
+                        border:'1px solid #245D6B',
+                        color:'#245D6B',
+                        '&:hover':{ bgcolor:'#245D6B', color:'#fff' },
+                        transition:'all .2s'
+                      }}
+                    >
+                      <MoreVertIcon fontSize='small' />
+                    </IconButton>
+                  </Tooltip>
+                  <Menu
+                    id='profile-actions-menu'
+                    anchorEl={actionsAnchorEl}
+                    open={actionsMenuOpen}
+                    onClose={()=> setActionsAnchorEl(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  >
+                    <MenuItem onClick={()=> { setActionsAnchorEl(null); handleEditProfile(); }}>
+                      <EditIcon fontSize='small' sx={{ mr: 1, color: '#245D6B' }} />
+                      Edit Profile / Username
+                    </MenuItem>
+                    <MenuItem onClick={()=> { setActionsAnchorEl(null); setPasswordDialogOpen(true); }}>
+                      <LockIcon fontSize='small' sx={{ mr: 1, color: '#245D6B' }} />
+                      Change Password
+                    </MenuItem>
+                  </Menu>
+                </Stack>
+              </Box>
+            </Paper>
+            {/* Profile Info */}
+            <Paper sx={{ p:3, borderRadius:3, boxShadow:'0 4px 18px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column' }}>
+              <Typography variant='h6' sx={{ fontWeight:700, color:'#245D6B', mb:2 }}>Profile Information</Typography>
+              <Divider sx={{ mb:3 }} />
+              <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', sm:'repeat(2, 1fr)', lg:'repeat(4, 1fr)' }, gap:2 }}>
+                {[
+                  { icon:<BadgeIcon />, label:'User ID', value:`#${user.id}` },
+                  { icon:<LocationCityIcon />, label:'Center', value:user.center || 'Not Assigned' },
+                  { icon:<AdminPanelSettingsIcon />, label:'Role', value:getRoleDisplayName(user.role) },
+                  { icon:<PersonIcon />, label:'Username', value:user.username }
+                ].map((item,i)=>(
+                  <Box key={i} sx={{ p:2, border:'1px solid #e3ecef', borderRadius:2, bgcolor:'#fff', display:'flex', flexDirection:'column', gap:1 }}>
+                    <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                      <Avatar sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', width:34, height:34 }}>{item.icon}</Avatar>
+                      <Typography variant='body2' sx={{ fontWeight:600, color:'#576f75', letterSpacing:0.3 }}>{item.label}</Typography>
+                    </Box>
+                    <Typography variant='subtitle1' sx={{ fontWeight:700, color:'#1e3740', lineHeight:1.3 }}>{item.value}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Paper>
+          </Box>
+          {/* Right Cell: Recent Activity fills height */}
+          <Box sx={{ height:'100%', display:'flex', flexDirection:'column' }}>
+            <Paper sx={{ p:3, borderRadius:3, boxShadow:'0 4px 18px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', flex:1, minHeight:320 }}>
+              <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1.5 }}>
+                <Typography variant='h6' sx={{ fontWeight:700, color:'#245D6B' }}>Recent Activity</Typography>
+                <Button size='small' variant='text' onClick={()=>{ fetchRecentActivity(); handleActivityLog(); }} sx={{ color:'#245D6B', fontWeight:600 }}>View All</Button>
+              </Box>
+              <Box sx={{ flex:1 }}>
+                {recentLoading ? (
+                  <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
+                    {[...Array(4)].map((_,i)=>(<Skeleton key={i} variant='rectangular' height={38} sx={{ borderRadius:1 }} />))}
+                  </Box>
+                ) : recentActivity.length === 0 ? (
+                  <Typography variant='body2' sx={{ color:'#789097', fontStyle:'italic', mt:1 }}>No recent activity</Typography>
+                ) : (
+                  <List dense sx={{ p:0, maxHeight:320, overflowY:'auto' }}>
+                    {recentActivity.map(log => (
+                      <ListItem key={log.id} sx={{ px:0, alignItems:'flex-start' }} divider>
+                        <ListItemIcon sx={{ minWidth:38, mt:.3 }}><AccessTimeIcon sx={{ color:'#245D6B', fontSize:20 }} /></ListItemIcon>
+                        <ListItemText
+                          primary={<Typography sx={{ fontWeight:600, color:'#1e3740', fontSize:13.5, lineHeight:1.3 }}>{log.action}</Typography>}
+                          secondary={<Box sx={{ display:'flex', flexWrap:'wrap', gap:.75, alignItems:'center' }}>
+                            <Typography component='span' sx={{ fontSize:11.5, color:'#607d84' }}>{new Date(log.createdAt || log.timestamp || '').toLocaleString()}</Typography>
+                            <Typography component='span' sx={{ fontSize:11, color:'#245D6B', fontWeight:600 }}>{formatRelativeTime(log.createdAt || log.timestamp || '')}</Typography>
+                            {log.details && <Typography component='span' sx={{ fontSize:11.5, color:'#5a6f75' }}>• {log.details}</Typography>}
+                          </Box>}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Box>
+            </Paper>
+          </Box>
+        </Box>
+        {/* Second Row: Aligned columns (Quick Actions left, Role Permissions right) */}
+        <Box sx={{ mt:3, display:'grid', gridTemplateColumns:{ xs:'1fr', md:'2fr 1fr' }, gap:3 }}>
+          <Paper sx={{ p:3, borderRadius:3, boxShadow:'0 4px 18px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column' }}>
+            <Typography variant='h6' sx={{ fontWeight:700, color:'#245D6B', mb:2 }}>Quick Actions</Typography>
+            <Divider sx={{ mb:3 }} />
+            <Stack direction={{ xs:'column', sm:'row', md:'column' }} spacing={2}>
+              <Button fullWidth variant='contained' startIcon={<LockIcon />} onClick={()=> setPasswordDialogOpen(true)} sx={{ bgcolor:'#245D6B', fontWeight:600, '&:hover':{ bgcolor:'#1a4a57' } }}>Change Password</Button>
+              <Button fullWidth variant='outlined' startIcon={<HistoryIcon />} onClick={handleActivityLog} sx={{ borderColor:'#245D6B', color:'#245D6B', fontWeight:600, '&:hover':{ bgcolor:'#245D6B', color:'#fff' } }}>Activity Log</Button>
+            </Stack>
+          </Paper>
+          <Paper sx={{ p:3, borderRadius:3, boxShadow:'0 4px 18px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column' }}>
+            <Typography variant='h6' sx={{ fontWeight:700, color:'#245D6B', mb:1 }}>Role Permissions</Typography>
+            <Typography variant='body2' sx={{ color:'#4c6670', lineHeight:1.55, flexGrow:1 }}>
+              Your role <strong>{getRoleDisplayName(user.role)}</strong> determines access to administrative and operational features inside Kitchen Manager.
+            </Typography>
+            <Box sx={{ mt:2, display:'flex', flexWrap:'wrap', gap:1 }}>
+              <Chip size='small' label={getRoleDisplayName(user.role)} sx={{ bgcolor:getRoleColor(user.role), color:'#fff', fontWeight:600 }} />
+              <Chip size='small' label='Secure Access' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} />
+            </Box>
+          </Paper>
+        </Box>
       </Box>
-
-      {/* Main Profile Card - Full Width */}
-      <Paper
-        elevation={4}
-        sx={{
-          p: { xs: 2, sm: 4 },
-          mt: 5,
-          width: '100%',
-          borderRadius: 2,
-          boxShadow: '0 4px 24px rgba(36,93,107,0.08)',
-          mb: 3,
-        }}
-      >
-        {/* Profile Header */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          mb: 4,
-          flexDirection: { xs: 'column', sm: 'row' },
-          textAlign: { xs: 'center', sm: 'left' }
-        }}>
-          <Avatar
-            sx={{
-              width: 80,
-              height: 80,
-              bgcolor: '#245D6B',
-              color: 'white',
-              fontSize: 32,
-              fontWeight: 700,
-              mr: { xs: 0, sm: 4 },
-              mb: { xs: 2, sm: 0 },
-            }}
-          >
-            {user.username.charAt(0).toUpperCase()}
-          </Avatar>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h4" sx={{ 
-              color: '#245D6B', 
-              fontWeight: 700, 
-              mb: 1,
-              fontSize: { xs: '1.5rem', sm: '2rem' }
-            }}>
-              {user.username}
-            </Typography>
-            <Chip
-              icon={<AdminPanelSettingsIcon sx={{ fontSize: 18 }} />}
-              label={getRoleDisplayName(user.role)}
-              sx={{
-                bgcolor: getRoleColor(user.role),
-                color: 'white',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                height: 32,
-                '& .MuiChip-icon': {
-                  color: 'white',
-                },
-              }}
-            />
-          </Box>
-          <IconButton 
-            onClick={handleEditProfile}
-            sx={{ 
-              color: '#245D6B',
-              bgcolor: 'rgba(36,93,107,0.1)',
-              '&:hover': { bgcolor: 'rgba(36,93,107,0.2)' },
-              width: 48,
-              height: 48,
-            }}
-          >
-            <EditIcon />
-          </IconButton>
-        </Box>
-
-        <Divider sx={{ mb: 4 }} />
-
-        {/* Profile Details */}
-        <Typography variant="h6" sx={{ 
-          color: '#245D6B', 
-          fontWeight: 700, 
-          mb: 3,
-          fontSize: '1.2rem'
-        }}>
-          Profile Information
-        </Typography>
-
-        {/* Profile Info Cards - Using Flexbox */}
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 3, 
-          width: '100%',
-          flexDirection: { xs: 'column', sm: 'row' },
-          flexWrap: { xs: 'nowrap', sm: 'wrap', md: 'nowrap' }
-        }}>
-          <Box sx={{ 
-            flex: 1,
-            p: 3, 
-            bgcolor: 'rgba(36,93,107,0.05)', 
-            borderRadius: 2,
-            border: '1px solid rgba(36,93,107,0.1)',
-            textAlign: 'center',
-            height: '120px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            minWidth: 0
-          }}>
-            <BadgeIcon sx={{ color: '#245D6B', fontSize: 28, mb: 1, mx: 'auto' }} />
-            <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
-              User ID
-            </Typography>
-            <Typography variant="h6" sx={{ color: '#245D6B', fontWeight: 700 }}>
-              #{user.id}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ 
-            flex: 1,
-            p: 3, 
-            bgcolor: 'rgba(36,93,107,0.05)', 
-            borderRadius: 2,
-            border: '1px solid rgba(36,93,107,0.1)',
-            textAlign: 'center',
-            height: '120px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            minWidth: 0
-          }}>
-            <LocationCityIcon sx={{ color: '#245D6B', fontSize: 28, mb: 1, mx: 'auto' }} />
-            <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
-              Center
-            </Typography>
-            <Typography variant="h6" sx={{ color: '#245D6B', fontWeight: 700 }}>
-              {user.center || 'Not Assigned'}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ 
-            flex: 1,
-            p: 3, 
-            bgcolor: 'rgba(36,93,107,0.05)', 
-            borderRadius: 2,
-            border: '1px solid rgba(36,93,107,0.1)',
-            textAlign: 'center',
-            height: '120px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            minWidth: 0
-          }}>
-            <AdminPanelSettingsIcon sx={{ color: '#245D6B', fontSize: 28, mb: 1, mx: 'auto' }} />
-            <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
-              Role
-            </Typography>
-            <Typography variant="h6" sx={{ color: '#245D6B', fontWeight: 700 }}>
-              {getRoleDisplayName(user.role)}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ 
-            flex: 1,
-            p: 3, 
-            bgcolor: 'rgba(36,93,107,0.05)', 
-            borderRadius: 2,
-            border: '1px solid rgba(36,93,107,0.1)',
-            textAlign: 'center',
-            height: '120px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            minWidth: 0
-          }}>
-            <PersonIcon sx={{ color: '#245D6B', fontSize: 28, mb: 1, mx: 'auto' }} />
-            <Typography variant="body2" sx={{ color: '#666', mb: 1 }}>
-              Username
-            </Typography>
-            <Typography variant="h6" sx={{ color: '#245D6B', fontWeight: 700 }}>
-              {user.username}
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
-
-      {/* Quick Actions Card - Full Width */}
-      <Paper
-        elevation={4}
-        sx={{
-          p: { xs: 2, sm: 4 },
-          width: '100%',
-          borderRadius: 2,
-          boxShadow: '0 4px 24px rgba(36,93,107,0.08)',
-        }}
-      >
-        <Typography variant="h6" sx={{ 
-          color: '#245D6B', 
-          fontWeight: 700, 
-          mb: 3,
-          fontSize: '1.2rem'
-        }}>
-          Quick Actions
-        </Typography>
-        
-        {/* Action Buttons - Using Flexbox */}
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 3, 
-          width: '100%',
-          flexDirection: { xs: 'column', sm: 'row' }
-        }}>
-          <Button
-            variant="outlined"
-            startIcon={<LockIcon />}
-            onClick={() => setPasswordDialogOpen(true)}
-            sx={{
-              flex: 1,
-              borderColor: '#245D6B',
-              color: '#245D6B',
-              fontWeight: 600,
-              height: '50px',
-              fontSize: '1rem',
-              transition: 'all 0.3s',
-              '&:hover': {
-                bgcolor: '#245D6B',
-                color: 'white',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 6px 16px rgba(36,93,107,0.3)',
-              },
-            }}
-          >
-            Change Password
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={handleEditProfile}
-            sx={{
-              flex: 1,
-              borderColor: '#245D6B',
-              color: '#245D6B',
-              fontWeight: 600,
-              height: '50px',
-              fontSize: '1rem',
-              transition: 'all 0.3s',
-              '&:hover': {
-                bgcolor: '#245D6B',
-                color: 'white',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 6px 16px rgba(36,93,107,0.3)',
-              },
-            }}
-          >
-            Update Profile
-          </Button>
-          
-          <Button
-            variant="outlined"
-            startIcon={<HistoryIcon />}
-            onClick={handleActivityLog}
-            sx={{
-              flex: 1,
-              borderColor: '#245D6B',
-              color: '#245D6B',
-              fontWeight: 600,
-              height: '50px',
-              fontSize: '1rem',
-              transition: 'all 0.3s',
-              '&:hover': {
-                bgcolor: '#245D6B',
-                color: 'white',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 6px 16px rgba(36,93,107,0.3)',
-              },
-            }}
-          >
-            Activity Log
-          </Button>
-        </Box>
-      </Paper>
 
       {/* Edit Profile Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ color: '#245D6B', fontWeight: 700 }}>
-          Edit Profile
-        </DialogTitle>
+        <DialogTitle sx={{ color: '#245D6B', fontWeight: 700 }}>Edit Profile</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -640,27 +560,20 @@ const Profile: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)} startIcon={<CancelIcon />}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveProfile} startIcon={<SaveIcon />} variant="contained" 
-            sx={{ bgcolor: '#245D6B', '&:hover': { bgcolor: '#1a4a57' } }}>
-            Save Changes
-          </Button>
+          <Button onClick={() => setEditDialogOpen(false)} startIcon={<CancelIcon />}>Cancel</Button>
+          <Button onClick={handleSaveProfile} startIcon={<SaveIcon />} variant="contained" sx={{ bgcolor: '#245D6B', '&:hover': { bgcolor: '#1a4a57' } }}>Save Changes</Button>
         </DialogActions>
       </Dialog>
 
       {/* Change Password Dialog */}
       <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ color: '#245D6B', fontWeight: 700 }}>
-          Change Password
-        </DialogTitle>
+        <DialogTitle sx={{ color: '#245D6B', fontWeight: 700 }}>Change Password</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             label="Current Password"
-            type={showCurrentPassword ? "text" : "password"}
+            type={showCurrentPassword ? 'text' : 'password'}
             fullWidth
             variant="outlined"
             value={currentPassword}
@@ -668,22 +581,18 @@ const Profile: React.FC = () => {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    edge="end"
-                    aria-label="toggle current password visibility"
-                  >
+                  <IconButton onClick={() => setShowCurrentPassword(!showCurrentPassword)} edge="end" aria-label="toggle current password visibility">
                     {showCurrentPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              ),
+              )
             }}
             sx={{ mb: 2 }}
           />
           <TextField
             margin="dense"
             label="New Password"
-            type={showNewPassword ? "text" : "password"}
+            type={showNewPassword ? 'text' : 'password'}
             fullWidth
             variant="outlined"
             value={newPassword}
@@ -691,22 +600,18 @@ const Profile: React.FC = () => {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    edge="end"
-                    aria-label="toggle new password visibility"
-                  >
+                  <IconButton onClick={() => setShowNewPassword(!showNewPassword)} edge="end" aria-label="toggle new password visibility">
                     {showNewPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              ),
+              )
             }}
             sx={{ mb: 2 }}
           />
           <TextField
             margin="dense"
             label="Confirm New Password"
-            type={showConfirmPassword ? "text" : "password"}
+            type={showConfirmPassword ? 'text' : 'password'}
             fullWidth
             variant="outlined"
             value={confirmPassword}
@@ -714,26 +619,17 @@ const Profile: React.FC = () => {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                    aria-label="toggle confirm password visibility"
-                  >
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end" aria-label="toggle confirm password visibility">
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
-              ),
+              )
             }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPasswordDialogOpen(false)} startIcon={<CancelIcon />}>
-            Cancel
-          </Button>
-          <Button onClick={handleChangePassword} startIcon={<SaveIcon />} variant="contained"
-            sx={{ bgcolor: '#245D6B', '&:hover': { bgcolor: '#1a4a57' } }}>
-            Change Password
-          </Button>
+          <Button onClick={() => setPasswordDialogOpen(false)} startIcon={<CancelIcon />}>Cancel</Button>
+          <Button onClick={handleChangePassword} startIcon={<SaveIcon />} variant="contained" sx={{ bgcolor: '#245D6B', '&:hover': { bgcolor: '#1a4a57' } }}>Change Password</Button>
         </DialogActions>
       </Dialog>
 
@@ -762,14 +658,18 @@ const Profile: React.FC = () => {
           ) : (
             <List>
               {activityLogs.map((log) => (
-                <ListItem key={log.id} divider sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <ListItemIcon>
-                      <AccessTimeIcon color="primary" />
+                <ListItem key={log.id} divider sx={{ display: 'flex', justifyContent: 'space-between', alignItems:'flex-start' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', flex: 1 }}>
+                    <ListItemIcon sx={{ minWidth:40, mt:.2 }}>
+                      <AccessTimeIcon color="primary" fontSize='small' />
                     </ListItemIcon>
                     <ListItemText
-                      primary={log.action}
-                      secondary={`${new Date(log.timestamp).toLocaleString()} - ${log.details}`}
+                      primary={<Typography sx={{ fontWeight:600, fontSize:14, color:'#1e3740' }}>{log.action}</Typography>}
+                      secondary={<Box sx={{ display:'flex', flexWrap:'wrap', gap:.75, alignItems:'center' }}>
+                        <Typography component='span' sx={{ fontSize:12, color:'#607d84' }}>{new Date(log.createdAt || log.timestamp || '').toLocaleString()}</Typography>
+                        <Typography component='span' sx={{ fontSize:11, color:'#245D6B', fontWeight:600 }}>{formatRelativeTime(log.createdAt || log.timestamp || '')}</Typography>
+                        {log.details && <Typography component='span' sx={{ fontSize:12, color:'#5a6f75' }}>• {log.details}</Typography>}
+                      </Box>}
                     />
                   </Box>
                   <IconButton
@@ -777,9 +677,9 @@ const Profile: React.FC = () => {
                       setSelectedLogId(log.id);
                       setDeleteLogDialogOpen(true);
                     }}
-                    sx={{ color: '#d32f2f' }}
+                    sx={{ color: '#d32f2f', mt:.5 }}
                   >
-                    <DeleteIcon />
+                    <DeleteIcon fontSize='small' />
                   </IconButton>
                 </ListItem>
               ))}
@@ -844,8 +744,9 @@ const Profile: React.FC = () => {
           {snackbarMessage}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
+
 };
 
 export default Profile;

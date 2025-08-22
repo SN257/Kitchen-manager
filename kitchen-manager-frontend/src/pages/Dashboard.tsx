@@ -16,7 +16,11 @@ import {
   Divider,
   Button,
   Alert,
-  Skeleton
+  Skeleton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   Restaurant,
@@ -67,6 +71,9 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const API_BASE_URL = useApiBaseUrl();
   const navigate = useNavigate();
+  const [activitiesDialogOpen, setActivitiesDialogOpen] = useState(false);
+  const [allActivities, setAllActivities] = useState<Activity[]>([]);
+  const [allActivitiesLoading, setAllActivitiesLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -196,6 +203,45 @@ const Dashboard: React.FC = () => {
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  };
+
+  const formatDate = (input: string | number | Date) => {
+    const date = new Date(input);
+    if (isNaN(date.getTime())) return '';
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  // --
+
+  const openAllActivitiesDialog = async () => {
+    setAllActivitiesLoading(true);
+    setActivitiesDialogOpen(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get<any[]>(`${API_BASE_URL}/user/activity-logs`, {
+        withCredentials: true,
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => ({ data: [] }));
+
+      const logs = (res.data || []) as any[];
+      // Sort desc by created time
+      logs.sort((a: any, b: any) => new Date(b.createdAt || b.timestamp || 0).getTime() - new Date(a.createdAt || a.timestamp || 0).getTime());
+      const mapped: Activity[] = logs.map((log: any, index: number) => ({
+        id: log.id || index + 1,
+        action: log.action || 'System activity',
+        user: log.username || username,
+        timestamp: log.createdAt || log.timestamp || new Date().toISOString(),
+        type: getActivityType(log.action)
+      }));
+      setAllActivities(mapped);
+    } catch {
+      setAllActivities([]);
+    } finally {
+      setAllActivitiesLoading(false);
+    }
   };
 
   const StatCard = ({ title, value, icon, color, trend, onClick }: any) => (
@@ -441,7 +487,7 @@ const Dashboard: React.FC = () => {
               {getGreeting()}
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {new Date().toLocaleDateString()}
+              {formatDate(new Date())}
             </Typography>
           </Box>
         </Box>
@@ -490,12 +536,12 @@ const Dashboard: React.FC = () => {
       <Box sx={{ px: 3 }}>
         <Box sx={{ 
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
-          gap: 3,
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+          gap: 2,
           width: '100%'
         }}>
           {/* Left Column - Quick Actions & Activities */}
-          <Box sx={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ gridColumn: { md: 'span 2' }, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {/* Quick Actions */}
             <Paper sx={{ 
               p: 3, 
@@ -557,10 +603,11 @@ const Dashboard: React.FC = () => {
               boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
               border: '1px solid #e2e8f0',
               width: '100%',
-              flex: 1,
-              minHeight: '400px'
+              height: 420,
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 600, 
                   color: '#1e293b',
@@ -574,43 +621,48 @@ const Dashboard: React.FC = () => {
                     bgcolor: '#f1f5f9',
                     '&:hover': { bgcolor: '#e2e8f0' }
                   }}
+                  aria-label="Refresh recent activities"
+                  title="Show all activities"
+                  onClick={openAllActivitiesDialog}
                 >
                   <Notifications sx={{ color: '#64748b' }} />
                 </IconButton>
               </Box>
-              <List sx={{ p: 0, width: '100%' }}>
-                {dashboardData?.recentActivities.map((activity, index) => (
-                  <React.Fragment key={activity.id}>
-                    <ListItem sx={{ px: 0, py: 2, width: '100%' }}>
-                      <ListItemIcon>
-                        {activity.type === 'success' && <CheckCircle sx={{ color: '#059669' }} />}
-                        {activity.type === 'warning' && <Analytics sx={{ color: '#ea580c' }} />}
-                        {activity.type === 'info' && <Analytics sx={{ color: '#0284c7' }} />}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Typography sx={{ fontWeight: 500, color: '#1e293b' }}>
-                            {activity.action}
-                          </Typography>
-                        }
-                        secondary={
-                          <Typography sx={{ color: '#64748b', fontSize: '0.875rem' }}>
-                            {activity.user} • {new Date(activity.timestamp).toLocaleString()}
-                          </Typography>
-                        }
-                      />
-                    </ListItem>
-                    {index < dashboardData.recentActivities.length - 1 && 
-                      <Divider sx={{ bgcolor: '#e2e8f0' }} />
-                    }
-                  </React.Fragment>
-                ))}
-              </List>
+              <Box sx={{ flex: 1, overflowY: 'auto', pr: 1, '&::-webkit-scrollbar': { width: 8 }, '&::-webkit-scrollbar-thumb': { background: 'rgba(0,0,0,0.2)', borderRadius: 4 } }}>
+                <List sx={{ p: 0, width: '100%' }}>
+                  {dashboardData?.recentActivities.map((activity, index) => (
+                    <React.Fragment key={activity.id}>
+                      <ListItem sx={{ px: 0, py: 1.5, width: '100%' }}>
+                        <ListItemIcon>
+                          {activity.type === 'success' && <CheckCircle sx={{ color: '#245D6B' }} />}
+                          {activity.type === 'warning' && <Analytics sx={{ color: '#245D6B' }} />}
+                          {activity.type === 'info' && <Analytics sx={{ color: '#245D6B' }} />}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Typography sx={{ fontWeight: 500, color: '#1e293b', fontSize: '0.9rem' }}>
+                              {activity.action}
+                            </Typography>
+                          }
+                          secondary={
+                            <Typography sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                              {activity.user} • {formatDate(activity.timestamp)}
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                      {index < dashboardData.recentActivities.length - 1 && 
+                        <Divider sx={{ bgcolor: '#e2e8f0' }} />
+                      }
+                    </React.Fragment>
+                  ))}
+                </List>
+              </Box>
             </Paper>
           </Box>
 
           {/* Right Column - Sidebar */}
-          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {/* Kitchen Status */}
             <Paper sx={{ 
               p: 3, 
@@ -748,7 +800,7 @@ const Dashboard: React.FC = () => {
                       <React.Fragment key={event.id}>
                         <ListItem sx={{ px: 0, py: 2, width: '100%' }}>
                           <ListItemIcon>
-                            <Schedule sx={{ color: '#0f172a' }} />
+                            <Schedule sx={{ color: '#245D6B' }} />
                           </ListItemIcon>
                           <ListItemText
                             primary={
@@ -758,7 +810,7 @@ const Dashboard: React.FC = () => {
                             }
                             secondary={
                               <Typography sx={{ color: '#64748b', fontSize: '0.875rem' }}>
-                                {event.year ? `Year ${event.year}` : new Date(event.date).toLocaleDateString()}
+                                {event.year ? `Year ${event.year}` : formatDate(event.date)}
                               </Typography>
                             }
                           />
@@ -803,9 +855,53 @@ const Dashboard: React.FC = () => {
             </Paper>
           </Box>
         </Box>
+        {/* All Activities Dialog */}
+        <Dialog open={activitiesDialogOpen} onClose={() => setActivitiesDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ color: '#245D6B', fontWeight: 700 }}>All Activities</DialogTitle>
+          <DialogContent dividers sx={{ p: 0 }}>
+            {allActivitiesLoading ? (
+              <Box sx={{ p: 3 }}>
+                <Skeleton variant="rectangular" height={200} />
+              </Box>
+            ) : allActivities.length === 0 ? (
+              <Box sx={{ p: 3 }}>
+                <Typography sx={{ color: '#64748b', textAlign: 'center' }}>No activities found</Typography>
+              </Box>
+            ) : (
+              <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
+                <List sx={{ p: 0 }}>
+                  {allActivities.map((activity, index) => (
+                    <React.Fragment key={activity.id}>
+                      <ListItem sx={{ px: 2, py: 1.5 }}>
+                        <ListItemIcon>
+                          {activity.type === 'success' && <CheckCircle sx={{ color: '#245D6B' }} />}
+                          {activity.type === 'warning' && <Analytics sx={{ color: '#245D6B' }} />}
+                          {activity.type === 'info' && <Analytics sx={{ color: '#245D6B' }} />}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={<Typography sx={{ fontWeight: 500, color: '#1e293b' }}>{activity.action}</Typography>}
+                          secondary={<Typography sx={{ color: '#64748b', fontSize: '0.85rem' }}>{activity.user} • {formatDate(activity.timestamp)}</Typography>}
+                        />
+                      </ListItem>
+                      {index < allActivities.length - 1 && <Divider sx={{ bgcolor: '#e2e8f0' }} />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setActivitiesDialogOpen(false)}>Close</Button>
+            <Button onClick={openAllActivitiesDialog} variant="contained" sx={{ bgcolor: '#245D6B', '&:hover': { bgcolor: '#1a4a57' } }}>Refresh</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );
 };
+
+// Dialog to show all activities
+// Placed before export default
+
 
 export default Dashboard;

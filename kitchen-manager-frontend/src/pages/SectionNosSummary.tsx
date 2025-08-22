@@ -165,38 +165,55 @@ const SectionNosSummary: React.FC = () => {
         )}
       </Paper>
       <Dialog open={printOpen} onClose={()=> setPrintOpen(false)} maxWidth='xl' fullWidth>
-        <DialogTitle>Section Nos Summary Print</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mb:2 }}>
-            <Typography variant='h6' sx={{ fontWeight:700, color:'#245D6B' }}>Section Nos Summary Report</Typography>
-            <Typography variant='body2' sx={{ color:'#555' }}>{new Date().toLocaleDateString()} {selectedEventDetails && `| Event: ${selectedEventDetails.eventName} ${selectedEventDetails.eventYear}`}</Typography>
+          <DialogTitle>Section Nos Summary Print</DialogTitle>
+          <DialogContent
+            dividers
+            sx={{
+              '@media print': {
+                bgcolor: '#fff',
+                p: 2,
+              }
+            }}
+          >
+            <Box sx={{ mb:3, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
+              <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:1, '@media print': { color:'#245D6B', fontSize:26 } }}>Section Nos Summary Report</Typography>
+              <Typography variant='body2' sx={{ color:'#555', mt:0.5, '@media print': { color:'#000' } }}>
+                {new Date().toLocaleDateString()} | Powered by Kitchen Manager
+                {selectedEventDetails && <> | Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}</>}
+              </Typography>
+            </Box>
+            <TableContainer sx={{ width:'100%', boxShadow:'none', '@media print': { width:'100%' } }}>
+              <Table stickyHeader sx={{ border:'1px solid #245D6B', fontSize:13, '@media print': { fontSize:13 } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Vasan ID</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Vasan (Food)</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Weight / Vasan (Kg)</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nos</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Weight (Kg)</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Flour Required (Kg)</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {displayRows.map(r => (
+                    <TableRow key={r.id}>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanId}</TableCell>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanName} ({r.foodName})</TableCell>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.weightPerVasanKg.toFixed(2)}</TableCell>
+                      <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{r.totalNos}</TableCell>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.totalWeightKg.toFixed(2)}</TableCell>
+                      <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{r.flourRequiredKg.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Totals row intentionally removed in print view as well */}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </DialogContent>
+          <Box sx={{ display:'flex', justifyContent:'flex-end', gap:1, p:2, pt:1 }}>
+            <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+            <Button onClick={()=> setPrintOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Close</Button>
           </Box>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-            <thead>
-              <tr>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Vasan ID</th>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Vasan (Food)</th>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Weight / Vasan (Kg)</th>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Total Nos</th>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Total Weight (Kg)</th>
-                <th style={{ border:'1px solid #ccc', padding:6, background:'#245D6B', color:'#fff', textAlign:'center' }}>Flour Required (Kg)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayRows.map(r => (
-                <tr key={r.id}>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center' }}>{r.vasanId}</td>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center' }}>{r.vasanName} ({r.foodName})</td>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center' }}>{r.weightPerVasanKg.toFixed(2)}</td>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center', fontWeight:600 }}>{r.totalNos}</td>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center' }}>{r.totalWeightKg.toFixed(2)}</td>
-                  <td style={{ border:'1px solid #ccc', padding:6, textAlign:'center', fontWeight:600 }}>{r.flourRequiredKg.toFixed(2)}</td>
-                </tr>
-              ))}
-              {/* Totals row intentionally removed in print view as well */}
-            </tbody>
-          </table>
-        </DialogContent>
       </Dialog>
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={()=> setSnackbar({...snackbar, open:false})} anchorOrigin={{ vertical:'bottom', horizontal:'right' }}>
         <Alert onClose={()=> setSnackbar({...snackbar, open:false})} severity={snackbar.severity} sx={{ width:'100%' }}>{snackbar.message}</Alert>

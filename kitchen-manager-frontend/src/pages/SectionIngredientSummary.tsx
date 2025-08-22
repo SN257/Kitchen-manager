@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -97,6 +97,8 @@ const SectionIngredientSummary = () => {
     return { ingredientMatrixRows: rows, foodColumns: cols };
   }, [sectionSummaryRows, recipes]);
 
+  // Keep consistent font size in print (no dynamic shrinking) and allow wrapping
+
   return (
     <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
       <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
@@ -129,7 +131,7 @@ const SectionIngredientSummary = () => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:4, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:4, minWidth:160, maxWidth:200, whiteSpace:'nowrap' }}>Ingredient Name</TableCell>
+                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:4, minWidth:220, maxWidth:260, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
                   {foodColumns.map(col => (
                     <TableCell key={col.key} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', whiteSpace:'nowrap', textAlign:'center', top:0 }}>{col.vasanName} ({col.name})</TableCell>
                   ))}
@@ -142,7 +144,7 @@ const SectionIngredientSummary = () => {
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg }}>
                       <TableCell sx={{ position:'sticky', left:0, background:rowBg, textAlign:'center', zIndex:2 }}>{row.id}</TableCell>
-                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2 }}>{row.ingredientName}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, minWidth:220, maxWidth:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2 }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
                         const val = row.perFood[col.key];
                         return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
@@ -159,50 +161,66 @@ const SectionIngredientSummary = () => {
   {/* Removed duplicate bottom Print button (header Print retained) */}
 
       <Dialog open={printDialogOpen} onClose={()=> setPrintDialogOpen(false)} maxWidth='xl' fullWidth>
-        <DialogTitle>
-          Print Preview
-          <Button variant='contained' sx={{ float:'right', bgcolor:'#245D6B', ml:2 }} onClick={()=> window.print()}>Print</Button>
-        </DialogTitle>
-        <DialogContent>
-          <Box>
-            <div style={{ textAlign:'left', marginBottom:24, borderBottom:'2px solid #245D6B', paddingBottom:12 }}>
-              <h1 style={{ color:'#245D6B', margin:0, fontSize:32, letterSpacing:2, fontWeight:700 }}>Section Ingredient Summary</h1>
-              <div style={{ color:'#555', fontSize:14, marginTop:4 }}>
-                {new Date().toLocaleDateString()} &nbsp;|&nbsp; Powered by Kitchen Manager
-              </div>
-            </div>
-            <TableContainer sx={{ width:'100%', overflowX:'auto' }}>
-              <Table sx={{ width:'100%' }} stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight:700, color:'#fff', background:'#245D6B', whiteSpace:'nowrap', position:'sticky', left:0, top:0, zIndex:4, minWidth:80 }}>ID</TableCell>
-                    <TableCell sx={{ fontWeight:700, color:'#fff', background:'#245D6B', whiteSpace:'nowrap', position:'sticky', left:80, top:0, zIndex:4, minWidth:140 }}>Ingredient Name</TableCell>
-                    {foodColumns.map(col => (
-                      <TableCell key={col.key} sx={{ fontWeight:700, color:'#fff', background:'#245D6B', whiteSpace:'nowrap', textAlign:'center', top:0 }}>{col.vasanName} ({col.name})</TableCell>
-                    ))}
-                    <TableCell sx={{ fontWeight:700, color:'#fff', background:'#245D6B', whiteSpace:'nowrap', textAlign:'center', top:0 }}>Total Weight</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {ingredientMatrixRows.map((row, idx) => {
-                    const rowBg = idx % 2 === 0 ? '#f7fbfc' : '#eaf3f6';
-                    return (
-                      <TableRow key={row.id} sx={{ backgroundColor: rowBg }}>
-                        <TableCell sx={{ position:'sticky', left:0, background:rowBg, zIndex:2 }}>{row.id}</TableCell>
-                        <TableCell sx={{ position:'sticky', left:80, background:rowBg, zIndex:2 }}>{row.ingredientName}</TableCell>
-                        {foodColumns.map(col => {
-                          const val = row.perFood[col.key];
-                          return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
-                        })}
-                        <TableCell align='center' sx={{ fontWeight:600, color:'#245D6B' }}>{row.totalKg.toFixed(3)} kg</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+        <DialogTitle>Section Ingredient Summary Print</DialogTitle>
+        <DialogContent
+          dividers
+          sx={{
+            '@media print': {
+              bgcolor: '#fff',
+              p: 2,
+            }
+          }}
+        >
+          {/* Print specific global styles */}
+          <Box component="style">{`
+            @page { size: landscape; margin: 12mm; }
+            @media print {
+              .ingredient-print-table { font-size: 13px !important; table-layout: fixed; width:100%; }
+              .ingredient-print-table th, .ingredient-print-table td { padding: 4px 6px !important; word-wrap: break-word; white-space: normal !important; }
+            }
+          `}</Box>
+          <Box sx={{ mb:3, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
+            <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:1, '@media print': { color:'#245D6B', fontSize:26 } }}>Section Ingredient Summary Report</Typography>
+            <Typography variant='body2' sx={{ color:'#555', mt:0.5, '@media print': { color:'#000' } }}>
+              {new Date().toLocaleDateString()} | Powered by Kitchen Manager
+              {selectedEventDetails && <> | Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}</>}
+            </Typography>
           </Box>
+          <TableContainer sx={{ width:'100%', boxShadow:'none', '@media print': { width:'100%', overflow:'visible' } }}>
+            <Table className='ingredient-print-table' stickyHeader sx={{ border:'1px solid #245D6B', fontSize:13, tableLayout:'auto', '@media print': { tableLayout:'fixed', width:'100%', fontSize:13 } }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:4, minWidth:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:4, minWidth:220, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'220px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
+                  {foodColumns.map(col => (
+                    <TableCell key={col.key} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>{col.vasanName} ({col.name})</TableCell>
+                  ))}
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>Total Weight</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {ingredientMatrixRows.map((row, idx) => {
+                  const rowBg = idx % 2 === 0 ? '#f7fbfc' : '#eaf3f6';
+                  return (
+                    <TableRow key={row.id} sx={{ backgroundColor: rowBg, '@media print': { backgroundColor: '#fff' } }}>
+                      <TableCell sx={{ position:'sticky', left:0, background:rowBg, zIndex:2, border:'1px solid #245D6B', textAlign:'center', '@media print': { position:'static', left:'auto', background:'#fff' } }}>{row.id}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:70, background:rowBg, zIndex:2, border:'1px solid #245D6B', minWidth:220, maxWidth:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2, '@media print': { position:'static', left:'auto', background:'#fff', minWidth:'220px' } }}>{row.ingredientName}</TableCell>
+                      {foodColumns.map(col => {
+                        const val = row.perFood[col.key];
+                        return <TableCell key={col.key} align='center' sx={{ border:'1px solid #245D6B' }}>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
+                      })}
+                      <TableCell align='center' sx={{ fontWeight:600, color:'#245D6B', border:'1px solid #245D6B' }}>{row.totalKg.toFixed(3)} kg</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </DialogContent>
+        <DialogActions>
+          <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+          <Button onClick={()=> setPrintDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Close</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );
