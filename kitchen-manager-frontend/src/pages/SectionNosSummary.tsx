@@ -170,7 +170,7 @@ const SectionNosSummary: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>ID</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Vasan (Food)</TableCell>
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Food Name</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Weight / Vasan (Kg)</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nos</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Weight (Kg)</TableCell>
@@ -179,10 +179,10 @@ const SectionNosSummary: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-        {displayRows.map(r => (
+        {displayRows.map((r, idx) => (
                   <TableRow key={r.id}>
-                    <TableCell sx={{ textAlign:'center' }}>{r.vasanId}</TableCell>
-                    <TableCell sx={{ textAlign:'center' }}>{r.vasanName} ({r.foodName})</TableCell>
+                    <TableCell sx={{ textAlign:'center' }}>{idx + 1}</TableCell>
+                    <TableCell sx={{ textAlign:'center' }}>{r.foodName}</TableCell>
           <TableCell sx={{ textAlign:'center' }}>{`${r.weightPerVasanKg.toFixed(2)} kg`}</TableCell>
           <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${r.totalNos} nos`}</TableCell>
           <TableCell sx={{ textAlign:'center' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
@@ -218,8 +218,8 @@ const SectionNosSummary: React.FC = () => {
               <Table stickyHeader sx={{ border:'1px solid #245D6B', fontSize:13, '@media print': { fontSize:13 } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Vasan ID</TableCell>
-                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Vasan (Food)</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>ID</TableCell>
+                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Food Name</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Weight / Vasan (Kg)</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nos</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Weight (Kg)</TableCell>
@@ -228,10 +228,10 @@ const SectionNosSummary: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-          {displayRows.map(r => (
+          {displayRows.map((r, idx) => (
                     <TableRow key={r.id}>
-                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanId}</TableCell>
-                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.vasanName} ({r.foodName})</TableCell>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{idx + 1}</TableCell>
+                      <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.foodName}</TableCell>
             <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.weightPerVasanKg.toFixed(2)} kg`}</TableCell>
             <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.totalNos} nos`}</TableCell>
             <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>

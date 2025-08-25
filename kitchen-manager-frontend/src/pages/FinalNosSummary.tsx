@@ -22,7 +22,7 @@ const FinalNosSummary: React.FC = () => {
   const [printOpen, setPrintOpen] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSavedSignature, setLastSavedSignature] = useState<string>('');
-  const [snackbar, setSnackbar] = useState<{open:boolean; message:string; severity:'success'|'error'}>({open:false,message:'',severity:'success'});
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [cachedRows, setCachedRows] = useState<SummaryRow[]>([]);
   const inFlightSave = useRef<string>('');
   const [weights, setWeights] = useState<WeightEntry[]>([]);
@@ -37,36 +37,36 @@ const FinalNosSummary: React.FC = () => {
     const sectionUrl = `${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`;
     console.log('Fetching Annkut URL:', annkutUrl);
     console.log('Fetching Section URL:', sectionUrl);
-  Promise.all([
-      fetch(annkutUrl, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+    Promise.all([
+      fetch(annkutUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
         .then(async r => {
           if (!r.ok) return null;
           const ct = r.headers.get('content-type');
           if (ct && ct.includes('application/json')) return await r.json();
           return null;
         }),
-      fetch(sectionUrl, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+      fetch(sectionUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
         .then(async r => {
           if (!r.ok) return null;
           const ct = r.headers.get('content-type');
           if (ct && ct.includes('application/json')) return await r.json();
           return null;
         }),
-      fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+      fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : [])
     ]).then(([annkutData, sectionData, weightData]) => {
       console.log('FULL Annkut API Response:', annkutData);
       const annkut = Array.isArray(annkutData) ? annkutData : [];
-      const section = Array.isArray(sectionData?.rows)? sectionData.rows: [];
+      const section = Array.isArray(sectionData?.rows) ? sectionData.rows : [];
       console.log('RAW annkutRows:', annkut);
       console.log('RAW sectionRows:', section);
       setAnnkutRows(annkut);
       setSectionRows(section);
       setWeights(Array.isArray(weightData) ? weightData : []);
-    }).finally(()=> setLoading(false));
+    }).finally(() => setLoading(false));
 
     // Fetch saved snapshot (if backend endpoint exists)
-    fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+    fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(saved => {
         if (saved && Array.isArray(saved.rows)) {
@@ -106,6 +106,7 @@ const FinalNosSummary: React.FC = () => {
     sectionMap.set(normalizeName(name), { row: r, name });
   });
   const weightMap = new Map<string, number>((weights || []).map(w => [String(w.vangiName || '').trim().toLowerCase(), Number(w.gram) || 0]));
+
   const allFoods = Array.from(new Set([...annkutMap.keys(), ...sectionMap.keys()]));
   const summaryRows: SummaryRow[] = allFoods.map(key => {
     const a = annkutMap.get(key);
@@ -154,16 +155,24 @@ const FinalNosSummary: React.FC = () => {
     return { ...r, totalWeightKg: tw };
   });
 
+  // Formatting helpers
+  const fmtKg = (n: number) => (n && isFinite(n) && n > 0 ? `${n.toFixed(2)} kg` : '-');
+  const fmtNos = (n: number) => (n && isFinite(n) && n > 0 ? `${Math.round(n)} nos` : '-');
+  const groupDivider = '1.5px solid #245D6B';
+  // Header-specific borders so grid lines are visible on dark header background (lighter and thinner)
+  const headerBorder = '0.5px solid rgba(255,255,255,0.6)';
+  const headerGroupDivider = '1px solid rgba(255,255,255,0.7)';
+
   useEffect(() => {
     if (!selectedAnnkutEvent) return;
     if (loading) return;
     if (!summaryRows.length) return;
     const token = localStorage.getItem('token');
     if (!token) return;
-  const signature = JSON.stringify(summaryRows.map(r => ({ f:r.foodName, tw:r.totalWeightKg, tn:r.totalNang, ff:r.finalFlour })));
-  if (signature === lastSavedSignature) return;
-  if (inFlightSave.current === signature) return; // prevent duplicate concurrent save
-  inFlightSave.current = signature;
+    const signature = JSON.stringify(summaryRows.map(r => ({ f: r.foodName, tw: r.totalWeightKg, tn: r.totalNang, ff: r.finalFlour })));
+    if (signature === lastSavedSignature) return;
+    if (inFlightSave.current === signature) return; // prevent duplicate concurrent save
+    inFlightSave.current = signature;
     setAutoSaving(true);
     fetch(`${API_BASE_URL}/final-nos-summary`, {
       method: 'POST',
@@ -171,12 +180,12 @@ const FinalNosSummary: React.FC = () => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ eventId: selectedAnnkutEvent, rows: summaryRows })
     })
-      .then(res => { if (!res.ok) throw new Error('save failed'); return res.json().catch(()=>null); })
+      .then(res => { if (!res.ok) throw new Error('save failed'); return res.json().catch(() => null); })
       .then(() => {
         setLastSavedSignature(signature);
         // Refresh snapshot
-        return fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
-          .then(r=> r.ok? r.json(): null)
+        return fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
           .then(saved => {
             if (saved && Array.isArray(saved.rows)) {
               const rows: SummaryRow[] = saved.rows.map((r: any) => ({
@@ -190,49 +199,148 @@ const FinalNosSummary: React.FC = () => {
           });
       })
       .catch(() => {
-        setSnackbar({ open:true, message:'Auto-save failed (endpoint missing?)', severity:'error' });
+        setSnackbar({ open: true, message: 'Auto-save failed (endpoint missing?)', severity: 'error' });
       })
-  .finally(() => { setAutoSaving(false); if (inFlightSave.current === signature) inFlightSave.current = ''; });
+      .finally(() => { setAutoSaving(false); if (inFlightSave.current === signature) inFlightSave.current = ''; });
   }, [summaryRows, selectedAnnkutEvent, loading, API_BASE_URL, lastSavedSignature]);
 
   return (
-    <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
-      <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
-        <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
-        <Typography variant='h5' sx={{ color:'#245D6B', fontWeight:700 }}>Final Nos Summary</Typography>
-        {selectedEventDetails && <Typography variant='body1' sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center' }}>
-          {autoSaving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Auto-saving...</Typography>}
-          <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
+    <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <SummarizeIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
+        <Typography variant='h5' sx={{ color: '#245D6B', fontWeight: 700 }}>Final Nos Summary</Typography>
+        {selectedEventDetails && <Typography variant='body1' sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
+          {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
+          <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor: '#245D6B', color: '#245D6B' }} onClick={() => setPrintOpen(true)}>Print</Button>
         </Box>
       </Box>
-      <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
+      <Paper elevation={3} sx={{ p: 2, opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none' }}>
         {!selectedAnnkutEvent ? (
-          <Box sx={{ textAlign:'center', py:6, fontStyle:'italic', color:'#245D6B' }}>Select an Annkut event first</Box>
+          <Box sx={{ textAlign: 'center', py: 6, fontStyle: 'italic', color: '#245D6B' }}>Select an Annkut event first</Box>
         ) : loading ? (
-          <Box sx={{ display:'flex', justifyContent:'center', py:4 }}><CircularProgress /></Box>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
         ) : displayRows.length === 0 ? (
-          <Box sx={{ textAlign:'center', py:6, fontStyle:'italic', color:'#999' }}>No data available</Box>
+          <Box sx={{ textAlign: 'center', py: 6, fontStyle: 'italic', color: '#999' }}>No data available</Box>
         ) : (
-          <TableContainer sx={{ maxHeight:'70vh' }}>
-            <Table stickyHeader>
-              <TableHead>
+          <TableContainer sx={{ position: 'relative', maxHeight: '70vh' }}>
+            <Table stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, '& td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 } }}>
+              <TableHead sx={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 3,
+                // Full outer border around the sticky header block
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  border: '1px solid #245D6B',
+                  borderBottom: 0,
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                // Persistent bottom border for the whole header block
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderBottom: '1px solid #245D6B',
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                // Header cell internals: subtle vertical dividers
+                '& th': {
+                  border: '0 !important',
+                  backgroundClip: 'padding-box',
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6)'
+                },
+                // Bottom border under the grouped header (first header row)
+                '& tr:first-of-type th': {
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(255,255,255,0.7)'
+                },
+                '& .MuiTableCell-head': { borderBottom: '0 !important' }
+              }}>
                 <TableRow>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Food Name</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Weight (Kg)</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nang</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Final Flour Required (Kg)</TableCell>
+                  <TableCell rowSpan={2} sx={{ position: 'sticky', left: 0, zIndex: 4, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle' }}>Food Name</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Box-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Section-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Final Summary</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Nang</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Nang</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Nang</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Required Flour (Kg)</TableCell>
                 </TableRow>
               </TableHead>
+              {/* table body remains */}
               <TableBody>
-        {displayRows.map((r,i) => (
-                  <TableRow key={`${r.foodName}-${i}`}>
-                    <TableCell sx={{ textAlign:'center' }}>{r.foodName}</TableCell>
-          <TableCell sx={{ textAlign:'center' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
-          <TableCell sx={{ textAlign:'center' }}>{`${Math.round(r.totalNang)} nos`}</TableCell>
-          <TableCell sx={{ textAlign:'center', fontWeight:700, color:'#245D6B' }}>{`${r.finalFlour.toFixed(2)} kg`}</TableCell>
-                  </TableRow>
-                ))}
+                {allFoods.map((key, i) => {
+                  const a = annkutMap.get(key);
+                  const s = sectionMap.get(key);
+                  const annkutRow = a?.row;
+                  const sectionRow = s?.row;
+                  const displayName = s?.name || a?.name || key;
+
+                  // Annkut values
+                  let aWeight = annkutRow ? Number(annkutRow.total_weight) || 0 : 0;
+                  const aNang = annkutRow ? Number(annkutRow.total_nang) || 0 : 0;
+                  const aFlour = annkutRow ? Number(annkutRow.total_flour) || 0 : 0;
+                  if ((!aWeight || !isFinite(aWeight)) && aNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) aWeight = (aNang * gram) / 1000;
+                  }
+
+                  // Section values
+                  let sWeight = sectionRow ? Number(sectionRow.totalWeightKg) || 0 : 0;
+                  const sNang = sectionRow ? Number(sectionRow.totalNang) || 0 : 0;
+                  const sFlour = sectionRow ? Number(sectionRow.flourRequiredKg) || 0 : 0;
+                  if ((!sWeight || !isFinite(sWeight)) && sNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) sWeight = (sNang * gram) / 1000;
+                  }
+
+                  // Final values
+                  let fWeight: number = 0;
+                  let fNang: number = 0;
+                  const fFlour = Math.max(aFlour, sFlour);
+                  if (aFlour >= sFlour) {
+                    fWeight = aWeight;
+                    fNang = aNang;
+                  } else {
+                    fWeight = sWeight;
+                    fNang = sNang;
+                  }
+                  if ((!fWeight || !isFinite(fWeight)) && fNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) fWeight = (fNang * gram) / 1000;
+                  }
+
+                  return (
+                    <TableRow key={`all-${displayName}-${i}`}>
+                      <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, background: '#fff', textAlign: 'center', borderRight: groupDivider }}>{displayName}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(aWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(aNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', borderRight: groupDivider }}>{fmtKg(aFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(sWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(sNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', borderRight: groupDivider }}>{fmtKg(sFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(fWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(fNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B' }}>{fmtKg(fFlour)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
@@ -240,47 +348,152 @@ const FinalNosSummary: React.FC = () => {
       </Paper>
 
       {/* Print dialog */}
-      <Dialog open={printOpen} onClose={()=> setPrintOpen(false)} maxWidth='xl' fullWidth>
+      <Dialog open={printOpen} onClose={() => setPrintOpen(false)} maxWidth='xl' fullWidth>
         <DialogTitle>Final Nos Summary Print</DialogTitle>
-        <DialogContent dividers sx={{ '@media print': { bgcolor:'#fff', p:2 } }}>
-          <Box sx={{ mb:3, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
-            <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:1, '@media print': { color:'#245D6B', fontSize:26 } }}>Final Nos Summary Report</Typography>
-            <Typography variant='body2' sx={{ color:'#555', mt:0.5, '@media print': { color:'#000' } }}>
+        <DialogContent dividers sx={{ '@media print': { bgcolor: '#fff', p: 2 } }}>
+          <Box sx={{ mb: 3, borderBottom: '2px solid #245D6B', pb: 1.5, '@media print': { mb: 2, pb: 1, borderBottom: '2px solid #245D6B' } }}>
+            <Typography variant='h5' sx={{ fontWeight: 700, color: '#245D6B', letterSpacing: 1, '@media print': { color: '#245D6B', fontSize: 26 } }}>Final Nos Summary Report</Typography>
+            <Typography variant='body2' sx={{ color: '#555', mt: 0.5, '@media print': { color: '#000' } }}>
               {new Date().toLocaleDateString()} | Powered by Kitchen Manager
               {selectedEventDetails && <> | Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}</>}
             </Typography>
           </Box>
-          <TableContainer sx={{ width:'100%', boxShadow:'none', '@media print': { width:'100%' } }}>
-            <Table stickyHeader sx={{ border:'1px solid #245D6B', fontSize:13, '@media print': { fontSize:13 } }}>
-              <TableHead>
+          {/* Print: One combined table */}
+          <TableContainer sx={{ width: '100%', boxShadow: 'none', '@media print': { width: '100%', overflow: 'visible' } }}>
+            <Table stickyHeader sx={{
+              border: '1px solid #245D6B',
+              borderCollapse: 'separate',
+              borderSpacing: 0,
+              '& th, & td': { border: '1px solid #245D6B' },
+              '& tbody td': { borderTop: 0 },
+              fontSize: 13,
+              '@media print': {
+                fontSize: 12,
+                borderCollapse: 'collapse',
+                borderSpacing: '0 !important',
+                '& th, & td': { border: '1px solid #245D6B !important' },
+                '& tbody td': { borderRight: '1px solid #245D6B !important' },
+                '& thead th': { borderRight: '1px solid #245D6B !important' }
+              }
+            }}>
+              <TableHead sx={{
+                '& th': {
+                  border: headerBorder,
+                  backgroundClip: 'padding-box',
+                  borderBottom: 0,
+                  '@media print': {
+                    position: 'static !important',
+                    background: '#fff !important',
+                    color: '#000 !important',
+                    border: '1px solid #245D6B !important',
+                    borderRight: '1px solid #245D6B !important',
+                    borderBottom: '1px solid #245D6B !important'
+                  }
+                },
+                '@media print': {
+                  position: 'static !important',
+                  top: 'auto !important'
+                },
+                // Stronger divider below the grouped header row in print
+                '& tr:first-of-type th': {
+                  '@media print': {
+                    borderBottom: '1.5px solid #245D6B !important'
+                  }
+                },
+                '& .MuiTableCell-head': {
+                  borderBottom: '0 !important',
+                  '@media print': {
+                    borderBottom: '1px solid #245D6B !important'
+                  }
+                }
+              }}>
                 <TableRow>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Food Name</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Weight (Kg)</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nang</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Final Flour Required (Kg)</TableCell>
+                  <TableCell rowSpan={2} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, borderBottom: 0, verticalAlign: 'middle', boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Food Name</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Box-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Section-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important' } }}>Final Summary</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Nang</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Nang</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Weight (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Nang</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Required Flour (Kg)</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-        {displayRows.map((r,i) => (
-                  <TableRow key={`${r.foodName}-${i}`}>
-                    <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.foodName}</TableCell>
-          <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
-          <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${Math.round(r.totalNang)} nos`}</TableCell>
-          <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.finalFlour.toFixed(2)} kg`}</TableCell>
-                  </TableRow>
-                ))}
+                {allFoods.map((key, i) => {
+                  const a = annkutMap.get(key);
+                  const s = sectionMap.get(key);
+                  const annkutRow = a?.row;
+                  const sectionRow = s?.row;
+                  const displayName = s?.name || a?.name || key;
+
+                  // Annkut values
+                  let aWeight = annkutRow ? Number(annkutRow.total_weight) || 0 : 0;
+                  const aNang = annkutRow ? Number(annkutRow.total_nang) || 0 : 0;
+                  const aFlour = annkutRow ? Number(annkutRow.total_flour) || 0 : 0;
+                  if ((!aWeight || !isFinite(aWeight)) && aNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) aWeight = (aNang * gram) / 1000;
+                  }
+
+                  // Section values
+                  let sWeight = sectionRow ? Number(sectionRow.totalWeightKg) || 0 : 0;
+                  const sNang = sectionRow ? Number(sectionRow.totalNang) || 0 : 0;
+                  const sFlour = sectionRow ? Number(sectionRow.flourRequiredKg) || 0 : 0;
+                  if ((!sWeight || !isFinite(sWeight)) && sNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) sWeight = (sNang * gram) / 1000;
+                  }
+
+                  // Final values
+                  let fWeight: number = 0;
+                  let fNang: number = 0;
+                  const fFlour = Math.max(aFlour, sFlour);
+                  if (aFlour >= sFlour) {
+                    fWeight = aWeight;
+                    fNang = aNang;
+                  } else {
+                    fWeight = sWeight;
+                    fNang = sNang;
+                  }
+                  if ((!fWeight || !isFinite(fWeight)) && fNang > 0) {
+                    const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
+                    if (gram > 0) fWeight = (fNang * gram) / 1000;
+                  }
+
+                  return (
+                    <TableRow key={`print-all-${displayName}-${i}`}>
+                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{displayName}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(aWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(aNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{fmtKg(aFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(sWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(sNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{fmtKg(sFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(fWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(fNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B', border: '1px solid #245D6B' }}>{fmtKg(fFlour)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
         </DialogContent>
-        <Box sx={{ display:'flex', justifyContent:'flex-end', gap:1, p:2, pt:1 }}>
-          <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
-          <Button onClick={()=> setPrintOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Close</Button>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, p: 2, pt: 1 }}>
+          <Button onClick={() => window.print()} variant='contained' size='small' sx={{ bgcolor: '#245D6B', textTransform: 'none', '&:hover': { bgcolor: '#1d4b56' } }}>Print</Button>
+          <Button onClick={() => setPrintOpen(false)} size='small' sx={{ color: '#245D6B', textTransform: 'none' }}>Close</Button>
         </Box>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={()=> setSnackbar({...snackbar, open:false})} anchorOrigin={{ vertical:'bottom', horizontal:'right' }}>
-        <Alert onClose={()=> setSnackbar({...snackbar, open:false})} severity={snackbar.severity} sx={{ width:'100%' }}>{snackbar.message}</Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );

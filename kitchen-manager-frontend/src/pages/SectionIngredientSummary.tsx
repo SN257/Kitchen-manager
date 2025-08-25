@@ -131,9 +131,9 @@ const SectionIngredientSummary = () => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:4, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:4, minWidth:220, maxWidth:260, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
+                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:4, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:180, maxWidth:180, lineHeight:1.2 }}>Ingredient Name</TableCell>
                   {foodColumns.map(col => (
-                    <TableCell key={col.key} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', whiteSpace:'nowrap', textAlign:'center', top:0 }}>{col.vasanName} ({col.name})</TableCell>
+                    <TableCell key={col.key} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', whiteSpace:'nowrap', textAlign:'center', top:0 }}>{col.name}</TableCell>
                   ))}
                   <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', textAlign:'center', whiteSpace:'nowrap' }}>Total Weight</TableCell>
                 </TableRow>
@@ -144,7 +144,7 @@ const SectionIngredientSummary = () => {
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg }}>
                       <TableCell sx={{ position:'sticky', left:0, background:rowBg, textAlign:'center', zIndex:2 }}>{row.id}</TableCell>
-                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, minWidth:220, maxWidth:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2 }}>{row.ingredientName}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:180, maxWidth:180, lineHeight:1.2 }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
                         const val = row.perFood[col.key];
                         return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
@@ -191,9 +191,9 @@ const SectionIngredientSummary = () => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:4, minWidth:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:4, minWidth:220, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'220px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
+                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:4, border:'1px solid #245D6B', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:200, maxWidth:200, lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', whiteSpace:'nowrap', width:'200px', maxWidth:'200px' } }}>Ingredient Name</TableCell>
                   {foodColumns.map(col => (
-                    <TableCell key={col.key} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>{col.vasanName} ({col.name})</TableCell>
+                    <TableCell key={col.key} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>{col.name}</TableCell>
                   ))}
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>Total Weight</TableCell>
                 </TableRow>
@@ -204,7 +204,7 @@ const SectionIngredientSummary = () => {
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg, '@media print': { backgroundColor: '#fff' } }}>
                       <TableCell sx={{ position:'sticky', left:0, background:rowBg, zIndex:2, border:'1px solid #245D6B', textAlign:'center', '@media print': { position:'static', left:'auto', background:'#fff' } }}>{row.id}</TableCell>
-                      <TableCell sx={{ position:'sticky', left:70, background:rowBg, zIndex:2, border:'1px solid #245D6B', minWidth:220, maxWidth:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2, '@media print': { position:'static', left:'auto', background:'#fff', minWidth:'220px' } }}>{row.ingredientName}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:70, background:rowBg, zIndex:2, border:'1px solid #245D6B', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:200, maxWidth:200, lineHeight:1.2, '@media print': { position:'static', left:'auto', background:'#fff', width:'200px', maxWidth:'200px' } }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
                         const val = row.perFood[col.key];
                         return <TableCell key={col.key} align='center' sx={{ border:'1px solid #245D6B' }}>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
