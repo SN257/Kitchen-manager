@@ -73,6 +73,7 @@ const Dashboard: React.FC = () => {
   const [annkutOpen, setAnnkutOpen] = React.useState(
     location.pathname.startsWith("/dashboard/box-annkut") ||
     location.pathname.startsWith("/dashboard/section-annkut") ||
+  location.pathname.startsWith("/dashboard/annkut/") ||
   location.pathname === "/dashboard/FinalNosSummary" ||
   location.pathname === "/dashboard/FinalIngredientSummary"
   );
@@ -164,10 +165,11 @@ const Dashboard: React.FC = () => {
     const currentPath = location.pathname;
     const isBoxAnnkut = currentPath.startsWith('/dashboard/box-annkut/');
     const isSectionAnnkut = currentPath.startsWith('/dashboard/section-annkut/');
+    const isFoodSelection = currentPath.startsWith('/dashboard/annkut/');
     const isAnnkutComparison = currentPath.includes('/annkut-comparison');
   const isFinalNosSummary = currentPath === '/dashboard/FinalNosSummary';
   const isFinalIngredientSummary = currentPath === '/dashboard/FinalIngredientSummary';
-  const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isAnnkutComparison || isFinalNosSummary || isFinalIngredientSummary;
+  const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isFoodSelection || isAnnkutComparison || isFinalNosSummary || isFinalIngredientSummary;
 
     if (!isAnyAnnkut) {
       setAnnkutOpen(false);
