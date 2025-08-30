@@ -7,13 +7,13 @@ config();
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  synchronize: false,
+  synchronize: true,
   entities: [join(__dirname, '/../**/*.entity.{js,ts}')],
   migrations: [
     process.env.TS_NODE === 'true'
       ? join(__dirname, '/../database/migrations/*.{ts,js}')
       : join(__dirname, '/../database/migrations/*.{js,ts}'),
   ],
-  migrationsRun: false,
+  migrationsRun: true,
   logging: false,
 });
