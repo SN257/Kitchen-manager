@@ -234,11 +234,24 @@ const AnnkutNosSummary: React.FC = () => {
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
     fetch(`${API_BASE_URL}/recipe`, {
       credentials: "include",
+      headers: token
+        ? {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
     })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setRecipes(Array.isArray(data) ? data : []))
+      .then(async (res) => {
+        try {
+          const data = res.ok ? await res.json() : [];
+          setRecipes(Array.isArray(data) ? data : []);
+        } catch {
+          setRecipes([]);
+        }
+      })
       .catch(() => setRecipes([]));
   }, [API_BASE_URL]);
 

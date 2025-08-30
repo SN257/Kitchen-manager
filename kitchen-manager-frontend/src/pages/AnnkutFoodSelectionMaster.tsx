@@ -74,7 +74,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 					},
 				});
 				if (res.ok) setCurrentUser(await res.json());
-			} catch {}
+			} catch { }
 		};
 		fetchCurrentUser();
 	}, [API_BASE_URL]);
@@ -95,7 +95,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 			const url = selectedAnnkutEvent
 				? `${API_BASE_URL}/annkut-food-selections?eventId=${selectedAnnkutEvent}`
 				: `${API_BASE_URL}/annkut-food-selections`;
-			const res = await fetch(url, { method: 'GET', credentials: 'include' });
+			const res = await fetch(url, {
+				method: 'GET',
+				credentials: 'include',
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
 			if (!res.ok) {
 				if (res.status === 401) {
 					localStorage.clear();
@@ -151,13 +157,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 			setOpenSnackbar(true);
 			return;
 		}
-	if (Object.keys(selectedItems).length === 0) {
+		if (Object.keys(selectedItems).length === 0) {
 			setError('Please select at least one food item.');
 			setSuccess('');
 			setOpenSnackbar(true);
 			return;
 		}
-	// no gram validation required
+		// no gram validation required
 
 		try {
 			for (const [idStr, item] of Object.entries(selectedItems)) {
@@ -346,36 +352,36 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 												'&:hover': { background: 'rgba(36,93,107,0.12)', boxShadow: '0 4px 16px rgba(36,93,107,0.12)' },
 											}}
 										>
-												<Checkbox
-													checked={!!selectedItems[item.id]}
-													onChange={() => handleCheck(item)}
-													sx={{ color: '#245D6B', '&.Mui-checked': { color: '#4A7D91' } }}
-												/>
-												<Typography sx={{ flex: 1, color: '#245D6B', fontWeight: 400, fontSize: 16 }}>
-													{item.vangiName}
-												</Typography>
-						{item.vangiName.trim().startsWith('મગજ') && selectedItems[item.id] && (
-													<TextField
-														select
-														label="Type"
-														value={selectedItems[item.id].subType || MAGAJ_SUBTYPES[0]}
-														onChange={(e) =>
-															setSelectedItems((prev) => ({
-																...prev,
-																[item.id]: { ...prev[item.id], subType: e.target.value },
-															}))
-														}
-														size="small"
-							sx={{ width: 120, background: '#fff', borderRadius: 1 }}
-													>
-														{MAGAJ_SUBTYPES.map((sub) => (
-															<MenuItem key={sub} value={sub} style={{ fontWeight: 600, color: '#245D6B', background: '#fff' }}>
-																{sub}
-															</MenuItem>
-														))}
-													</TextField>
-												)}
-											</Box>
+											<Checkbox
+												checked={!!selectedItems[item.id]}
+												onChange={() => handleCheck(item)}
+												sx={{ color: '#245D6B', '&.Mui-checked': { color: '#4A7D91' } }}
+											/>
+											<Typography sx={{ flex: 1, color: '#245D6B', fontWeight: 400, fontSize: 16 }}>
+												{item.vangiName}
+											</Typography>
+											{item.vangiName.trim().startsWith('મગજ') && selectedItems[item.id] && (
+												<TextField
+													select
+													label="Type"
+													value={selectedItems[item.id].subType || MAGAJ_SUBTYPES[0]}
+													onChange={(e) =>
+														setSelectedItems((prev) => ({
+															...prev,
+															[item.id]: { ...prev[item.id], subType: e.target.value },
+														}))
+													}
+													size="small"
+													sx={{ width: 120, background: '#fff', borderRadius: 1 }}
+												>
+													{MAGAJ_SUBTYPES.map((sub) => (
+														<MenuItem key={sub} value={sub} style={{ fontWeight: 600, color: '#245D6B', background: '#fff' }}>
+															{sub}
+														</MenuItem>
+													))}
+												</TextField>
+											)}
+										</Box>
 									))}
 							</Box>
 						</Box>
@@ -396,7 +402,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 						onChange={(e) => setSavedItemSearch(e.target.value)}
 						sx={{ width: 300, background: '#fff', borderRadius: 1 }}
 					/>
-					  {/* Optional: add print later */}
+					{/* Optional: add print later */}
 				</Box>
 			)}
 
@@ -412,9 +418,9 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 						</TableRow>
 					</TableHead>
 					<TableBody>
-			{ !selectedAnnkutEvent ? (
+						{!selectedAnnkutEvent ? (
 							<TableRow>
-				<TableCell colSpan={5} align="center" sx={{ color: '#245D6B', fontStyle: 'italic', py: 4, fontSize: 16 }}>
+								<TableCell colSpan={5} align="center" sx={{ color: '#245D6B', fontStyle: 'italic', py: 4, fontSize: 16 }}>
 									Please select an Annkut event first
 								</TableCell>
 							</TableRow>
