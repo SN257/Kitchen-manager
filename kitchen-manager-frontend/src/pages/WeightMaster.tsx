@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, TextField, Button, Snackbar, Alert, InputAdornment,
     Checkbox, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    MenuItem, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Pagination
+    IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Pagination
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import SearchIcon from '@mui/icons-material/Search';
@@ -11,12 +11,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useApiBaseUrl } from '../config/config';
 import '../App.css';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
-const MAGAJ_SUBTYPES = ["લાડુડી", "લાડવા", "ચોસલા"];
 const ROWS_PER_PAGE = 5;
 
 const WeightEntry: React.FC = () => {
     const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
-    const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string; subType?: string } }>({});
+    const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string } }>({});
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
@@ -67,13 +66,63 @@ const WeightEntry: React.FC = () => {
     }, [API_BASE_URL]);
 
     useEffect(() => {
-        const fetchFoodItems = async () => {
-            const res = await fetch(`${API_BASE_URL}/food-item`);
-            const data = await res.json();
-            setFoodItems(data.filter((item: any) => item.category === 'મીઠાઈ'));
+        const fetchSelectedMithais = async () => {
+            try {
+                // Require event to scope selections
+                if (!selectedAnnkutEvent) {
+                    setFoodItems([]);
+                    return;
+                }
+                // Fetch selections and the food item catalog to verify mithai category
+                const token = localStorage.getItem('token');
+                const headers: HeadersInit = token
+                    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+                    : { 'Content-Type': 'application/json' };
+                const [selRes, foodRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/annkut-food-selections?eventId=${selectedAnnkutEvent}`, { 
+                        method: 'GET', 
+                        credentials: 'include',
+                        headers,
+                    }),
+                    fetch(`${API_BASE_URL}/food-item`, { 
+                        method: 'GET', 
+                        credentials: 'include',
+                        headers,
+                    }),
+                ]);
+                if (!selRes.ok) {
+                    setFoodItems([]);
+                    return;
+                }
+                const selections = await selRes.json();
+                const foodCatalog = foodRes.ok ? await foodRes.json() : [];
+                const mithaiSet = new Set(
+                    (Array.isArray(foodCatalog) ? foodCatalog : [])
+                        .filter((fi: any) => fi.category === 'મીઠાઈ')
+                        .map((fi: any) => (fi.vangiName || '').trim())
+                );
+                const items = (Array.isArray(selections) ? selections : [])
+                    .filter((entry: any) => {
+                        const fromRelation = entry?.foodItem?.category === 'મીઠાઈ';
+                        const rawName = (entry?.vangiName ?? entry?.foodItem?.vangiName ?? '').trim();
+                        // Normalize by stripping any parenthetical subtype e.g., "મગજ (લાડુડી)" -> "મગજ"
+                        const baseName = rawName.replace(/\s*\(.*?\)\s*/g, '').trim();
+                        const fromCatalog = mithaiSet.has(rawName) || mithaiSet.has(baseName);
+                        return fromRelation || fromCatalog;
+                    })
+                    .map((entry: any) => ({
+                        id: entry?.foodItem?.id ?? entry?.id,
+                        vangiName: entry?.vangiName ?? entry?.foodItem?.vangiName,
+                    }))
+                    // de-duplicate by vangiName
+                    .filter((itm: any, idx: number, arr: any[]) => arr.findIndex(x => x.vangiName === itm.vangiName) === idx);
+                setFoodItems(items);
+            } catch {
+                setFoodItems([]);
+            }
         };
-        fetchFoodItems();
-    }, [API_BASE_URL]);
+        fetchSelectedMithais();
+    }, [API_BASE_URL, selectedAnnkutEvent]);
     useEffect(() => {
         if (selectedAnnkutEvent) {
             fetchWeightEntries();
@@ -141,7 +190,6 @@ const WeightEntry: React.FC = () => {
                         vangiName: item.vangiName,
                         gram: '',
                         nang: '',
-                        subType: item.vangiName.trim().startsWith("મગજ") ? MAGAJ_SUBTYPES[0] : undefined,
                     }
                 };
             }
@@ -188,10 +236,7 @@ const WeightEntry: React.FC = () => {
         try {
             // Save all selected items to backend
             for (const item of Object.values(selectedItems)) {
-                let vangiName = item.vangiName;
-                if (item.vangiName.startsWith("મગજ") && item.subType) {
-                    vangiName = `મગજ (${item.subType})`;
-                }
+                const vangiName = item.vangiName;
                 await fetch(`${API_BASE_URL}/weight-entries`, {
                     method: 'POST',
                     credentials: 'include',
@@ -396,16 +441,7 @@ const WeightEntry: React.FC = () => {
                                             return match;
                                         });
                                         
-                                        // Also check for મગજ subtypes
-                                        if (item.vangiName.trim().startsWith("મગજ")) {
-                                            const hasAnyMagajSubtype = MAGAJ_SUBTYPES.some(subType => 
-                                                weightEntries.some(entry => 
-                                                    entry.vangiName === `મગજ (${subType})` && 
-                                                    entry.eventId?.toString() === selectedAnnkutEvent.toString()
-                                                )
-                                            );
-                                            return !hasAnyMagajSubtype;
-                                        }
+                                        // No special handling for મગજ subtypes here
                                         
                                         return !isAlreadySaved;
                                     })
@@ -444,69 +480,7 @@ const WeightEntry: React.FC = () => {
                                                 <Typography sx={{ flex: 1, color: '#245D6B', fontWeight: 400, fontSize: 16 }}>
                                                     {item.vangiName}
                                                 </Typography>
-                                                {/* Show dropdown if મગજ is selected */}
-                                                {item.vangiName.trim().startsWith("મગજ") && selectedItems[item.id] && (
-                                                    <TextField
-                                                        select
-                                                        label="Type"
-                                                        value={selectedItems[item.id].subType || MAGAJ_SUBTYPES[0]}
-                                                        onChange={e =>
-                                                            setSelectedItems(prev => ({
-                                                                ...prev,
-                                                                [item.id]: {
-                                                                    ...prev[item.id],
-                                                                    subType: e.target.value,
-                                                                },
-                                                            }))
-                                                        }
-                                                        size="small"
-                                                        sx={{
-                                                            width: 120,
-                                                            background: '#fff',
-                                                            borderRadius: 1,
-                                                            '& .MuiOutlinedInput-root': {
-                                                                borderRadius: 1,
-                                                                color: '#245D6B',
-                                                                fontWeight: 400,
-                                                                background: '#fff',
-                                                            },
-                                                            '& .MuiInputLabel-root': {
-                                                                color: '#245D6B',
-                                                                fontWeight: 400,
-                                                            },
-                                                            '& .MuiOutlinedInput-notchedOutline': {
-                                                                borderColor: '#245D6B',
-                                                            },
-                                                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                                                                borderColor: '#4A7D91',
-                                                            },
-                                                        }}
-                                                        SelectProps={{
-                                                            native: false,
-                                                            MenuProps: {
-                                                                PaperProps: {
-                                                                    sx: {
-                                                                        backgroundColor: '#fff',
-                                                                    },
-                                                                },
-                                                                anchorOrigin: {
-                                                                    vertical: 'bottom',
-                                                                    horizontal: 'left',
-                                                                },
-                                                                transformOrigin: {
-                                                                    vertical: 'top',
-                                                                    horizontal: 'left',
-                                                                },
-                                                            },
-                                                        }}
-                                                    >
-                                                        {MAGAJ_SUBTYPES.map(sub => (
-                                                            <MenuItem key={sub} value={sub} style={{ fontWeight: 600, color: '#245D6B', background: '#fff' }}>
-                                                                {sub}
-                                                            </MenuItem>
-                                                        ))}
-                                                    </TextField>
-                                                )}
+                                                {/* No subtype dropdown for મગજ */}
                                                 <TextField
                                                     label="Weight (g)"
                                                     value={selectedItems[item.id]?.gram || ''}

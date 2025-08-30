@@ -43,6 +43,8 @@ const AnnkutNosSummary: React.FC = () => {
       nos_per_kg: number;
     }
   }>({});
+  // Rows fetched from DB (source of truth for display)
+  const [savedRows, setSavedRows] = useState<any[]>([]);
   
   // Add snackbar state
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -56,8 +58,49 @@ const AnnkutNosSummary: React.FC = () => {
   
   const API_BASE_URL = useApiBaseUrl();
 
-  // Remove pagination variables and use all data
-  const displayedMithais = mithais;
+  // Prune DB rows in annkut-sidhu-saman that no longer exist in latest calculation for this event
+  const pruneRemovedSavedRows = async (currentMithaiIds: number[]) => {
+    try {
+      if (!selectedAnnkutEvent) return;
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+      // Get saved rows for this event
+      const res = await fetch(`${API_BASE_URL}/annkut-sidhu-saman?eventId=${selectedAnnkutEvent}`, {
+        credentials: 'include',
+        headers,
+      });
+      if (!res.ok) return;
+      const saved = await res.json();
+      const toDelete = (Array.isArray(saved) ? saved : [])
+        .filter((row: any) => !currentMithaiIds.includes(Number(row.mithai_id)));
+      for (const row of toDelete) {
+        try {
+          if (row?.id) {
+            await fetch(`${API_BASE_URL}/annkut-sidhu-saman/${row.id}`, {
+              method: 'DELETE',
+              credentials: 'include',
+              headers,
+            });
+          }
+        } catch {}
+      }
+      // Refresh saved rows after pruning
+      fetchCalculatedData();
+    } catch {}
+  };
+
+  // Use DB rows if available; else fallback to live entries list
+  const displayedRows = savedRows.length > 0 ? savedRows : mithais.map((m: any) => ({
+    mithai_id: m.id,
+    mithai_name: m.vangiName,
+    total_nang: undefined,
+    total_flour: undefined,
+    nos_per_kg: undefined,
+  }));
 
   useEffect(() => {
     if (!selectedAnnkutEvent) {
@@ -96,6 +139,10 @@ const AnnkutNosSummary: React.FC = () => {
           
           setMithais(sortedMithais);
 
+          // Prune any saved rows not present in the latest entries
+          const currentIds = sortedMithais.map((m: any) => Number(m.id));
+          pruneRemovedSavedRows(currentIds);
+
           const allBoxes = data.entries.flatMap((entry: any) =>
             entry.boxEntries.map((b: any) => ({
               id: b.boxId,
@@ -122,6 +169,8 @@ const AnnkutNosSummary: React.FC = () => {
           setMithais([]);
           setBoxRanges([]);
           setPieces({});
+          // All removed -> prune all saved rows for this event
+          pruneRemovedSavedRows([]);
         }
       })
   .catch(() => { setMithais([]); setBoxRanges([]); setPieces({}); })
@@ -327,6 +376,7 @@ const AnnkutNosSummary: React.FC = () => {
   const fetchCalculatedData = async () => {
     if (!selectedAnnkutEvent) {
       setCalculatedData({});
+      setSavedRows([]);
       return;
     }
 
@@ -345,16 +395,17 @@ const AnnkutNosSummary: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         const calculatedMap: { [mithaiId: number]: { total_nang: number; total_flour: number; nos_per_kg: number } } = {};
-        
         data.forEach((entry: any) => {
           calculatedMap[entry.mithai_id] = {
             total_nang: Number(entry.total_nang),
             total_flour: Number(entry.total_flour),
-            nos_per_kg: Number(entry.nos_per_kg || 0)
+            nos_per_kg: Number(entry.nos_per_kg || 0),
           };
         });
-        
         setCalculatedData(calculatedMap);
+        setSavedRows(Array.isArray(data) ? data : []);
+      } else {
+        setSavedRows([]);
       }
     } catch (error) {
     }
@@ -522,21 +573,19 @@ const AnnkutNosSummary: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {displayedMithais.map((mithai: any, idx: number) => {
-                      // Get calculated data from database first, fallback to live calculation
-                      const savedData = calculatedData[mithai.id];
-                      
-                      // Live calculation for comparison/fallback
+                    {displayedRows.map((row: any, idx: number) => {
+                      const savedData = calculatedData[row.mithai_id];
+                      // Exact match for gram using saved name
                       const gramEntry = weightEntries.find(
-                        (w) => w.vangiName && w.vangiName.trim() === mithai.vangiName.trim()
+                        (w) => w.vangiName && w.vangiName.trim() === String(row.mithai_name || '').trim()
                       );
                       const gram = gramEntry ? Number(gramEntry.gram) : null;
 
-                      const mithaiBase = baseName(mithai.vangiName || "");
+                      // Recipe by base name
+                      const mithaiBase = baseName(String(row.mithai_name) || "");
                       const recipeEntry = recipes.find(
                         (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
                       );
-
                       let itemPerKg = null;
                       if (
                         recipeEntry &&
@@ -551,32 +600,30 @@ const AnnkutNosSummary: React.FC = () => {
                         );
                       }
 
-                      // Use saved data if available, otherwise calculate live
-                      const totalNang = savedData ? savedData.total_nang : getTotalNang(mithai);
-                      const nosFromItemPerKg = savedData && savedData.nos_per_kg > 0 ? savedData.nos_per_kg : (
-                        gram !== null &&
-                        !isNaN(gram) &&
-                        itemPerKg !== null &&
-                        !isNaN(itemPerKg) &&
-                        gram > 0
-                          ? Math.floor((itemPerKg * 1000) / gram)
-                          : null
-                      );
-                      const flourKg = savedData && savedData.total_flour > 0 ? savedData.total_flour : (
-                        typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
-                          ? Number((totalNang / nosFromItemPerKg).toFixed(2))
-                          : null
-                      );
+                      const totalNang = (savedData && savedData.total_nang > 0)
+                        ? savedData.total_nang
+                        : getTotalNang({ id: row.mithai_id, vangiName: row.mithai_name });
+
+                      const nosFromItemPerKg = (savedData && savedData.nos_per_kg > 0)
+                        ? savedData.nos_per_kg
+                        : (
+                          gram !== null && !isNaN(gram) && itemPerKg !== null && !isNaN(itemPerKg) && gram > 0
+                            ? Math.floor((itemPerKg * 1000) / gram)
+                            : null
+                        );
+
+                      const flourKg = (savedData && savedData.total_flour > 0)
+                        ? savedData.total_flour
+                        : (
+                          typeof nosFromItemPerKg === "number" && nosFromItemPerKg > 0
+                            ? Number((totalNang / nosFromItemPerKg).toFixed(2))
+                            : null
+                        );
 
                       const rowBg = idx % 2 === 0 ? "#f7fbfc" : "#eaf3f6";
 
                       return (
-                        <TableRow
-                          key={mithai.id}
-                          sx={{
-                            backgroundColor: rowBg,
-                          }}
-                        >
+                        <TableRow key={row.mithai_id} sx={{ backgroundColor: rowBg }}>
                           <TableCell
                             sx={{
                               whiteSpace: "normal",
@@ -604,55 +651,24 @@ const AnnkutNosSummary: React.FC = () => {
                               maxWidth: 100,
                             }}
                           >
-                            {mithai.vangiName}
+                            {row.mithai_name}
                           </TableCell>
                           {boxRanges.map((box: any) => {
-                            const nang = pieces[`${mithai.id}_${box.id}`] || 0;
+                            const nang = pieces[`${row.mithai_id}_${box.id}`] || 0;
                             const totalBoxes = boxTotals[box.priceRange] || 0;
                             return (
-                              <TableCell
-                                key={box.id}
-                                sx={{
-                                  whiteSpace: "nowrap",
-                                  textAlign: "center",
-                                  background: rowBg,
-                                }}
-                              >
+                              <TableCell key={box.id} sx={{ whiteSpace: "nowrap", textAlign: "center", background: rowBg }}>
                                 {nang * totalBoxes} nos
                               </TableCell>
                             );
                           })}
-                          <TableCell
-                            sx={{
-                              whiteSpace: "nowrap",
-                              fontWeight: 700,
-                              background: "#fdf6e3",
-                              color: "#245D6B",
-                              textAlign: "center",
-                            }}
-                          >
+                          <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700, background: "#fdf6e3", color: "#245D6B", textAlign: "center" }}>
                             {totalNang} nos
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              whiteSpace: "nowrap",
-                              textAlign: "center",
-                              background: "#fdf6e3",
-                              fontWeight: 700,
-                              color: "#245D6B",
-                            }}
-                          >
+                          <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center", background: "#fdf6e3", fontWeight: 700, color: "#245D6B" }}>
                             {nosFromItemPerKg && nosFromItemPerKg > 0 ? `${nosFromItemPerKg} nos` : "-"}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              whiteSpace: "nowrap",
-                              textAlign: "center",
-                              background: "#fdf6e3",
-                              fontWeight: 700,
-                              color: "#245D6B",
-                            }}
-                          >
+                          <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center", background: "#fdf6e3", fontWeight: 700, color: "#245D6B" }}>
                             {flourKg && flourKg > 0 ? `${flourKg} kg` : "-"}
                           </TableCell>
                         </TableRow>
@@ -812,17 +828,15 @@ const AnnkutNosSummary: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {mithais.map((mithai: any, idx: number) => {
+                  {displayedRows.map((row: any, idx: number) => {
                     // Exact match for gram
                     const gramEntry = weightEntries.find(
-                      (w) =>
-                        w.vangiName &&
-                        w.vangiName.trim() === mithai.vangiName.trim()
+                      (w) => w.vangiName && w.vangiName.trim() === String(row.mithai_name || '').trim()
                     );
                     const gram = gramEntry ? Number(gramEntry.gram) : null;
 
                     // Base name match for recipe
-                    const mithaiBase = baseName(mithai.vangiName || "");
+                    const mithaiBase = baseName(String(row.mithai_name) || "");
                     const recipeEntry = recipes.find(
                       (r) => r.vangiName && baseName(r.vangiName) === mithaiBase
                     );
@@ -849,7 +863,7 @@ const AnnkutNosSummary: React.FC = () => {
                         ? Math.floor((itemPerKg * 1000) / gram)
                         : null;
 
-                    const totalNang = getTotalNang(mithai);
+                    const totalNang = getTotalNang({ id: row.mithai_id, vangiName: row.mithai_name });
 
                     const flourKg =
                       typeof nosFromItemPerKg === "number" &&
@@ -860,12 +874,7 @@ const AnnkutNosSummary: React.FC = () => {
                     const rowBg = idx % 2 === 0 ? "#f7fbfc" : "#eaf3f6";
 
                     return (
-                      <TableRow
-                        key={mithai.id}
-                        sx={{
-                          backgroundColor: rowBg,
-                        }}
-                      >
+                      <TableRow key={row.mithai_id} sx={{ backgroundColor: rowBg }}>
                         <TableCell
                           sx={{
                             whiteSpace: "normal",
@@ -893,10 +902,10 @@ const AnnkutNosSummary: React.FC = () => {
                             maxWidth: 100,
                           }}
                         >
-                          {mithai.vangiName}
+                          {row.mithai_name}
                         </TableCell>
                         {boxRanges.map((box: any) => {
-                          const nang = pieces[`${mithai.id}_${box.id}`] || 0;
+                          const nang = pieces[`${row.mithai_id}_${box.id}`] || 0;
                           const totalBoxes = boxTotals[box.priceRange] || 0;
                           return (
                             <TableCell

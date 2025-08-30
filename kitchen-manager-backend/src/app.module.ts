@@ -19,6 +19,7 @@ import { VasanFillPlanModule } from './vasan-fill-plan/vasan-fill-plan.module';
 import { SectionVasanSummaryModule } from './section-vasan-summary/section-vasan-summary.module';
 import { SectionLayoutModule } from './section-layout/section-layout.module';
 import { FinalNosSummaryModule } from './final-nos-summary/final-nos-summary.module';
+import { AnnkutFoodSelectionModule } from './annkut-food-selection/annkut-food-selection.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { FinalNosSummaryModule } from './final-nos-summary/final-nos-summary.mod
     SectionVasanSummaryModule,
     SectionLayoutModule,
     FinalNosSummaryModule,
+  AnnkutFoodSelectionModule,
   ],
 })
 export class AppModule {}

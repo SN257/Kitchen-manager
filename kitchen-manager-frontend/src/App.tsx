@@ -26,6 +26,7 @@ import SectionIngredientSummary from './pages/SectionIngredientSummary';
 import SectionNosSummary from './pages/SectionNosSummary';
 import VasanFillPlan from './pages/VasanFillPlan';
 import SectionLayoutPlanner from './pages/SectionLayoutPlanner';
+import AnnkutFoodSelectionMaster from './pages/AnnkutFoodSelectionMaster';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
           <Route path="create-user" element={<CreateUser />} />
           <Route path="event-master" element={<EventMaster />} />
           <Route path="box-annkut/weight-entry" element={<WeightEntry />} />
+          <Route path="annkut/food-selection" element={<AnnkutFoodSelectionMaster />} />
           <Route path="box-annkut/box-weight-entry" element={<BoxWeightEntry />} /> 
           <Route path="box-annkut/WeightCalculation" element={<WeightCalculation />} /> 
           <Route path="box-annkut/AnnkutNosSummary" element={<AnnkutNosSummary/>} />   

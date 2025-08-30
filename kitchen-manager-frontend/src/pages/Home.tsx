@@ -139,6 +139,7 @@ const Dashboard: React.FC = () => {
   // Add helper function to check if current page is an Annkut page
   const isAnnkutPage = (pathname: string) => {
     const annkutPages = [
+  '/dashboard/annkut/food-selection',
       '/dashboard/box-annkut/weight-entry',
       '/dashboard/box-annkut/box-weight-entry',
       '/dashboard/box-annkut/BoxRangeEntry',
@@ -316,6 +317,17 @@ const Dashboard: React.FC = () => {
         </ListItemButton>
         <Collapse in={annkutOpen} timeout="auto" unmountOnExit>
           <List component="div" disablePadding>
+            {/* Direct child: Annkut Food Selection Master */}
+            <ListItemButton
+              selected={isActive('/dashboard/annkut/food-selection')}
+              sx={{ pl: 6, ...sidebarItemSx }}
+              onClick={() => navigate('/dashboard/annkut/food-selection')}
+            >
+              <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                <ScaleIcon fontSize="small" sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              <ListItemText primary="Food Selection Master" />
+            </ListItemButton>
             {/* Box wise Annkut */}
             <ListItemButton sx={{ pl: 4 }} onClick={handleBoxAnnkutClick}>
               <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
