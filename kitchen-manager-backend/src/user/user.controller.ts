@@ -58,15 +58,17 @@ export class UserController {
       createdAt: new Date(),
     });
 
-    // Force session save
+    // Force session save and then issue JWT
     return new Promise((resolve, reject) => {
-      req.session.save((err) => {
+      req.session.save(async (err) => {
         if (err) {
           console.error('Session save error:', err);
           reject(new Error('Session save failed'));
-        } else {
-          // Session saved successfully; avoid logging entire session to keep logs clean
-          const result = this.authService.login(user);
+          return;
+        }
+        try {
+          // Issue JWT after session is persisted
+          const result = await this.authService.login(user);
           resolve({
             ...result,
             username: user.username,
@@ -77,6 +79,8 @@ export class UserController {
               role: user.role,
             },
           });
+        } catch (e) {
+          reject(e);
         }
       });
     });

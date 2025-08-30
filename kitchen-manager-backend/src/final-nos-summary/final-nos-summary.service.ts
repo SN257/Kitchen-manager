@@ -15,13 +15,17 @@ export class FinalNosSummaryService {
     const existing = await this.repo.findOne({
       where: { eventId: dto.eventId, userId },
     });
-      const entity = this.repo.create({ eventId: dto.eventId, userId, rows: dto.rows });
-      await this.repo.upsert(entity, {
-        conflictPaths: ['eventId', 'userId'],
-        skipUpdateIfNoValuesChanged: true,
-      });
-      // return the latest snapshot
-      return this.latest(dto.eventId, userId);
+    const entity = this.repo.create({
+      eventId: dto.eventId,
+      userId,
+      rows: dto.rows,
+    });
+    await this.repo.upsert(entity, {
+      conflictPaths: ['eventId', 'userId'],
+      skipUpdateIfNoValuesChanged: true,
+    });
+    // return the latest snapshot
+    return this.latest(dto.eventId, userId);
   }
 
   async latest(eventId: number, userId: number) {

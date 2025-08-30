@@ -62,7 +62,7 @@ export class AnnkutFoodSelectionController {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
 
-  return this.service.update(Number(id), dto, userId);
+    return this.service.update(Number(id), dto, userId);
   }
 
   @Delete(':id')

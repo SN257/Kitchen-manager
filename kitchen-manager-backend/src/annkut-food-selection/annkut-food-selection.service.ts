@@ -21,7 +21,7 @@ export class AnnkutFoodSelectionService {
     });
     if (!event) throw new NotFoundException('Event not found or access denied');
 
-  const entry = this.repo.create({ ...dto, userId });
+    const entry = this.repo.create({ ...dto, userId });
     return this.repo.save(entry);
   }
 
@@ -49,7 +49,7 @@ export class AnnkutFoodSelectionService {
     if (!entry)
       throw new NotFoundException('Selection not found or access denied');
 
-  Object.assign(entry, dto);
+    Object.assign(entry, dto);
     return this.repo.save(entry);
   }
 

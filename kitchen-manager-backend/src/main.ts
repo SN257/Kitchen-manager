@@ -49,9 +49,9 @@ async function bootstrap() {
         const token = auth.slice('Bearer '.length);
         const payload = jwtService.verify(token);
         // Ensure session object exists (created by express-session middleware)
-        if ((req as any).session) {
-          (req as any).session.userId = payload.sub;
-          (req as any).session.username = payload.username;
+        if (req.session) {
+          req.session.userId = payload.sub;
+          req.session.username = payload.username;
         }
       }
     } catch {
@@ -99,7 +99,7 @@ async function bootstrap() {
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 

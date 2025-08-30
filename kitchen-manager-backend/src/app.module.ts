@@ -42,7 +42,7 @@ import { AnnkutFoodSelectionModule } from './annkut-food-selection/annkut-food-s
     SectionVasanSummaryModule,
     SectionLayoutModule,
     FinalNosSummaryModule,
-  AnnkutFoodSelectionModule,
+    AnnkutFoodSelectionModule,
   ],
 })
 export class AppModule {}
