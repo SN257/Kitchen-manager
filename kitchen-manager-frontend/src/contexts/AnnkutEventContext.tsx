@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useApiBaseUrl } from '../config/config';
+import { useLocation } from 'react-router-dom';
 
 type Event = {
   id: string;
@@ -40,6 +41,7 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
   const [loading, setLoading] = useState(true);
   
   const API_BASE_URL = useApiBaseUrl();
+  const location = useLocation();
 
   const selectedEventDetails = annkutEvents.find(event => event.id === selectedAnnkutEvent) || null;
 
@@ -54,10 +56,17 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
 
   const fetchAnnkutEvents = async () => {
     try {
+      const token = localStorage.getItem('token');
+      // Don't fetch if user is not authenticated
+      if (!token) {
+        setAnnkutEvents([]);
+        setLoading(false);
+        return;
+      }
       const res = await fetch(`${API_BASE_URL}/api/events`, {
         credentials: 'include',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${token}`
         }
       });
       if (!res.ok) {
@@ -86,8 +95,24 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
   };
 
   useEffect(() => {
-    fetchAnnkutEvents();
-  }, [API_BASE_URL]);
+    // Only auto-fetch on routes where Annkut context is needed
+    // i.e., under /dashboard paths containing annkut or section-annkut specific pages
+    const p = location.pathname.toLowerCase();
+    const shouldLoadForPath =
+      p.startsWith('/dashboard') && (
+        p.includes('annkut') ||
+        p.includes('section-annkut') ||
+        p.includes('event-master')
+      );
+
+    if (shouldLoadForPath) {
+      fetchAnnkutEvents();
+    } else {
+      // Avoid fetch on login and unrelated pages
+      setLoading(false);
+    }
+    // Re-run when base URL or path changes (e.g., on login redirect)
+  }, [API_BASE_URL, location.pathname]);
 
   return (
     <AnnkutEventContext.Provider value={{

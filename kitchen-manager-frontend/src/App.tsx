@@ -30,11 +30,17 @@ import AnnkutFoodSelectionMaster from './pages/AnnkutFoodSelectionMaster';
 
 function App() {
   return (
-    <AnnkutEventProvider>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard/*" element={<Home />}>
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/dashboard/*"
+        element={
+          <AnnkutEventProvider>
+            <Home />
+          </AnnkutEventProvider>
+        }
+      >
           <Route index element={<Dashboard />} />
           <Route path="add-food-item" element={<AddFoodItem />} />
           <Route path="add-ingredient" element={<AddIngrediants />} />
@@ -62,8 +68,7 @@ function App() {
           <Route path="section-master" element={<Navigate to="/dashboard/section-annkut/section-master" replace />} />
           <Route path="profile" element={<Profile />} />
         </Route>
-      </Routes>
-    </AnnkutEventProvider>
+    </Routes>
   );
 }
 
