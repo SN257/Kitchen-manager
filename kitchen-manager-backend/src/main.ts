@@ -4,7 +4,6 @@ import * as session from 'express-session';
 import * as pgSession from 'connect-pg-simple';
 import { config } from 'dotenv';
 import { Pool } from 'pg';
-
 config();
 
 async function bootstrap() {
@@ -20,36 +19,22 @@ async function bootstrap() {
     session({
       store: new (pgSession(session))({
         pool: pgPool,
-        createTableIfMissing: true,
+        createTableIfMissing: true, // <-- This will auto-create the session table if missing
       }),
       secret: process.env.SESSION_SECRET || 'your-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        secure: process.env.NODE_ENV === 'production', // Only HTTPS in prod
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      },
+      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
     }),
   );
 
-  // Dynamically allow origins
-  const allowedOrigins =
-    process.env.NODE_ENV === 'production'
-      ? ['https://kitchen-manager-kohl.vercel.app']
-      : ['http://localhost:5173'];
-
+  // Enable CORS if needed
   app.enableCors({
-    origin: allowedOrigins,
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
-  // Use Render’s PORT or fallback to 3000
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-
-  console.log(`🚀 Server running on port ${port} in ${process.env.NODE_ENV} mode`);
+  await app.listen(3000);
 }
-
 bootstrap();
