@@ -4,6 +4,7 @@ import * as session from 'express-session';
 import * as pgSession from 'connect-pg-simple';
 import { config } from 'dotenv';
 import { Pool } from 'pg';
+import { JwtService } from '@nestjs/jwt';
 config();
 
 async function bootstrap() {
@@ -38,6 +39,26 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Support Authorization: Bearer <token> by syncing to req.session for this request
+  const jwtService = app.get(JwtService);
+  expressApp.use(async (req, _res, next) => {
+    try {
+      const auth = req.headers['authorization'];
+      if (auth && typeof auth === 'string' && auth.startsWith('Bearer ')) {
+        const token = auth.slice('Bearer '.length);
+        const payload = jwtService.verify(token);
+        // Ensure session object exists (created by express-session middleware)
+        if ((req as any).session) {
+          (req as any).session.userId = payload.sub;
+          (req as any).session.username = payload.username;
+        }
+      }
+    } catch {
+      // ignore invalid tokens; downstream will treat as unauthenticated
+    }
+    next();
+  });
 
   // CORS setup
   const allowedOrigins = ['http://localhost:5173'];
