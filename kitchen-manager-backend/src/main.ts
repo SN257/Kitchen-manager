@@ -9,32 +9,44 @@ config();
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Setup PostgreSQL pool
+  // PostgreSQL pool
   const pgPool = new Pool({
     connectionString: process.env.DATABASE_URL,
   });
 
-  // Setup session middleware
+  // Session middleware
   app.use(
     session({
       store: new (pgSession(session))({
         pool: pgPool,
-        createTableIfMissing: true, // <-- This will auto-create the session table if missing
+        createTableIfMissing: true,
       }),
       secret: process.env.SESSION_SECRET || 'your-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 },
     }),
   );
 
-  // Enable CORS if needed
+  // CORS setup
+  const allowedOrigins = ['http://localhost:5173'];
+  if (process.env.CORS_ORIGIN) allowedOrigins.push(process.env.CORS_ORIGIN);
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
-  await app.listen(3000);
+  // Dynamic port for Render
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  console.log(`Server running on port ${port}`);
 }
 bootstrap();
