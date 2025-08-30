@@ -84,10 +84,23 @@ const RecipeEntry: React.FC = () => {
     if (role === 'sant' && selectedCenter) {
       url += `?center=${encodeURIComponent(selectedCenter)}`;
     }
-    fetch(url, { credentials: 'include' })
-      .then(res => res.json())
-  .then(data => { setRecipes(data); })
-  .catch(() => {});
+    fetch(url, {
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+      },
+    })
+      .then(async (res) => {
+        try {
+          const data = await res.json();
+          setRecipes(Array.isArray(data) ? data : []);
+        } catch {
+          setRecipes([]);
+        }
+      })
+      .catch(() => {
+        setRecipes([]);
+      });
   }, [selectedCenter, role]);
 
   useEffect(() => {
@@ -102,9 +115,19 @@ const RecipeEntry: React.FC = () => {
   const fetchRecipes = () => {
     fetch(`${API_BASE_URL}/recipe`, {
       credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+      },
     })
-      .then(res => res.json())
-      .then(data => setRecipes(Array.isArray(data) ? data : []));
+      .then(async (res) => {
+        try {
+          const data = await res.json();
+          setRecipes(Array.isArray(data) ? data : []);
+        } catch {
+          setRecipes([]);
+        }
+      })
+      .catch(() => setRecipes([]));
   };
 
   // useEffect(() => {
@@ -247,7 +270,10 @@ const RecipeEntry: React.FC = () => {
 
       const res = await fetch(`${API_BASE_URL}/recipe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
         body: JSON.stringify({
           vangiName,
           ingredients,
@@ -258,7 +284,8 @@ const RecipeEntry: React.FC = () => {
         credentials: 'include',
 
       });
-  await res.json();
+      // Try to parse response body but ignore errors
+      try { await res.json(); } catch {}
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to save recipe.', severity: 'error' });
         return;
@@ -312,7 +339,10 @@ const RecipeEntry: React.FC = () => {
 
       const res = await fetch(`${API_BASE_URL}/recipe/${editRecipe.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
         body: JSON.stringify({
           vangiName: editVangiName,
           ingredients: updatedIngredients,
@@ -336,7 +366,12 @@ const RecipeEntry: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/recipe/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/recipe/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+      });
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to delete recipe.', severity: 'error' });
         return;
