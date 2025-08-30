@@ -24,24 +24,30 @@ async function bootstrap() {
       secret: process.env.SESSION_SECRET || 'your-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: { 
+      cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        secure: process.env.NODE_ENV === 'production', // only https in prod
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       },
     }),
   );
 
-  // Allow both local and production frontend
+  // CORS setup
+  let allowedOrigins: string[] = [];
+
+  if (process.env.NODE_ENV === 'production') {
+    allowedOrigins = ['https://kitchen-manager-kohl.vercel.app'];
+  } else {
+    allowedOrigins = ['http://localhost:5173'];
+  }
+
   app.enableCors({
-    origin: [
-      'http://localhost:5173', // frontend local
-      'https://kitchen-manager-kohl.vercel.app', // production frontend
-    ],
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
-  await app.listen(3000);
+  // Use Render's port or fallback to 3000
+  await app.listen(process.env.PORT || 3000);
 }
 bootstrap();
