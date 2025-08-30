@@ -4,6 +4,7 @@ import * as session from 'express-session';
 import * as pgSession from 'connect-pg-simple';
 import { config } from 'dotenv';
 import { Pool } from 'pg';
+
 config();
 
 async function bootstrap() {
@@ -26,20 +27,17 @@ async function bootstrap() {
       saveUninitialized: false,
       cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
+        secure: process.env.NODE_ENV === 'production', // Only HTTPS in prod
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       },
     }),
   );
 
-  // CORS setup
-  let allowedOrigins: string[] = [];
-
-  if (process.env.NODE_ENV === 'production') {
-    allowedOrigins = ['https://kitchen-manager-kohl.vercel.app'];
-  } else {
-    allowedOrigins = ['http://localhost:5173'];
-  }
+  // Dynamically allow origins
+  const allowedOrigins =
+    process.env.NODE_ENV === 'production'
+      ? ['https://kitchen-manager-kohl.vercel.app']
+      : ['http://localhost:5173'];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -47,7 +45,11 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Use Render's port or fallback to 3000
-  await app.listen(process.env.PORT || 3000);
+  // Use Render’s PORT or fallback to 3000
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+
+  console.log(`🚀 Server running on port ${port} in ${process.env.NODE_ENV} mode`);
 }
+
 bootstrap();
