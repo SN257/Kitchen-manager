@@ -7,7 +7,8 @@ config();
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  synchronize: true,
+  // Disable auto-sync so schema changes are managed via migrations only
+  synchronize: false,
   entities: [join(__dirname, '/../**/*.entity.{js,ts}')],
   migrations: [
     process.env.TS_NODE === 'true'
