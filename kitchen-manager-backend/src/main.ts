@@ -19,18 +19,25 @@ async function bootstrap() {
     session({
       store: new (pgSession(session))({
         pool: pgPool,
-        createTableIfMissing: true, // <-- This will auto-create the session table if missing
+        createTableIfMissing: true,
       }),
       secret: process.env.SESSION_SECRET || 'your-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+      cookie: { 
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        secure: process.env.NODE_ENV === 'production', // only https in prod
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      },
     }),
   );
 
-  // Enable CORS if needed
+  // Allow both local and production frontend
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: [
+      'http://localhost:5173', // frontend local
+      'https://kitchen-manager-kohl.vercel.app', // production frontend
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
