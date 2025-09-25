@@ -78,13 +78,34 @@ const SectionLayoutPlanner: React.FC = () => {
       .then(r=> r.ok? r.json(): [])
       .then(data => {
         const list = Array.isArray(data)? data: [];
-        setSections(list);
+        // Apply custom ordering: if sections include Mahraj, Bapashree, Sadguru variants, place them in this order
+        const mapNameToPriority = (name: string) => {
+          if (!name) return -1;
+          const n = name.toString().trim().toLowerCase();
+          if (n.includes('મહારાજ')) return 0;
+          if (n.includes('બાપાશ્રી')) return 1;
+          // match either variant 'સદગુરુ' or 'સદ્ગુરુશ્રી'
+          if (n.includes('સદગુરુ') || n.includes('સદ્ગુરુ')) return 2;
+          return -1;
+        };
+        // preserve original index for stable ordering of non-priority sections
+        const withIndex = list.map((s, idx) => ({ s, idx, p: mapNameToPriority(s.sectionName || '') }));
+        withIndex.sort((a, b) => {
+          if (a.p !== -1 || b.p !== -1) {
+            if (a.p === -1) return 1;
+            if (b.p === -1) return -1;
+            return a.p - b.p;
+          }
+          return a.idx - b.idx;
+        });
+        const sorted = withIndex.map(x => x.s);
+        setSections(sorted);
         // restore last selected section for this event if available
         const storageKey = `sectionLayoutLastSection:${selectedAnnkutEvent}`;
         const stored = localStorage.getItem(storageKey);
         const storedNum = stored ? Number(stored) : NaN;
-        let targetSection = list.find(s => !isNaN(storedNum) && s.id === storedNum);
-        if (!targetSection && list.length > 0) targetSection = list[0];
+        let targetSection = sorted.find(s => !isNaN(storedNum) && s.id === storedNum);
+        if (!targetSection && sorted.length > 0) targetSection = sorted[0];
         if (targetSection) {
           setSelectedSectionId(targetSection.id);
           setRows(targetSection.rows || 0);
@@ -240,6 +261,11 @@ const SectionLayoutPlanner: React.FC = () => {
     return allowedBySection[sId] || {};
   }, [allowedBySection, selectedSectionId]);
 
+  const sectionHasAllowed = useMemo(() => {
+    const sId = typeof selectedSectionId === 'number' ? selectedSectionId : -1;
+    return Object.prototype.hasOwnProperty.call(allowedBySection, sId);
+  }, [allowedBySection, selectedSectionId]);
+
   // Unique color per unique food (case-insensitive). Same food across vasans shares color.
   const foodColorMap = useMemo(() => {
     const palette = [
@@ -357,6 +383,14 @@ const SectionLayoutPlanner: React.FC = () => {
               const color = getFoodColor(food);
               const textColor = getContrast(color);
               const key = `${v.vasanId}::${food.toLowerCase()}`;
+              // If the selected section has an allowed list, show only those items present in that list
+              // If the section has NO allowed list at all, hide everything (user expects no items)
+              if (!sectionHasAllowed) {
+                return null;
+              }
+              if (!(key in allowedForCurrentSection)) {
+                return null;
+              }
               const allowed = allowedForCurrentSection[key];
               const placed = placedByKey[key] || 0;
               const remaining = typeof allowed === 'number' ? Math.max(allowed - placed, 0) : undefined;

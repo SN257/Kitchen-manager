@@ -8,6 +8,10 @@ import {
     MenuItem,
     Alert,
     InputAdornment,
+    Autocomplete,
+    Checkbox,
+    Chip,
+    ListItemText,
 } from "@mui/material";
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
@@ -19,11 +23,81 @@ import IconButton from "@mui/material/IconButton";
 import { useApiBaseUrl } from "../config/config";
 
 const CreateUser: React.FC = () => {
+    const CENTER_OPTIONS = [
+        'Ahmedabad',
+        'Divine Life School',
+        'Vasna',
+        'Gadiya',
+        'Santrampur',
+        'Gandhinagar',
+        'Ghanshyamnagar',
+        'Ghatlodiya',
+        'Girls Gurukul',
+        'Godhar',
+        'Godhara',
+        'Gota',
+        'Gurukul',
+        'Halol',
+        'Himmatnagar',
+        'Hospital City Center',
+        'Isanpur',
+        'Kadi',
+        'Kalol',
+        'Kalupur',
+        'Kamrej',
+        'Kavali',
+        'Kenpur',
+        'Malekpur',
+        'Malpur',
+        'Mavdi',
+        'Mehsana',
+        'Modasa',
+        'Morbi',
+        'Mumbai',
+        'Nadiyad',
+        'Narichana',
+        'Naroda',
+        'Navi Mumbai',
+        'Nikol',
+        'Palanpur',
+        'Patadi',
+        'Patan',
+        'Pundhara',
+        'Rajasthan',
+        'Rajkot',
+        'Rajula',
+        'Rampara',
+        'Rapar',
+        'Sanand',
+        'Sanjeli',
+        'Saraswa',
+        'Sarsan',
+        'Satelite',
+        'SDIS',
+        'SMVS Swaminarayan',
+        'Surendranagar',
+        'Swaminarayan Dham',
+        'Una',
+        'Unjha',
+        'Vadodara',
+        'Vanpardi',
+        'Varachha',
+        'Vasan',
+        'Vastral',
+        'Vijapur',
+        'Viramgam',
+        'Virpur',
+        'Visnagar',
+        'Waghodia',
+        'Zalod'
+    ];
+
     const [form, setForm] = useState({
         username: "",
         password: "",
         role: "",
         center: "",
+        allocatedCenters: [] as string[],
     });
     const [message, setMessage] = useState("");
     const [success, setSuccess] = useState<boolean | null>(null);
@@ -49,8 +123,18 @@ const CreateUser: React.FC = () => {
         setError("");
 
         const trimmedUsername = form.username.trim();
-        if (!trimmedUsername || !form.password || !form.role || !form.center) {
-            setError("All fields are required.");
+        // Validate required fields depending on role
+        if (!trimmedUsername || !form.password || !form.role) {
+            setError("Username, password and role are required.");
+            return;
+        }
+
+        if (form.role === 'center-admin' && !form.center) {
+            setError("Center is required for Center Admin.");
+            return;
+        }
+        if (form.role === 'sant' && (!form.allocatedCenters || form.allocatedCenters.length === 0)) {
+            setError("Allocated Centers are required for Sant.");
             return;
         }
 
@@ -61,17 +145,25 @@ const CreateUser: React.FC = () => {
 
         setLoading(true);
         try {
+            // Prepare payload: ensure allocatedCenters is an array when role is sant
+            const payload: any = { ...form };
+            if (form.role === 'sant') {
+                payload.allocatedCenters = form.allocatedCenters || [];
+            } else {
+                delete payload.allocatedCenters;
+            }
+
             const res = await fetch(`${API_BASE_URL}/user/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: JSON.stringify(payload),
                 credentials: "include",
             });
             const data = await res.json();
             if (res.ok) {
                 setSuccess(true);
                 setMessage("User created successfully!");
-                setForm({ username: "", password: "", role: "", center: "" });
+                setForm({ username: "", password: "", role: "", center: "", allocatedCenters: [] });
             } else {
                 setSuccess(false);
                 setMessage(data.error || "Failed to create user.");
@@ -139,6 +231,7 @@ const CreateUser: React.FC = () => {
                             },
                         }}
                     />
+                    
                     <TextField
                         label="Password"
                         name="password"
@@ -218,43 +311,78 @@ const CreateUser: React.FC = () => {
                             },
                         }}
                     >
-                        <MenuItem value="">Select Role</MenuItem>
                         <MenuItem value="center-admin">Center Admin</MenuItem>
                         <MenuItem value="sant">Sant</MenuItem>
                     </TextField>
-                    <TextField
-                        label="Center"
-                        name="center"
-                        value={form.center}
-                        onChange={handleChange}
-                        fullWidth
-                        required
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <LocationCityIcon sx={{ color: '#245D6B' }} />
-                                </InputAdornment>
-                            ),
-                            sx: {
-                                borderRadius: 2,
-                                bgcolor: '#fff',
-                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#245D6B',
-                                },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#245D6B',
-                                },
-                            },
-                        }}
-                        InputLabelProps={{
-                            sx: {
-                                color: '#245D6B',
-                                '&.Mui-focused': {
-                                    color: '#245D6B',
-                                },
-                            },
-                        }}
-                    />
+                    {form.role === 'sant' && (
+                        <Autocomplete
+                            multiple
+                            disableCloseOnSelect
+                            options={CENTER_OPTIONS}
+                            value={form.allocatedCenters}
+                            onChange={(_, value) => setForm({ ...form, allocatedCenters: value })}
+                            isOptionEqualToValue={(option, value) => option === value}
+                            getOptionLabel={(option) => option}
+                            fullWidth
+                            renderOption={(props, option, { selected }) => (
+                                <li {...props} key={option}>
+                                    <Checkbox
+                                        sx={{ marginRight: 1, color: '#245D6B', '&.Mui-checked': { color: '#245D6B' } }}
+                                        checked={selected}
+                                    />
+                                    <ListItemText primary={option} />
+                                </li>
+                            )}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Allocate Centers"
+                                    placeholder="Select centers"
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        startAdornment: (
+                                            <>
+                                                <InputAdornment position="start">
+                                                    <LocationCityIcon sx={{ color: '#245D6B' }} />
+                                                </InputAdornment>
+                                                {params.InputProps?.startAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
+                            renderTags={(value: string[], getTagProps) =>
+                                value.map((option: string, index: number) => (
+                                    <Chip label={option} {...getTagProps({ index })} key={option} />
+                                ))
+                            }
+                        />
+                    )}
+                    {form.role === 'center-admin' && (
+                        <Autocomplete
+                            options={CENTER_OPTIONS}
+                            value={form.center}
+                            onChange={(_, value) => setForm({ ...form, center: value || '' })}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Center"
+                                    required
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        startAdornment: (
+                                            <>
+                                                <InputAdornment position="start">
+                                                    <LocationCityIcon sx={{ color: '#245D6B' }} />
+                                                </InputAdornment>
+                                                {params.InputProps?.startAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
+                        />
+                    )}
                     <Button
                         variant="contained"
                         type="submit"

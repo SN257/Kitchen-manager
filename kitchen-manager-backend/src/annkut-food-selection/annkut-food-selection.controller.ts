@@ -39,13 +39,27 @@ export class AnnkutFoodSelectionController {
   async findAll(
     @Req() req: Request & { session: CustomSession },
     @Query('eventId') eventId?: string,
+    @Query('center') center?: string,
   ) {
     if (!req.session.userId && (req as any).session?.cookie) {
       throw new UnauthorizedException('Session invalid - please login again');
     }
 
-    const { userId } = req.session;
+    const { userId, role } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
+
+    // If a Sant has provided a center, return selections for that center (across users) optionally filtered by eventId
+    // debug: log center/event/role for troubleshooting and indicate branch taken
+    if (center && role === 'sant') {
+      console.log(`[annkut-food-selection] findAll called WITH center, session.userId=${req.session.userId}, session.role=${role}, eventId=${eventId}`);
+      const evId = eventId ? Number(eventId) : undefined;
+      const results = await this.service.findByCenterAndEvent(center, evId);
+      console.log(`[annkut-food-selection] center-branch results.length=${Array.isArray(results) ? results.length : 0}`);
+      return results;
+    }
+    if (center) {
+      console.log(`[annkut-food-selection] center provided but session.role=${role} so center-branch skipped`);
+    }
 
     if (eventId) {
       return this.service.findByEventIdAndUser(Number(eventId), userId);

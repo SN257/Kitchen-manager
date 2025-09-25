@@ -38,6 +38,7 @@ import CalculateIcon from "@mui/icons-material/Calculate";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import "../App.css";
 import AnnkutEventSelector from '../components/AnnkutEventSelector';
+import AnnkutCenterSelector from '../components/AnnkutCenterSelector';
 import CompareIcon from "@mui/icons-material/Compare";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import AddTaskIcon from "@mui/icons-material/AddTask";
@@ -69,6 +70,8 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const API_BASE_URL = useApiBaseUrl();
+  const userObj = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
+  const isSant = userObj?.role === 'sant';
 
   const [annkutOpen, setAnnkutOpen] = React.useState(
     location.pathname.startsWith("/dashboard/box-annkut") ||
@@ -330,6 +333,17 @@ const Dashboard: React.FC = () => {
               </ListItemIcon>
               <ListItemText primary="Food Selection Master" />
             </ListItemButton>
+            {/* Weight Entry shown outside Box-wise section (placed below Food Selection Master) */}
+            <ListItemButton
+              selected={isActive('/dashboard/box-annkut/weight-entry')}
+              sx={{ pl: 6, ...sidebarItemSx }}
+              onClick={() => navigate('/dashboard/box-annkut/weight-entry')}
+            >
+              <ListItemIcon sx={{ color: '#fff', minWidth: 30 }}>
+                <ScaleIcon fontSize="small" sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              <ListItemText primary="Weight Entry Master" />
+            </ListItemButton>
             {/* Box wise Annkut */}
             <ListItemButton sx={{ pl: 4 }} onClick={handleBoxAnnkutClick}>
               <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
@@ -340,16 +354,6 @@ const Dashboard: React.FC = () => {
             </ListItemButton>
             <Collapse in={boxAnnkutOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                <ListItemButton
-                  selected={isActive("/dashboard/box-annkut/weight-entry")}
-                  sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/box-annkut/weight-entry")}
-                >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
-                    <ScaleIcon fontSize="small" sx={{ fontSize: 20 }} />
-                  </ListItemIcon>
-                  <ListItemText primary="Weight Entry Master" />
-                </ListItemButton>
                 <ListItemButton
                   selected={isActive("/dashboard/box-annkut/BoxRangeEntry")}
                   sx={{ pl: 8, ...sidebarItemSx }}
@@ -608,13 +612,28 @@ const Dashboard: React.FC = () => {
             {/* Show event selector only on Annkut pages */}
             {isAnnkutPage(location.pathname) && (
               <>
+                {isSant && (
+                  <>
+                    <AnnkutCenterSelector />
+                    <Box
+                      sx={{
+                        width: "2px",
+                        height: "28px",
+                        bgcolor: "#ccc",
+                        ml: 1,
+                        mr: 1,
+                        borderRadius: 1,
+                      }}
+                    />
+                  </>
+                )}
                 <AnnkutEventSelector />
                 <Box
                   sx={{
                     width: "2px",
                     height: "28px",
                     bgcolor: "#ccc",
-                    ml: 2,
+                    ml: 1,
                     mr: 1,
                     borderRadius: 1,
                   }}

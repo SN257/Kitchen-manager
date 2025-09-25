@@ -93,7 +93,8 @@ export class UserController {
       username: string;
       password: string;
       role: string;
-      center: string;
+      center?: string;
+      allocatedCenters?: string[];
     },
   ) {
     return this.userService.create(body);
@@ -115,7 +116,8 @@ export class UserController {
     return {
       id: user.id,
       username: user.username,
-      center: user.center,
+  center: user.center,
+  allocatedCenters: user.allocatedCenters || [],
       role: user.role,
     };
   }

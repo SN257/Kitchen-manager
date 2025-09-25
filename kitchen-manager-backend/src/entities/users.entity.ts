@@ -15,8 +15,11 @@ export class User {
   @Column({ nullable: true })
   role: string;
 
-  @Column()
+  @Column({ nullable: true })
   center: string;
+
+  @Column('simple-array', { nullable: true })
+  allocatedCenters: string[];
 
   @OneToMany(() => Recipe, (recipe) => recipe.user)
   recipes: Recipe[];

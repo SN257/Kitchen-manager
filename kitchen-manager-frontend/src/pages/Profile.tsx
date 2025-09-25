@@ -48,6 +48,7 @@ interface UserProfile {
   username: string;
   center: string;
   role: string;
+  allocatedCenters?: string[];
 }
 
 interface ActivityLog {
@@ -399,6 +400,11 @@ const Profile: React.FC = () => {
     );
   }
 
+  // Determine what to show as the user's center: for 'sant' use allocatedCenters
+  const displayCenter = user.role === 'sant'
+    ? (user.allocatedCenters && user.allocatedCenters.length ? user.allocatedCenters.join(', ') : 'Not Assigned')
+    : (user.center || 'Not Assigned');
+
   return (
     <>
       <Box sx={{ p: { xs: 2, sm: 3 }, minHeight: '80vh', bgcolor:'#f5f8f9' }}>
@@ -422,7 +428,7 @@ const Profile: React.FC = () => {
                   <Chip icon={<AdminPanelSettingsIcon sx={{ fontSize:18 }} />} label={getRoleDisplayName(user.role)} sx={{ bgcolor:getRoleColor(user.role), color:'#fff', fontWeight:600, px:1.5, '& .MuiChip-icon':{ color:'#fff' } }} />
                   <Box sx={{ mt:2, display:'flex', flexWrap:'wrap', gap:1.2 }}>
                     <Tooltip title='User ID'><Chip label={`#${user.id}`} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
-                    <Tooltip title='Center'><Chip label={user.center || 'No Center'} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
+                    <Tooltip title='Center'><Chip label={displayCenter} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
                     <Tooltip title='Role'><Chip label={getRoleDisplayName(user.role)} size='small' sx={{ bgcolor:'rgba(36,93,107,0.1)', color:'#245D6B', fontWeight:600 }} /></Tooltip>
                   </Box>
                 </Box>
@@ -472,7 +478,7 @@ const Profile: React.FC = () => {
               <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', sm:'repeat(2, 1fr)', lg:'repeat(4, 1fr)' }, gap:2 }}>
                 {[
                   { icon:<BadgeIcon />, label:'User ID', value:`#${user.id}` },
-                  { icon:<LocationCityIcon />, label:'Center', value:user.center || 'Not Assigned' },
+                  { icon:<LocationCityIcon />, label:'Center', value:displayCenter },
                   { icon:<AdminPanelSettingsIcon />, label:'Role', value:getRoleDisplayName(user.role) },
                   { icon:<PersonIcon />, label:'Username', value:user.username }
                 ].map((item,i)=>(

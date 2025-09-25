@@ -92,9 +92,14 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 		try {
 			const token = localStorage.getItem('token');
 			if (!token) return;
-			const url = selectedAnnkutEvent
+			let url = selectedAnnkutEvent
 				? `${API_BASE_URL}/annkut-food-selections?eventId=${selectedAnnkutEvent}`
 				: `${API_BASE_URL}/annkut-food-selections`;
+			const selectedCenter = localStorage.getItem('selectedAnnkutCenter') || '';
+			if (selectedCenter) {
+				url += (url.includes('?') ? '&' : '?') + `center=${encodeURIComponent(selectedCenter)}`;
+			}
+			console.debug('[AnnkutFoodSelectionMaster] fetchEntries URL:', url);
 			const res = await fetch(url, {
 				method: 'GET',
 				credentials: 'include',
@@ -111,6 +116,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 				return;
 			}
 			const data = await res.json();
+			console.debug('[AnnkutFoodSelectionMaster] fetchEntries returned count:', Array.isArray(data) ? data.length : 0);
 			setEntries(Array.isArray(data) ? data : []);
 		} catch {
 			setEntries([]);
@@ -126,6 +132,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 	}, [selectedAnnkutEvent]);
 
 	const handleCheck = (item: { id: number; vangiName: string }) => {
+		const selectedCenter = localStorage.getItem('selectedAnnkutCenter') || '';
+		if (selectedCenter) {
+			setError('Editing is disabled when a center is selected.');
+			setSuccess('');
+			setOpenSnackbar(true);
+			return;
+		}
 		setSelectedItems((prev) => {
 			if (prev[item.id]) {
 				const copy = { ...prev };
@@ -145,6 +158,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		const selectedCenter = localStorage.getItem('selectedAnnkutCenter') || '';
+		if (selectedCenter) {
+			setError('Saving is disabled when a center is selected.');
+			setSuccess('');
+			setOpenSnackbar(true);
+			return;
+		}
 		if (!currentUser) {
 			setError('User not authenticated. Please login again.');
 			setSuccess('');
@@ -199,6 +219,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 	};
 
 	const handleDelete = async (id: number) => {
+		const selectedCenter = localStorage.getItem('selectedAnnkutCenter') || '';
+		if (selectedCenter) {
+			setError('Delete is disabled when a center is selected.');
+			setSuccess('');
+			setOpenSnackbar(true);
+			return;
+		}
 		try {
 			await fetch(`${API_BASE_URL}/annkut-food-selections/${id}`, {
 				method: 'DELETE',
@@ -229,6 +256,13 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 	};
 
 	const handleEditSave = async () => {
+		const selectedCenter = localStorage.getItem('selectedAnnkutCenter') || '';
+		if (selectedCenter) {
+			setError('Update is disabled when a center is selected.');
+			setSuccess('');
+			setOpenSnackbar(true);
+			return;
+		}
 		try {
 			await fetch(`${API_BASE_URL}/annkut-food-selections/${editEntry.id}`, {
 				method: 'PUT',
@@ -356,6 +390,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 												checked={!!selectedItems[item.id]}
 												onChange={() => handleCheck(item)}
 												sx={{ color: '#245D6B', '&.Mui-checked': { color: '#4A7D91' } }}
+												disabled={!!localStorage.getItem('selectedAnnkutCenter')}
 											/>
 											<Typography sx={{ flex: 1, color: '#245D6B', fontWeight: 400, fontSize: 16 }}>
 												{item.vangiName}
@@ -386,7 +421,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 							</Box>
 						</Box>
 					</Box>
-					<Button type="submit" variant="contained" sx={{ bgcolor: '#245D6B', fontWeight: 600, height: '56px' }} size="large">
+					<Button type="submit" variant="contained" sx={{ bgcolor: '#245D6B', fontWeight: 600, height: '56px' }} size="large" disabled={!!localStorage.getItem('selectedAnnkutCenter')}>
 						Save
 					</Button>
 				</Box>
@@ -437,10 +472,10 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 										</TableCell>
 										<TableCell>{new Date(item.createdAt).toLocaleString()}</TableCell>
 										<TableCell>
-											<IconButton size="small" sx={{ color: '#245D6B' }} onClick={() => handleEditOpen(item)} aria-label="edit">
+											<IconButton size="small" sx={{ color: '#245D6B' }} onClick={() => handleEditOpen(item)} aria-label="edit" disabled={!!localStorage.getItem('selectedAnnkutCenter')}>
 												<EditIcon fontSize="small" />
 											</IconButton>
-											<IconButton size="small" color="error" onClick={() => handleDelete(item.id)} aria-label="delete">
+											<IconButton size="small" color="error" onClick={() => handleDelete(item.id)} aria-label="delete" disabled={!!localStorage.getItem('selectedAnnkutCenter')}>
 												<DeleteIcon fontSize="small" />
 											</IconButton>
 										</TableCell>
