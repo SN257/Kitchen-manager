@@ -22,6 +22,7 @@ const SectionIngredientSummary = () => {
   const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [rawSummaryData, setRawSummaryData] = useState<any>(null);
+  const [showZeroFlour, setShowZeroFlour] = useState<boolean>(false);
   const [sectionSummaryRows, setSectionSummaryRows] = useState<SectionVasanSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -102,7 +103,7 @@ const SectionIngredientSummary = () => {
     const recipeMap = new Map(recipes.map(r => [r.vangiName.trim().toLowerCase(), r]));
     // Build columns: one per vasan + food combination
     const cols = sectionSummaryRows
-      .filter(r => r.flourRequiredKg > 0)
+      .filter(r => showZeroFlour ? true : r.flourRequiredKg > 0)
       .map(r => {
         const recipe = recipeMap.get(r.foodName?.trim().toLowerCase());
         const compositeKey = `${r.vasanId}::${r.foodName?.trim().toLowerCase()}`;
@@ -153,9 +154,12 @@ const SectionIngredientSummary = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Section Ingredient Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto', display:'flex', gap:1 }}>
+        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center' }}>
           <Button variant="outlined" disabled={!selectedAnnkutEvent} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={refreshSnapshot}>Refresh Snapshot</Button>
           <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
+          <Button variant={showZeroFlour? 'contained':'outlined'} disabled={!selectedAnnkutEvent} sx={{ borderColor:'#245D6B', color: showZeroFlour? '#fff' : '#245D6B', bgcolor: showZeroFlour? '#245D6B' : 'transparent', textTransform:'none' }} onClick={()=> setShowZeroFlour(s => !s)}>
+            {showZeroFlour? 'Showing zero-flour foods' : 'Show zero-flour foods'}
+          </Button>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
