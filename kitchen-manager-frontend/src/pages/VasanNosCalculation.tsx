@@ -31,131 +31,84 @@ const VasanNosCalculation: React.FC = () => {
         const token = localStorage.getItem('token');
         if (!token) return;
         
-        console.log('🔍 API Base URL:', API_BASE_URL);
-        console.log('🔍 Selected Event:', selectedAnnkutEvent);
-        
         fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => {
-                console.log('🔍 Vasans response status:', r.status, r.statusText);
-                return r.ok ? r.json() : Promise.reject(`Vasans API failed: ${r.status} ${r.statusText}`);
-            })
-            .then(d => {
-                console.log('🔍 Vasans data:', d);
-                setVasans(Array.isArray(d) ? d : []);
-            })
-            .catch(err => console.error('❌ Vasans fetch error:', err));
+            .then(r => r.ok ? r.json() : Promise.reject(`Vasans API failed: ${r.status} ${r.statusText}`))
+            .then(d => setVasans(Array.isArray(d) ? d : []))
+            .catch(err => console.error('Vasans fetch error:', err));
             
         fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => {
-                console.log('🔍 Fill plans response status:', r.status, r.statusText);
-                return r.ok ? r.json() : Promise.reject(`Fill plans API failed: ${r.status} ${r.statusText}`);
-            })
-            .then(d => {
-                console.log('🔍 Fill plans data:', d);
-                setFillPlans(Array.isArray(d) ? d : []);
-            })
-            .catch(err => console.error('❌ Fill plans fetch error:', err));
+            .then(r => r.ok ? r.json() : Promise.reject(`Fill plans API failed: ${r.status} ${r.statusText}`))
+            .then(d => setFillPlans(Array.isArray(d) ? d : []))
+            .catch(err => console.error('Fill plans fetch error:', err));
             
         fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => {
-                console.log('🔍 Sections response status:', r.status, r.statusText);
-                return r.ok ? r.json() : Promise.reject(`Sections API failed: ${r.status} ${r.statusText}`);
-            })
-            .then(d => {
-                console.log('🔍 Sections data:', d);
-                setSections(Array.isArray(d) ? d : []);
-            })
-            .catch(err => console.error('❌ Sections fetch error:', err));
+            .then(r => r.ok ? r.json() : Promise.reject(`Sections API failed: ${r.status} ${r.statusText}`))
+            .then(d => setSections(Array.isArray(d) ? d : []))
+            .catch(err => console.error('Sections fetch error:', err));
             
         fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => {
-                console.log('🔍 Nos entries response status:', r.status, r.statusText);
-                return r.ok ? r.json() : Promise.reject(`Nos entries API failed: ${r.status} ${r.statusText}`);
-            })
+            .then(r => r.ok ? r.json() : Promise.reject(`Nos entries API failed: ${r.status} ${r.statusText}`))
             .then(data => {
-                console.log('🔍 Nos entries data:', data);
                 if (data && data.id && data.entries) {
                     setEntryId(data.id);
                     setRawSavedEntries(data.entries);
                 } else { setEntryId(null); setCounts({}); }
             })
-            .catch(err => console.error('❌ Nos entries fetch error:', err));
+            .catch(err => console.error('Nos entries fetch error:', err));
     }, [selectedAnnkutEvent, API_BASE_URL]);
 
     // When rawSavedEntries are available, map saved counts to new keys.
     useEffect(() => {
         if (!rawSavedEntries || rawSavedEntries.length === 0) return;
         
-        console.log('🔍 Mapping saved entries to counts:', rawSavedEntries);
         const map: Record<string, string> = {};
         
         rawSavedEntries.forEach((v: any) => {
-            console.log('🔍 Processing saved entry:', v);
             const savedFoodName = v.foodName; // may be undefined on legacy data or comma-separated for grouped entries
             
             if (savedFoodName) {
                 // Check if this is a comma-separated list (grouped entry)
                 if (savedFoodName.includes(',')) {
-                    console.log('🔍 Processing grouped entry for vasan:', v.vasanId, 'foods:', savedFoodName);
                     // This is a grouped entry with multiple foods
                     if (fillPlans.length > 0) {
                         // Find the matching fill plan that has these exact foods
                         const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
-                        console.log('🔍 Looking for fill plan with foods:', savedFoods);
                         
                         const matchingFillPlan = fillPlans.find(fp => {
                             if (fp.vasanId !== v.vasanId) return false;
                             const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
-                            console.log('🔍 Checking fill plan', fp.id, 'with foods:', fpFoods);
-                            console.log('🔍 Saved foods:', savedFoods);
-                            console.log('🔍 Fill plan foods:', fpFoods);
-                            console.log('🔍 Lengths match:', fpFoods.length === savedFoods.length);
                             
                             // Normalize food names for comparison (trim and lowercase)
                             const normalizedSavedFoods = savedFoods.map((f: string) => f.trim().toLowerCase());
                             const normalizedFpFoods = fpFoods.map((f: string) => f.trim().toLowerCase());
                             
-                            console.log('🔍 Normalized saved foods:', normalizedSavedFoods);
-                            console.log('🔍 Normalized fill plan foods:', normalizedFpFoods);
-                            
                             const lengthMatch = normalizedFpFoods.length === normalizedSavedFoods.length;
                             const allMatch = normalizedSavedFoods.every((food: string) => normalizedFpFoods.includes(food));
-                            
-                            console.log('🔍 Normalized lengths match:', lengthMatch);
-                            console.log('🔍 All normalized saved foods found in fill plan:', allMatch);
                             
                             return lengthMatch && allMatch;
                         });
                         
                         if (matchingFillPlan) {
-                            console.log('🔍 Found matching fill plan:', matchingFillPlan.id);
                             v.sectionEntries?.forEach((s: any) => {
                                 const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
-                                console.log('🔍 Setting grouped key:', key, '=', s.count);
                                 map[key] = String(s.count);
                             });
                         } else {
-                            console.log('🔍 No matching fill plan found, using saved key');
                             v.sectionEntries?.forEach((s: any) => {
                                 const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
-                                console.log('🔍 Setting saved grouped key:', key, '=', s.count);
                                 map[key] = String(s.count);
                             });
                         }
                     } else {
-                        console.log('🔍 No fill plans available, using saved grouped key');
                         v.sectionEntries?.forEach((s: any) => {
                             const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
-                            console.log('🔍 Setting saved grouped key:', key, '=', s.count);
                             map[key] = String(s.count);
                         });
                     }
                 } else {
-                    console.log('🔍 Processing single food entry for vasan:', v.vasanId, 'food:', savedFoodName);
                     // Single food entry
                     v.sectionEntries?.forEach((s: any) => {
                         const key = `${buildRowKey(v.vasanId, savedFoodName)}_${s.sectionId}`;
-                        console.log('🔍 Setting single food key:', key, '=', s.count);
                         map[key] = String(s.count);
                     });
                 }
@@ -182,12 +135,6 @@ const VasanNosCalculation: React.FC = () => {
             }
         });
         
-        console.log('🔍 Generated counts map:', map);
-        console.log('🔍 Expected keys based on rows and sections:');
-        // Log what keys we expect to see based on current rows and sections
-        if (fillPlans.length > 0 || (rawSavedEntries && rawSavedEntries.length > 0)) {
-            console.log('🔍 Fill plans available, checking expected keys...');
-        }
         setCounts({ ...map });
     }, [rawSavedEntries, fillPlans]);
 
@@ -201,7 +148,6 @@ const VasanNosCalculation: React.FC = () => {
 
     // Build row models - group by fill plan ID, multiple foods per fill plan show grouped
     const rows = React.useMemo(() => {
-        console.log('🔍 Building rows with:', { fillPlans: fillPlans.length, vasans: vasans.length });
         const vasanMap = new Map(vasans.map(v => [v.id, v]));
         const result: any[] = [];
         
@@ -213,12 +159,9 @@ const VasanNosCalculation: React.FC = () => {
                 const capacity = base?.totalVasan || 0;
                 const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
                 
-                console.log('🔍 Processing fill plan:', fp.id, 'for vasan:', fp.vasanId, 'with foods:', foods);
-                
                 if (foods.length === 1) {
                     // Single food in this fill plan - create separate row
                     const key = rowKey(fp.vasanId, foods[0]);
-                    console.log('🔍 Creating single food row with key:', key);
                     result.push({
                         key: key,
                         vasanId: fp.vasanId,
@@ -231,7 +174,6 @@ const VasanNosCalculation: React.FC = () => {
                     // Multiple foods in this fill plan - create grouped row
                     const foodDisplay = foods.join(', ');
                     const key = `fillplan_${fp.id}_grouped`;
-                    console.log('🔍 Creating grouped row with key:', key);
                     result.push({
                         key: key,
                         vasanId: fp.vasanId,
@@ -245,7 +187,6 @@ const VasanNosCalculation: React.FC = () => {
             });
         } else if (rawSavedEntries && rawSavedEntries.length > 0) {
             // Fallback: if no fill plans but we have saved entries, create rows from saved data
-            console.log('🔍 Creating rows from saved entries since no fill plans available');
             rawSavedEntries.forEach(entry => {
                 const base = vasanMap.get(entry.vasanId);
                 const vasanName = entry.vasanName || base?.vasanName || `Vasan ${entry.vasanId}`;
@@ -278,8 +219,6 @@ const VasanNosCalculation: React.FC = () => {
             });
         }
         
-        console.log('🔍 Generated rows:', result);
-        console.log('🔍 Row keys generated:', result.map(r => r.key));
         return result;
     }, [fillPlans, vasans, rawSavedEntries]);
 
@@ -345,20 +284,6 @@ const VasanNosCalculation: React.FC = () => {
                     <Button variant="outlined" sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={() => setPrintPreviewOpen(true)}>Print</Button>
                 </Box>
             </Box>
-            
-            {/* Debug Information */}
-            <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: 12, fontFamily: 'monospace' }}>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>Debug Info:</Typography>
-                <div>Vasans loaded: {vasans.length}</div>
-                <div>Fill Plans loaded: {fillPlans.length}</div>
-                <div>Sections loaded: {sections.length}</div>
-                <div>Rows generated: {rows.length}</div>
-                <div>Saved entries: {rawSavedEntries?.length || 0}</div>
-                <div>Counts keys: {Object.keys(counts).length}</div>
-                {vasans.length > 0 && <div>Vasans: {vasans.map(v => `${v.vasanName}(${v.id})`).join(', ')}</div>}
-                {sections.length > 0 && <div>Sections: {sections.map(s => `${s.sectionName}(${s.id})`).join(', ')}</div>}
-            </Box>
-
             <Paper elevation={3} sx={{ p: 2, borderRadius: 2, mx: 'auto', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
                 <TableContainer sx={{ overflowY: 'auto', overflowX: 'auto' }}>
                     <Table stickyHeader>
