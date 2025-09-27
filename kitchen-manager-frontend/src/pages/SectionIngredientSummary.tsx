@@ -19,6 +19,7 @@ interface SectionVasanSummaryRow { vasanId:number; vasanName:string; foodName:st
 const SectionIngredientSummary = () => {
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
+  const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [sectionSummaryRows, setSectionSummaryRows] = useState<SectionVasanSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,6 +34,7 @@ const SectionIngredientSummary = () => {
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null)
     ]).then(([recipesData, summaryData]) => {
+      if (debugMode) console.debug('SectionIngredientSummary fetched', { recipesData, summaryData });
       setRecipes(Array.isArray(recipesData)? recipesData: []);
   if (summaryData && Array.isArray(summaryData.rows)) {
         // Normalize row properties we rely on
@@ -158,6 +160,12 @@ const SectionIngredientSummary = () => {
           </TableContainer>
         )}
       </Paper>
+        {debugMode && (
+          <Box sx={{ mt:2, p:1, border:'1px dashed #ccc', borderRadius:1, background:'#fafafa', fontSize:12 }}>
+            <Typography variant="subtitle2" sx={{ mb:1, color:'#333' }}>Debug (visible only with ?debug=1)</Typography>
+            <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ recipes, sectionSummaryRows, ingredientMatrixRows, foodColumns }, null, 2)}</pre>
+          </Box>
+        )}
   {/* Removed duplicate bottom Print button (header Print retained) */}
 
       <Dialog open={printDialogOpen} onClose={()=> setPrintDialogOpen(false)} maxWidth='xl' fullWidth>

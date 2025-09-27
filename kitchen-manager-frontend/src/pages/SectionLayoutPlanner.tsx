@@ -12,6 +12,7 @@ interface Section { id:number; sectionName:string; rows:number; columns:number; 
 const SectionLayoutPlanner: React.FC = () => {
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
+  const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState<number | ''>('');
   const [rows, setRows] = useState<number>(0);
@@ -43,20 +44,31 @@ const SectionLayoutPlanner: React.FC = () => {
     fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r=> r.ok? r.json(): [])
       .then(data => {
+        if (debugMode) console.debug('fetch /vasan-fill-plans ->', data, 'vasansResp', vasansResp);
         const fpList: any[] = Array.isArray(data)? data: [];
         const vasansById = new Map(vasansResp.map(v => [v.id, v]));
-        const optionList: VasanOption[] = fpList.map(fp => ({
-          fillPlanId: fp.id,
-          vasanId: fp.vasanId,
-          vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-          foodName: fp.foodName,
-        }));
+        const optionList: VasanOption[] = fpList.map(fp => {
+          // fp.foodPlans is an array of foods; normalize to a single display string
+          let foodName = '';
+          if (Array.isArray(fp.foodPlans)) {
+            const names = fp.foodPlans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
+            foodName = names.length === 1 ? names[0] : names.join(', ');
+          }
+          return {
+            fillPlanId: fp.id,
+            vasanId: fp.vasanId,
+            vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+            foodName,
+          };
+        });
+        if (debugMode) console.debug('Computed vasanOptions', optionList);
         setVasanOptions(optionList);
       });
     // fetch allowed counts from latest vasan nos calculation entry
     fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r => r.ok ? r.json() : null)
       .then(data => {
+        if (debugMode) console.debug('fetch /vasan-nos-calculation-entries/latest ->', data);
         const map: Record<number, Record<string, number>> = {};
         if (data && Array.isArray(data.entries)) {
           data.entries.forEach((e: any) => {
@@ -77,6 +89,7 @@ const SectionLayoutPlanner: React.FC = () => {
     fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r=> r.ok? r.json(): [])
       .then(data => {
+        if (debugMode) console.debug('fetch /api/sections ->', data);
         const list = Array.isArray(data)? data: [];
         // Apply custom ordering: if sections include Mahraj, Bapashree, Sadguru variants, place them in this order
         const mapNameToPriority = (name: string) => {
@@ -132,6 +145,7 @@ const SectionLayoutPlanner: React.FC = () => {
         fetch(`${API_BASE_URL}/section-layout/latest?eventId=${selectedAnnkutEvent}&sectionId=${section.id}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
           .then(r=> r.ok? r.json(): null)
           .then(saved => {
+            if (debugMode) console.debug('fetch section-layout latest ->', { sectionId: section.id, saved });
             if (!saved) return; // keep initial grid if none saved
             if (Array.isArray(saved.cells)) {
               setLayout(prev => {
@@ -258,6 +272,10 @@ const SectionLayoutPlanner: React.FC = () => {
 
   const allowedForCurrentSection = useMemo(() => {
     const sId = typeof selectedSectionId === 'number' ? selectedSectionId : -1;
+    if (debugMode) {
+      console.debug('allowedBySection for current sId', sId, allowedBySection);
+      console.debug('placedByKey', placedByKey);
+    }
     return allowedBySection[sId] || {};
   }, [allowedBySection, selectedSectionId]);
 
@@ -385,10 +403,16 @@ const SectionLayoutPlanner: React.FC = () => {
               const key = `${v.vasanId}::${food.toLowerCase()}`;
               // If the selected section has an allowed list, show only those items present in that list
               // If the section has NO allowed list at all, hide everything (user expects no items)
-              if (!sectionHasAllowed) {
+              // If there are explicit allowed rules for any section, and the current section
+              // is not in that map, hide items. But if there are no allowed rules at all,
+              // treat items as unlimited and show them.
+              const hasAnyAllowedRules = Object.keys(allowedBySection).length > 0;
+              if (hasAnyAllowedRules && !sectionHasAllowed) {
                 return null;
               }
-              if (!(key in allowedForCurrentSection)) {
+              // If the current section has an allowed map, enforce it. If it doesn't, allow items.
+              const currentAllowedMap = allowedForCurrentSection;
+              if (Object.keys(currentAllowedMap).length > 0 && !(key in currentAllowedMap)) {
                 return null;
               }
               const allowed = allowedForCurrentSection[key];
@@ -486,6 +510,12 @@ const SectionLayoutPlanner: React.FC = () => {
           </Box>
         )}
       </Paper>
+      {debugMode && (
+        <Box sx={{ mt:2, p:1, border:'1px dashed #ccc', borderRadius:1, background:'#fafafa', fontSize:12 }}>
+          <Typography variant='subtitle2' sx={{ mb:1, color:'#333' }}>Debug (visible only with ?debug=1)</Typography>
+          <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ sections, selectedSectionId, rows, cols, vasanOptions, layout, allowedBySection, allowedForCurrentSection, placedByKey }, null, 2)}</pre>
+        </Box>
+      )}
       <Box sx={{ display:'flex', flexWrap:'wrap', gap:1, mt:1 }}>
         {Object.entries(foodColorMap).map(([foodKey, color]) => (
           <Box key={foodKey} sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3, borderRadius:1, background:color, color:getContrast(color), fontSize:11 }}>
