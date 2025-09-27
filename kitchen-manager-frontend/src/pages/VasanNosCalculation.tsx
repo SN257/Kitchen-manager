@@ -33,13 +33,23 @@ const VasanNosCalculation: React.FC = () => {
         const token = localStorage.getItem('token');
         if (!token) return;
         fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setVasans(Array.isArray(d) ? d : []));
+            .then(r => r.json()).then(d => {
+                if (debugMode) console.debug('fetch /vasans ->', d);
+                setVasans(Array.isArray(d) ? d : []);
+            });
         fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setFillPlans(Array.isArray(d)? d: []));
+            .then(r => r.json()).then(d => {
+                if (debugMode) console.debug('fetch /vasan-fill-plans ->', d);
+                setFillPlans(Array.isArray(d)? d: []);
+            });
         fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setSections(Array.isArray(d) ? d : []));
+            .then(r => r.json()).then(d => {
+                if (debugMode) console.debug('fetch /api/sections ->', d);
+                setSections(Array.isArray(d) ? d : []);
+            });
         fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
             .then(r => r.json()).then(data => {
+                if (debugMode) console.debug('fetch /vasan-nos-calculation-entries/latest ->', data);
                 if (data && data.id && data.entries) {
                     setEntryId(data.id);
                     setRawSavedEntries(data.entries);
@@ -49,61 +59,66 @@ const VasanNosCalculation: React.FC = () => {
 
     // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new keys.
     useEffect(() => {
-        if (!rawSavedEntries || !fillPlans.length) return;
+        if (!rawSavedEntries || !fillPlans.length) {
+            if (debugMode) console.debug('Skipping mapping: rawSavedEntries or fillPlans missing', { rawSavedEntries, fillPlansLength: fillPlans.length });
+            return;
+        }
         const map: Record<string, string> = {};
+        if (debugMode) console.debug('Starting mapping rawSavedEntries -> counts', { rawSavedEntries, fillPlans });
         
-        rawSavedEntries.forEach((v: any) => {
+        rawSavedEntries.forEach((v: any, idx: number) => {
+            if (debugMode) console.debug(`Mapping entry #${idx}`, v);
             const savedFoodName = v.foodName; // may be undefined on legacy data or comma-separated for grouped entries
             
             if (savedFoodName) {
-                // Check if this is a comma-separated list (grouped entry)
                 if (savedFoodName.includes(',')) {
-                    // This is a grouped entry with multiple foods
-                    // Find the matching fill plan that has these exact foods
                     const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
+                    if (debugMode) console.debug('Detected grouped savedFoodName', savedFoods);
                     const matchingFillPlan = fillPlans.find(fp => {
                         if (fp.vasanId !== v.vasanId) return false;
-                        const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                        const fpFoods = fp.foodPlans.map((plan: any) => (plan.foodName || '').trim());
+                        // Compare ignoring case/whitespace
                         return fpFoods.length === savedFoods.length && 
-                               savedFoods.every((food: string) => fpFoods.includes(food));
+                               savedFoods.every((food: string) => fpFoods.some((p: string) => p.toLowerCase() === food.toLowerCase()));
                     });
-                    
+                    if (debugMode) console.debug('matchingFillPlan for grouped', matchingFillPlan);
                     if (matchingFillPlan) {
                         v.sectionEntries?.forEach((s: any) => {
                             const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
                             map[key] = String(s.count);
+                            if (debugMode) console.debug('Mapped grouped key', key, '->', s.count);
                         });
                     }
                 } else {
-                    // Single food entry
                     v.sectionEntries?.forEach((s: any) => {
                         const key = `${buildRowKey(v.vasanId, savedFoodName)}_${s.sectionId}`;
                         map[key] = String(s.count);
+                        if (debugMode) console.debug('Mapped single key', key, '->', s.count);
                     });
                 }
             } else {
                 // Legacy fallback: find matching fill plan for this vasan
                 const relatedPlans = fillPlans.filter(fp => fp.vasanId === v.vasanId);
+                if (debugMode) console.debug('Legacy fallback relatedPlans', relatedPlans.map(rp => ({ id: rp.id, foods: rp.foodPlans })), 'for vasanId', v.vasanId);
                 if (relatedPlans.length === 1) {
                     const fp = relatedPlans[0];
                     if (fp.foodPlans.length === 1) {
-                        // Single food in single fill plan
                         v.sectionEntries?.forEach((s: any) => {
                             const key = `${buildRowKey(v.vasanId, fp.foodPlans[0].foodName)}_${s.sectionId}`;
                             map[key] = String(s.count);
+                            if (debugMode) console.debug('Mapped legacy single key', key, '->', s.count);
                         });
                     } else if (fp.foodPlans.length > 1) {
-                        // Multiple foods in single fill plan - use grouped key
                         v.sectionEntries?.forEach((s: any) => {
                             const key = `fillplan_${fp.id}_grouped_${s.sectionId}`;
                             map[key] = String(s.count);
+                            if (debugMode) console.debug('Mapped legacy grouped key', key, '->', s.count);
                         });
                     }
                 }
-                // If multiple fill plans exist and we have no foodName, skip to avoid ambiguous distribution
             }
         });
-        
+        if (debugMode) console.debug('Final mapped counts', map);
         setCounts({ ...map });
     }, [rawSavedEntries, fillPlans]);
 
