@@ -36,16 +36,33 @@ const SectionNosSummary: React.FC = () => {
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
     ]).then(([planData, nosData, recipeData, weightData]) => {
+      console.log('🔍 Fill Plans Data:', planData);
+      console.log('🔍 Nos Entries Data:', nosData);
+      console.log('🔍 API Base URL:', API_BASE_URL);
+      console.log('🔍 Selected Event:', selectedAnnkutEvent);
       setFillPlans(Array.isArray(planData)? planData: []);
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
       setRecipes(Array.isArray(recipeData)? recipeData: []);
       setWeights(Array.isArray(weightData)? weightData: []);
+    }).catch(error => {
+      console.error('❌ API Error:', error);
     }).finally(()=> setLoading(false));
     // fetch saved summary
     fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const rows = useMemo(() => {
+    console.log('🔄 Processing data - Fill Plans:', fillPlans.length, 'Nos Entries:', nosEntries.length);
+    
+    if (fillPlans.length === 0) {
+      console.log('❌ No fill plans data available');
+      return [];
+    }
+    if (nosEntries.length === 0) {
+      console.log('❌ No nos entries data available');
+      return [];
+    }
+    
     // Create a mapping of nos entries by vasan-food combination
     const keyFor = (vasanId:number, foodName:string) => `${vasanId}::${(foodName||'').toLowerCase()}`;
     const nosEntryMap = new Map<string, VasanNosEntry>();
@@ -56,6 +73,7 @@ const SectionNosSummary: React.FC = () => {
         // Individual food entry
         const k = keyFor(e.vasanId, e.foodName);
         nosEntryMap.set(k, e);
+        console.log('📝 Individual entry:', k, '→', e.totalVasan, 'nos');
       }
     });
     
@@ -65,6 +83,7 @@ const SectionNosSummary: React.FC = () => {
       if (e.foodName && e.foodName.includes(',')) {
         const k = `grouped_${e.vasanId}_${e.foodName}`;
         groupedEntries.set(k, e);
+        console.log('📝 Grouped entry:', k, '→', e.totalVasan, 'nos');
       }
     });
 
