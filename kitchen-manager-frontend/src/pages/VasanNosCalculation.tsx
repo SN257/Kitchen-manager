@@ -30,19 +30,56 @@ const VasanNosCalculation: React.FC = () => {
         if (!selectedAnnkutEvent) { setVasans([]); setSections([]); setCounts({}); setEntryId(null); return; }
         const token = localStorage.getItem('token');
         if (!token) return;
+        
+        console.log('🔍 API Base URL:', API_BASE_URL);
+        console.log('🔍 Selected Event:', selectedAnnkutEvent);
+        
         fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setVasans(Array.isArray(d) ? d : []));
+            .then(r => {
+                console.log('🔍 Vasans response status:', r.status, r.statusText);
+                return r.ok ? r.json() : Promise.reject(`Vasans API failed: ${r.status} ${r.statusText}`);
+            })
+            .then(d => {
+                console.log('🔍 Vasans data:', d);
+                setVasans(Array.isArray(d) ? d : []);
+            })
+            .catch(err => console.error('❌ Vasans fetch error:', err));
+            
         fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setFillPlans(Array.isArray(d)? d: []));
+            .then(r => {
+                console.log('🔍 Fill plans response status:', r.status, r.statusText);
+                return r.ok ? r.json() : Promise.reject(`Fill plans API failed: ${r.status} ${r.statusText}`);
+            })
+            .then(d => {
+                console.log('🔍 Fill plans data:', d);
+                setFillPlans(Array.isArray(d) ? d : []);
+            })
+            .catch(err => console.error('❌ Fill plans fetch error:', err));
+            
         fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(d => setSections(Array.isArray(d) ? d : []));
+            .then(r => {
+                console.log('🔍 Sections response status:', r.status, r.statusText);
+                return r.ok ? r.json() : Promise.reject(`Sections API failed: ${r.status} ${r.statusText}`);
+            })
+            .then(d => {
+                console.log('🔍 Sections data:', d);
+                setSections(Array.isArray(d) ? d : []);
+            })
+            .catch(err => console.error('❌ Sections fetch error:', err));
+            
         fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.json()).then(data => {
+            .then(r => {
+                console.log('🔍 Nos entries response status:', r.status, r.statusText);
+                return r.ok ? r.json() : Promise.reject(`Nos entries API failed: ${r.status} ${r.statusText}`);
+            })
+            .then(data => {
+                console.log('🔍 Nos entries data:', data);
                 if (data && data.id && data.entries) {
                     setEntryId(data.id);
                     setRawSavedEntries(data.entries);
                 } else { setEntryId(null); setCounts({}); }
-            });
+            })
+            .catch(err => console.error('❌ Nos entries fetch error:', err));
     }, [selectedAnnkutEvent, API_BASE_URL]);
 
     // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new keys.

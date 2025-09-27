@@ -24,7 +24,7 @@
     "migration:generate": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d ./src/config/typeorm.config.ts ./src/database/migrations/migration",
     "migration:create": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:create -d ./src/config/typeorm.config.ts ../src/database/migrations/migration",
     "migration:run": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d ./src/config/typeorm.config.ts",
-  "migration:revert": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./src/config/typeorm.config.ts",
+    "migration:revert": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d ./src/config/typeorm.config.ts",
   "schema:drop": "cross-env TS_NODE=true npx ts-node -P ./tsconfig.json -r tsconfig-paths/register ./node_modules/typeorm/cli.js schema:drop -d ./src/config/typeorm.config.ts"
   },
   "dependencies": {
