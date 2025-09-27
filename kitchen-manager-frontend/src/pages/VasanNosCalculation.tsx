@@ -90,39 +90,56 @@ const VasanNosCalculation: React.FC = () => {
         const map: Record<string, string> = {};
         
         rawSavedEntries.forEach((v: any) => {
+            console.log('🔍 Processing saved entry:', v);
             const savedFoodName = v.foodName; // may be undefined on legacy data or comma-separated for grouped entries
             
             if (savedFoodName) {
                 // Check if this is a comma-separated list (grouped entry)
                 if (savedFoodName.includes(',')) {
+                    console.log('🔍 Processing grouped entry for vasan:', v.vasanId, 'foods:', savedFoodName);
                     // This is a grouped entry with multiple foods
                     if (fillPlans.length > 0) {
                         // Find the matching fill plan that has these exact foods
                         const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
+                        console.log('🔍 Looking for fill plan with foods:', savedFoods);
+                        
                         const matchingFillPlan = fillPlans.find(fp => {
                             if (fp.vasanId !== v.vasanId) return false;
                             const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                            console.log('🔍 Checking fill plan', fp.id, 'with foods:', fpFoods);
                             return fpFoods.length === savedFoods.length && 
                                    savedFoods.every((food: string) => fpFoods.includes(food));
                         });
                         
                         if (matchingFillPlan) {
+                            console.log('🔍 Found matching fill plan:', matchingFillPlan.id);
                             v.sectionEntries?.forEach((s: any) => {
                                 const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
+                                console.log('🔍 Setting grouped key:', key, '=', s.count);
+                                map[key] = String(s.count);
+                            });
+                        } else {
+                            console.log('🔍 No matching fill plan found, using saved key');
+                            v.sectionEntries?.forEach((s: any) => {
+                                const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
+                                console.log('🔍 Setting saved grouped key:', key, '=', s.count);
                                 map[key] = String(s.count);
                             });
                         }
                     } else {
-                        // No fill plans available, use saved data directly
+                        console.log('🔍 No fill plans available, using saved grouped key');
                         v.sectionEntries?.forEach((s: any) => {
                             const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
+                            console.log('🔍 Setting saved grouped key:', key, '=', s.count);
                             map[key] = String(s.count);
                         });
                     }
                 } else {
+                    console.log('🔍 Processing single food entry for vasan:', v.vasanId, 'food:', savedFoodName);
                     // Single food entry
                     v.sectionEntries?.forEach((s: any) => {
                         const key = `${buildRowKey(v.vasanId, savedFoodName)}_${s.sectionId}`;
+                        console.log('🔍 Setting single food key:', key, '=', s.count);
                         map[key] = String(s.count);
                     });
                 }
@@ -150,6 +167,11 @@ const VasanNosCalculation: React.FC = () => {
         });
         
         console.log('🔍 Generated counts map:', map);
+        console.log('🔍 Expected keys based on rows and sections:');
+        // Log what keys we expect to see based on current rows and sections
+        if (fillPlans.length > 0 || (rawSavedEntries && rawSavedEntries.length > 0)) {
+            console.log('🔍 Fill plans available, checking expected keys...');
+        }
         setCounts({ ...map });
     }, [rawSavedEntries, fillPlans]);
 
@@ -175,10 +197,14 @@ const VasanNosCalculation: React.FC = () => {
                 const capacity = base?.totalVasan || 0;
                 const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
                 
+                console.log('🔍 Processing fill plan:', fp.id, 'for vasan:', fp.vasanId, 'with foods:', foods);
+                
                 if (foods.length === 1) {
                     // Single food in this fill plan - create separate row
+                    const key = rowKey(fp.vasanId, foods[0]);
+                    console.log('🔍 Creating single food row with key:', key);
                     result.push({
-                        key: rowKey(fp.vasanId, foods[0]),
+                        key: key,
                         vasanId: fp.vasanId,
                         vasanName: vasanName,
                         foodName: foods[0],
@@ -188,8 +214,10 @@ const VasanNosCalculation: React.FC = () => {
                 } else if (foods.length > 1) {
                     // Multiple foods in this fill plan - create grouped row
                     const foodDisplay = foods.join(', ');
+                    const key = `fillplan_${fp.id}_grouped`;
+                    console.log('🔍 Creating grouped row with key:', key);
                     result.push({
-                        key: `fillplan_${fp.id}_grouped`,
+                        key: key,
                         vasanId: fp.vasanId,
                         vasanName: vasanName,
                         foodName: foodDisplay,
@@ -235,6 +263,7 @@ const VasanNosCalculation: React.FC = () => {
         }
         
         console.log('🔍 Generated rows:', result);
+        console.log('🔍 Row keys generated:', result.map(r => r.key));
         return result;
     }, [fillPlans, vasans, rawSavedEntries]);
 
