@@ -82,9 +82,11 @@ const VasanNosCalculation: React.FC = () => {
             .catch(err => console.error('❌ Nos entries fetch error:', err));
     }, [selectedAnnkutEvent, API_BASE_URL]);
 
-    // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new keys.
+    // When rawSavedEntries are available, map saved counts to new keys.
     useEffect(() => {
-        if (!rawSavedEntries || !fillPlans.length) return;
+        if (!rawSavedEntries || rawSavedEntries.length === 0) return;
+        
+        console.log('🔍 Mapping saved entries to counts:', rawSavedEntries);
         const map: Record<string, string> = {};
         
         rawSavedEntries.forEach((v: any) => {
@@ -94,18 +96,26 @@ const VasanNosCalculation: React.FC = () => {
                 // Check if this is a comma-separated list (grouped entry)
                 if (savedFoodName.includes(',')) {
                     // This is a grouped entry with multiple foods
-                    // Find the matching fill plan that has these exact foods
-                    const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
-                    const matchingFillPlan = fillPlans.find(fp => {
-                        if (fp.vasanId !== v.vasanId) return false;
-                        const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
-                        return fpFoods.length === savedFoods.length && 
-                               savedFoods.every((food: string) => fpFoods.includes(food));
-                    });
-                    
-                    if (matchingFillPlan) {
+                    if (fillPlans.length > 0) {
+                        // Find the matching fill plan that has these exact foods
+                        const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
+                        const matchingFillPlan = fillPlans.find(fp => {
+                            if (fp.vasanId !== v.vasanId) return false;
+                            const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                            return fpFoods.length === savedFoods.length && 
+                                   savedFoods.every((food: string) => fpFoods.includes(food));
+                        });
+                        
+                        if (matchingFillPlan) {
+                            v.sectionEntries?.forEach((s: any) => {
+                                const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
+                                map[key] = String(s.count);
+                            });
+                        }
+                    } else {
+                        // No fill plans available, use saved data directly
                         v.sectionEntries?.forEach((s: any) => {
-                            const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
+                            const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
                             map[key] = String(s.count);
                         });
                     }
@@ -139,6 +149,7 @@ const VasanNosCalculation: React.FC = () => {
             }
         });
         
+        console.log('🔍 Generated counts map:', map);
         setCounts({ ...map });
     }, [rawSavedEntries, fillPlans]);
 
@@ -152,43 +163,80 @@ const VasanNosCalculation: React.FC = () => {
 
     // Build row models - group by fill plan ID, multiple foods per fill plan show grouped
     const rows = React.useMemo(() => {
+        console.log('🔍 Building rows with:', { fillPlans: fillPlans.length, vasans: vasans.length });
         const vasanMap = new Map(vasans.map(v => [v.id, v]));
         const result: any[] = [];
         
-        // Create rows based on each fill plan
-        fillPlans.forEach(fp => {
-            const base = vasanMap.get(fp.vasanId);
-            const vasanName = base?.vasanName || `Vasan ${fp.vasanId}`;
-            const capacity = base?.totalVasan || 0;
-            const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
-            
-            if (foods.length === 1) {
-                // Single food in this fill plan - create separate row
-                result.push({
-                    key: rowKey(fp.vasanId, foods[0]),
-                    vasanId: fp.vasanId,
-                    vasanName: vasanName,
-                    foodName: foods[0],
-                    capacity: capacity,
-                    fillPlanId: fp.id,
-                });
-            } else if (foods.length > 1) {
-                // Multiple foods in this fill plan - create grouped row
-                const foodDisplay = foods.join(', ');
-                result.push({
-                    key: `fillplan_${fp.id}_grouped`,
-                    vasanId: fp.vasanId,
-                    vasanName: vasanName,
-                    foodName: foodDisplay,
-                    capacity: capacity,
-                    fillPlanId: fp.id,
-                    isGrouped: true,
-                });
-            }
-        });
+        // If we have fill plans, use them to generate rows
+        if (fillPlans.length > 0) {
+            fillPlans.forEach(fp => {
+                const base = vasanMap.get(fp.vasanId);
+                const vasanName = base?.vasanName || `Vasan ${fp.vasanId}`;
+                const capacity = base?.totalVasan || 0;
+                const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                
+                if (foods.length === 1) {
+                    // Single food in this fill plan - create separate row
+                    result.push({
+                        key: rowKey(fp.vasanId, foods[0]),
+                        vasanId: fp.vasanId,
+                        vasanName: vasanName,
+                        foodName: foods[0],
+                        capacity: capacity,
+                        fillPlanId: fp.id,
+                    });
+                } else if (foods.length > 1) {
+                    // Multiple foods in this fill plan - create grouped row
+                    const foodDisplay = foods.join(', ');
+                    result.push({
+                        key: `fillplan_${fp.id}_grouped`,
+                        vasanId: fp.vasanId,
+                        vasanName: vasanName,
+                        foodName: foodDisplay,
+                        capacity: capacity,
+                        fillPlanId: fp.id,
+                        isGrouped: true,
+                    });
+                }
+            });
+        } else if (rawSavedEntries && rawSavedEntries.length > 0) {
+            // Fallback: if no fill plans but we have saved entries, create rows from saved data
+            console.log('🔍 Creating rows from saved entries since no fill plans available');
+            rawSavedEntries.forEach(entry => {
+                const base = vasanMap.get(entry.vasanId);
+                const vasanName = entry.vasanName || base?.vasanName || `Vasan ${entry.vasanId}`;
+                const capacity = base?.totalVasan || 0;
+                
+                if (entry.foodName) {
+                    if (entry.foodName.includes(',')) {
+                        // Grouped entry
+                        result.push({
+                            key: `saved_${entry.vasanId}_grouped`,
+                            vasanId: entry.vasanId,
+                            vasanName: vasanName,
+                            foodName: entry.foodName,
+                            capacity: capacity,
+                            isGrouped: true,
+                            fromSavedData: true,
+                        });
+                    } else {
+                        // Single food entry
+                        result.push({
+                            key: rowKey(entry.vasanId, entry.foodName),
+                            vasanId: entry.vasanId,
+                            vasanName: vasanName,
+                            foodName: entry.foodName,
+                            capacity: capacity,
+                            fromSavedData: true,
+                        });
+                    }
+                }
+            });
+        }
         
+        console.log('🔍 Generated rows:', result);
         return result;
-    }, [fillPlans, vasans]);
+    }, [fillPlans, vasans, rawSavedEntries]);
 
     const buildPayload = () => {
         return rows.map(r => {
@@ -252,6 +300,20 @@ const VasanNosCalculation: React.FC = () => {
                     <Button variant="outlined" sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={() => setPrintPreviewOpen(true)}>Print</Button>
                 </Box>
             </Box>
+            
+            {/* Debug Information */}
+            <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: 12, fontFamily: 'monospace' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>Debug Info:</Typography>
+                <div>Vasans loaded: {vasans.length}</div>
+                <div>Fill Plans loaded: {fillPlans.length}</div>
+                <div>Sections loaded: {sections.length}</div>
+                <div>Rows generated: {rows.length}</div>
+                <div>Saved entries: {rawSavedEntries?.length || 0}</div>
+                <div>Counts keys: {Object.keys(counts).length}</div>
+                {vasans.length > 0 && <div>Vasans: {vasans.map(v => `${v.vasanName}(${v.id})`).join(', ')}</div>}
+                {sections.length > 0 && <div>Sections: {sections.map(s => `${s.sectionName}(${s.id})`).join(', ')}</div>}
+            </Box>
+
             <Paper elevation={3} sx={{ p: 2, borderRadius: 2, mx: 'auto', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
                 <TableContainer sx={{ overflowY: 'auto', overflowX: 'auto' }}>
                     <Table stickyHeader>
@@ -326,7 +388,7 @@ const VasanNosCalculation: React.FC = () => {
                                 {selectedEventDetails && <span> | Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}</span>}
                             </div>
                         </div>
-                        {vasans.length === 0 || sections.length === 0 ? (
+                        {rows.length === 0 || sections.length === 0 ? (
                             <div style={{ textAlign: 'center', color: '#999', fontStyle: 'italic', padding: 40, fontSize: 16 }}>No data available for printing.</div>
                         ) : (
                             <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
