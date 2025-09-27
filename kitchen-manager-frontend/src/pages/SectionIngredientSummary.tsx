@@ -21,8 +21,6 @@ const SectionIngredientSummary = () => {
   const API_BASE_URL = useApiBaseUrl();
   const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [rawSummaryData, setRawSummaryData] = useState<any>(null);
-  const [showZeroFlour, setShowZeroFlour] = useState<boolean>(false);
   const [sectionSummaryRows, setSectionSummaryRows] = useState<SectionVasanSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -32,78 +30,33 @@ const SectionIngredientSummary = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     setLoading(true);
-    // Detailed fetch so we can log status and raw bodies for debugging in production
-    const recipesPromise = fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }})
-      .then(async r => {
-        const txt = await r.text();
-        let body: any = null;
-        try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
-        return { ok: r.ok, status: r.status, body };
-      }).catch(err => ({ ok:false, status:0, body:null, error: String(err) }));
-
-    const summaryPromise = fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }})
-      .then(async r => {
-        const txt = await r.text();
-        let body: any = null;
-        try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
-        return { ok: r.ok, status: r.status, body };
-      }).catch(err => ({ ok:false, status:0, body:null, error: String(err) }));
-
-    Promise.all([recipesPromise, summaryPromise])
-      .then(([recipesResp, summaryResp]) => {
-        if (debugMode) console.debug('SectionIngredientSummary fetched (detailed)', { recipesResp, summaryResp });
-        setRawSummaryData(summaryResp);
-        setRecipes(Array.isArray(recipesResp.body)? recipesResp.body: []);
-        const summaryData = summaryResp.body;
-        if (summaryData && Array.isArray(summaryData.rows)) {
-          // Normalize row properties we rely on
-          const normalized = summaryData.rows.map((r:any) => ({
-            vasanId: r.vasanId,
+    Promise.all([
+      fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
+      fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null)
+    ]).then(([recipesData, summaryData]) => {
+      if (debugMode) console.debug('SectionIngredientSummary fetched', { recipesData, summaryData });
+      setRecipes(Array.isArray(recipesData)? recipesData: []);
+  if (summaryData && Array.isArray(summaryData.rows)) {
+        // Normalize row properties we rely on
+        const normalized = summaryData.rows.map((r:any) => ({
+          vasanId: r.vasanId,
             vasanName: r.vasanName,
             foodName: r.foodName,
             flourRequiredKg: Number(r.flourRequiredKg) || 0
-          }));
-          if (debugMode) {
-            console.debug('Normalized section summary rows count:', normalized.length);
-            console.debug('Normalized foods:', normalized.map((r:any)=> r.foodName));
-          }
-          setSectionSummaryRows(normalized);
-        } else {
-          setSectionSummaryRows([]);
-        }
-      }).finally(()=> setLoading(false));
-  }, [API_BASE_URL, selectedAnnkutEvent]);
-
-  // Manual snapshot refresh for debugging (button triggers this)
-  const refreshSnapshot = async () => {
-    const token = localStorage.getItem('token');
-    if (!token || !selectedAnnkutEvent) return;
-    if (debugMode) console.debug('Manual refreshSnapshot triggered');
-    setLoading(true);
-    try {
-      const r = await fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }});
-      const txt = await r.text();
-      let body:any = null;
-      try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
-      if (debugMode) console.debug('refreshSnapshot response', { ok: r.ok, status: r.status, body });
-      setRawSummaryData({ ok: r.ok, status: r.status, body });
-      if (body && Array.isArray(body.rows)) {
-        const normalized = body.rows.map((r:any) => ({ vasanId: r.vasanId, vasanName: r.vasanName, foodName: r.foodName, flourRequiredKg: Number(r.flourRequiredKg) || 0 }));
+        }));
         setSectionSummaryRows(normalized);
       } else {
         setSectionSummaryRows([]);
       }
-    } catch (err:any) {
-      if (debugMode) console.debug('refreshSnapshot error', err);
-    } finally { setLoading(false); }
-  };
+    }).finally(()=> setLoading(false));
+  }, [API_BASE_URL, selectedAnnkutEvent]);
 
   // Build matrix similar to AnnkutIngredientSummary: columns = foods, rows = ingredients, cell = kg used
   const { ingredientMatrixRows, foodColumns } = useMemo(() => {
     const recipeMap = new Map(recipes.map(r => [r.vangiName.trim().toLowerCase(), r]));
     // Build columns: one per vasan + food combination
+    // include foods even when flourRequiredKg is 0 so the table shows columns (values may be zero)
     const cols = sectionSummaryRows
-      .filter(r => showZeroFlour ? true : r.flourRequiredKg > 0)
       .map(r => {
         const recipe = recipeMap.get(r.foodName?.trim().toLowerCase());
         const compositeKey = `${r.vasanId}::${r.foodName?.trim().toLowerCase()}`;
@@ -141,7 +94,10 @@ const SectionIngredientSummary = () => {
         }
       });
       return { id: idx+1, ingredientName: ingName, perFood, totalKg: total };
-    }).filter(r => r.totalKg > 0);
+    });
+
+    // keep rows even if totalKg is 0 so the table can show ingredient rows (will show 0s)
+    // if you prefer to hide zero rows, apply a filter here
 
     return { ingredientMatrixRows: rows, foodColumns: cols };
   }, [sectionSummaryRows, recipes]);
@@ -154,12 +110,8 @@ const SectionIngredientSummary = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Section Ingredient Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center' }}>
-          <Button variant="outlined" disabled={!selectedAnnkutEvent} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={refreshSnapshot}>Refresh Snapshot</Button>
+        <Box sx={{ ml:'auto' }}>
           <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
-          <Button variant={showZeroFlour? 'contained':'outlined'} disabled={!selectedAnnkutEvent} sx={{ borderColor:'#245D6B', color: showZeroFlour? '#fff' : '#245D6B', bgcolor: showZeroFlour? '#245D6B' : 'transparent', textTransform:'none' }} onClick={()=> setShowZeroFlour(s => !s)}>
-            {showZeroFlour? 'Showing zero-flour foods' : 'Show zero-flour foods'}
-          </Button>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
@@ -167,7 +119,7 @@ const SectionIngredientSummary = () => {
           <Box sx={{ textAlign:'center', py:6, fontStyle:'italic', color:'#245D6B' }}>Select an Annkut event first</Box>
         ) : loading ? (
           <Box sx={{ display:'flex', justifyContent:'center', py:4 }}><CircularProgress /></Box>
-        ) : ingredientMatrixRows.length === 0 ? (
+        ) : foodColumns.length === 0 ? (
           <Box sx={{ textAlign:'center', py:6, fontStyle:'italic', color:'#999' }}>No ingredient data (ensure Section Nos Summary saved).</Box>
         ) : (
           <TableContainer 
@@ -192,15 +144,15 @@ const SectionIngredientSummary = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {ingredientMatrixRows.map((row, idx) => {
+                  {ingredientMatrixRows.map((row, idx) => {
                   const rowBg = idx % 2 === 0 ? '#f7fbfc' : '#eaf3f6';
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg }}>
                       <TableCell sx={{ position:'sticky', left:0, background:rowBg, textAlign:'center', zIndex:2 }}>{row.id}</TableCell>
                       <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:180, maxWidth:180, lineHeight:1.2 }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
-                        const val = row.perFood[col.key];
-                        return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
+                        const val = row.perFood[col.key] || 0;
+                        return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '0.000 kg'}</TableCell>;
                       })}
                       <TableCell align='center' sx={{ fontWeight:600, color:'#245D6B' }}>{row.totalKg.toFixed(3)} kg</TableCell>
                     </TableRow>
@@ -214,7 +166,7 @@ const SectionIngredientSummary = () => {
         {debugMode && (
           <Box sx={{ mt:2, p:1, border:'1px dashed #ccc', borderRadius:1, background:'#fafafa', fontSize:12 }}>
             <Typography variant="subtitle2" sx={{ mb:1, color:'#333' }}>Debug (visible only with ?debug=1)</Typography>
-            <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ recipes, sectionSummaryRows, ingredientMatrixRows, foodColumns, rawSummaryData }, null, 2)}</pre>
+            <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ recipes, sectionSummaryRows, ingredientMatrixRows, foodColumns }, null, 2)}</pre>
           </Box>
         )}
   {/* Removed duplicate bottom Print button (header Print retained) */}
