@@ -34,7 +34,13 @@ const SectionIngredientSummary = () => {
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null)
     ]).then(([recipesData, summaryData]) => {
-      if (debugMode) console.debug('SectionIngredientSummary fetched', { recipesData, summaryData });
+      if (debugMode) {
+        console.debug('SectionIngredientSummary fetched', { recipesData, summaryData });
+        console.debug('Summary data rows count:', summaryData?.rows?.length || 0);
+        if (summaryData?.rows) {
+          console.debug('Summary rows foods:', summaryData.rows.map((r:any) => r.foodName));
+        }
+      }
       setRecipes(Array.isArray(recipesData)? recipesData: []);
   if (summaryData && Array.isArray(summaryData.rows)) {
         // Normalize row properties we rely on
