@@ -21,6 +21,7 @@ const SectionIngredientSummary = () => {
   const API_BASE_URL = useApiBaseUrl();
   const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [rawSummaryData, setRawSummaryData] = useState<any>(null);
   const [sectionSummaryRows, setSectionSummaryRows] = useState<SectionVasanSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -30,32 +31,71 @@ const SectionIngredientSummary = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     setLoading(true);
-    Promise.all([
-      fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
-      fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null)
-    ]).then(([recipesData, summaryData]) => {
-      if (debugMode) {
-        console.debug('SectionIngredientSummary fetched', { recipesData, summaryData });
-        console.debug('Summary data rows count:', summaryData?.rows?.length || 0);
-        if (summaryData?.rows) {
-          console.debug('Summary rows foods:', summaryData.rows.map((r:any) => r.foodName));
-        }
-      }
-      setRecipes(Array.isArray(recipesData)? recipesData: []);
-  if (summaryData && Array.isArray(summaryData.rows)) {
-        // Normalize row properties we rely on
-        const normalized = summaryData.rows.map((r:any) => ({
-          vasanId: r.vasanId,
+    // Detailed fetch so we can log status and raw bodies for debugging in production
+    const recipesPromise = fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }})
+      .then(async r => {
+        const txt = await r.text();
+        let body: any = null;
+        try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
+        return { ok: r.ok, status: r.status, body };
+      }).catch(err => ({ ok:false, status:0, body:null, error: String(err) }));
+
+    const summaryPromise = fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }})
+      .then(async r => {
+        const txt = await r.text();
+        let body: any = null;
+        try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
+        return { ok: r.ok, status: r.status, body };
+      }).catch(err => ({ ok:false, status:0, body:null, error: String(err) }));
+
+    Promise.all([recipesPromise, summaryPromise])
+      .then(([recipesResp, summaryResp]) => {
+        if (debugMode) console.debug('SectionIngredientSummary fetched (detailed)', { recipesResp, summaryResp });
+        setRawSummaryData(summaryResp);
+        setRecipes(Array.isArray(recipesResp.body)? recipesResp.body: []);
+        const summaryData = summaryResp.body;
+        if (summaryData && Array.isArray(summaryData.rows)) {
+          // Normalize row properties we rely on
+          const normalized = summaryData.rows.map((r:any) => ({
+            vasanId: r.vasanId,
             vasanName: r.vasanName,
             foodName: r.foodName,
             flourRequiredKg: Number(r.flourRequiredKg) || 0
-        }));
+          }));
+          if (debugMode) {
+            console.debug('Normalized section summary rows count:', normalized.length);
+            console.debug('Normalized foods:', normalized.map((r:any)=> r.foodName));
+          }
+          setSectionSummaryRows(normalized);
+        } else {
+          setSectionSummaryRows([]);
+        }
+      }).finally(()=> setLoading(false));
+  }, [API_BASE_URL, selectedAnnkutEvent]);
+
+  // Manual snapshot refresh for debugging (button triggers this)
+  const refreshSnapshot = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !selectedAnnkutEvent) return;
+    if (debugMode) console.debug('Manual refreshSnapshot triggered');
+    setLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }});
+      const txt = await r.text();
+      let body:any = null;
+      try { body = txt ? JSON.parse(txt) : null; } catch (e) { body = txt; }
+      if (debugMode) console.debug('refreshSnapshot response', { ok: r.ok, status: r.status, body });
+      setRawSummaryData({ ok: r.ok, status: r.status, body });
+      if (body && Array.isArray(body.rows)) {
+        const normalized = body.rows.map((r:any) => ({ vasanId: r.vasanId, vasanName: r.vasanName, foodName: r.foodName, flourRequiredKg: Number(r.flourRequiredKg) || 0 }));
         setSectionSummaryRows(normalized);
       } else {
         setSectionSummaryRows([]);
       }
-    }).finally(()=> setLoading(false));
-  }, [API_BASE_URL, selectedAnnkutEvent]);
+    } catch (err:any) {
+      if (debugMode) console.debug('refreshSnapshot error', err);
+    } finally { setLoading(false); }
+  };
 
   // Build matrix similar to AnnkutIngredientSummary: columns = foods, rows = ingredients, cell = kg used
   const { ingredientMatrixRows, foodColumns } = useMemo(() => {
@@ -113,7 +153,8 @@ const SectionIngredientSummary = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Section Ingredient Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto' }}>
+        <Box sx={{ ml:'auto', display:'flex', gap:1 }}>
+          <Button variant="outlined" disabled={!selectedAnnkutEvent} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={refreshSnapshot}>Refresh Snapshot</Button>
           <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
         </Box>
       </Box>
@@ -169,7 +210,7 @@ const SectionIngredientSummary = () => {
         {debugMode && (
           <Box sx={{ mt:2, p:1, border:'1px dashed #ccc', borderRadius:1, background:'#fafafa', fontSize:12 }}>
             <Typography variant="subtitle2" sx={{ mb:1, color:'#333' }}>Debug (visible only with ?debug=1)</Typography>
-            <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ recipes, sectionSummaryRows, ingredientMatrixRows, foodColumns }, null, 2)}</pre>
+            <pre style={{ maxHeight:360, overflow:'auto', whiteSpace:'pre-wrap' }}>{JSON.stringify({ recipes, sectionSummaryRows, ingredientMatrixRows, foodColumns, rawSummaryData }, null, 2)}</pre>
           </Box>
         )}
   {/* Removed duplicate bottom Print button (header Print retained) */}
