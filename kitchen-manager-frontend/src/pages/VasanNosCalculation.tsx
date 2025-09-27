@@ -22,6 +22,8 @@ const VasanNosCalculation: React.FC = () => {
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
     const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
     const [rawSavedEntries, setRawSavedEntries] = useState<any[] | null>(null); // store raw for remapping when fillPlans arrive
+    // Enable a small on-page debug panel when ?debug=1 is present in the URL
+    const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
     // Row key builder (unique for vasan + food) placed early so it can be reused in loaders
     const buildRowKey = (vasanId:number, foodName:string) => `${vasanId}::${(foodName || '').toLowerCase()}`;
@@ -272,6 +274,12 @@ const VasanNosCalculation: React.FC = () => {
                     </Box>
                 )}
             </Paper>
+            {debugMode && (
+                <Box sx={{ mt: 2, p: 1, border: '1px dashed #ccc', borderRadius: 1, background: '#fafafa', fontSize: 12 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, color: '#333' }}>Debug (visible only with ?debug=1)</Typography>
+                    <pre style={{ maxHeight: 240, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify({ rawSavedEntries, fillPlans, counts }, null, 2)}</pre>
+                </Box>
+            )}
             <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
                 <MuiAlert elevation={6} variant="filled" onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</MuiAlert>
             </Snackbar>
