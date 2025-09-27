@@ -36,16 +36,12 @@ const SectionNosSummary: React.FC = () => {
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
     ]).then(([planData, nosData, recipeData, weightData]) => {
-      console.log('🔍 Fill Plans Data:', planData);
-      console.log('🔍 Nos Entries Data:', nosData);
-      console.log('🔍 API Base URL:', API_BASE_URL);
-      console.log('🔍 Selected Event:', selectedAnnkutEvent);
       setFillPlans(Array.isArray(planData)? planData: []);
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
       setRecipes(Array.isArray(recipeData)? recipeData: []);
       setWeights(Array.isArray(weightData)? weightData: []);
     }).catch(error => {
-      console.error('❌ API Error:', error);
+      console.error('API Error:', error);
     }).finally(()=> setLoading(false));
     // fetch saved summary
     fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
@@ -53,6 +49,8 @@ const SectionNosSummary: React.FC = () => {
 
   const rows = useMemo(() => {
     console.log('🔄 Processing data - Fill Plans:', fillPlans.length, 'Nos Entries:', nosEntries.length);
+    console.log('🔄 Fill plans data:', fillPlans);
+    console.log('🔄 Nos entries data:', nosEntries);
     
     if (fillPlans.length === 0) {
       console.log('❌ No fill plans data available');
@@ -73,7 +71,6 @@ const SectionNosSummary: React.FC = () => {
         // Individual food entry
         const k = keyFor(e.vasanId, e.foodName);
         nosEntryMap.set(k, e);
-        console.log('📝 Individual entry:', k, '→', e.totalVasan, 'nos');
       }
     });
     
@@ -83,7 +80,6 @@ const SectionNosSummary: React.FC = () => {
       if (e.foodName && e.foodName.includes(',')) {
         const k = `grouped_${e.vasanId}_${e.foodName}`;
         groupedEntries.set(k, e);
-        console.log('📝 Grouped entry:', k, '→', e.totalVasan, 'nos');
       }
     });
 
@@ -119,7 +115,6 @@ const SectionNosSummary: React.FC = () => {
         const currentIndex = vasanFoodIndex.get(vasanFoodKey) || 0;
         vasanFoodIndex.set(vasanFoodKey, currentIndex + 1);
         
-
         
         let planNos = 0;
         let planTotalWeightKg = 0;
@@ -186,6 +181,8 @@ const SectionNosSummary: React.FC = () => {
           }
         }
 
+        console.log(`🔍 Processing ${displayName}: nos=${planNos}, weightKg=${planTotalWeightKg}, entryFound=${entryFound}`);
+        
         if (planTotalWeightKg > 0) {
           // find recipe: special handling for 'મગજ'
           let recipe: RecipeEntry | undefined;
@@ -197,6 +194,8 @@ const SectionNosSummary: React.FC = () => {
           const flourForPlan = recipe && Number(recipe.items_per_kg) > 0 ? (planTotalWeightKg / Number(recipe.items_per_kg)) : 0;
           const gramPerPiece = weightMap.get((foodPlan.foodName||'').trim().toLowerCase()) || 0;
           const nangForPlan = gramPerPiece > 0 ? (planTotalWeightKg * 1000) / gramPerPiece : 0;
+
+          console.log(`🔍 Calculations for ${displayName}: flour=${flourForPlan}, nang=${nangForPlan}`);
 
           if (!agg.has(foodKey)) {
             agg.set(foodKey, { id: plan.id, foodName: displayName, totalNos: planNos, totalWeightKg: planTotalWeightKg, flourRequiredKg: flourForPlan, totalNang: nangForPlan });
@@ -214,6 +213,9 @@ const SectionNosSummary: React.FC = () => {
     // Convert agg map to array and sort by foodName
     const out = Array.from(agg.values()).map((v, idx) => ({ ...v, id: v.id || idx+1 }));
     out.sort((a,b) => (a.foodName||'').localeCompare(b.foodName || ''));
+    
+    console.log('🔍 Final aggregated results:', out);
+    
     return out;
   }, [fillPlans, nosEntries, recipes, weights]);
 
