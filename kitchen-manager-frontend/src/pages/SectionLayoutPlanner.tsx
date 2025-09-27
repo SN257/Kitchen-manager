@@ -89,13 +89,24 @@ const SectionLayoutPlanner: React.FC = () => {
         const map: Record<number, Record<string, number>> = {};
         if (data && Array.isArray(data.entries)) {
           data.entries.forEach((e: any) => {
-            const key = `${e.vasanId}::${(e.foodName || '').toString().trim().toLowerCase()}`;
+            const rawFood = (e.foodName || '').toString().trim();
+            // split composite food names like "a, b , c" or using semicolons
+            const parts = rawFood.length === 0 ? [''] : rawFood.split(/[,;]+/).map((p:string) => p.trim()).filter(Boolean);
             if (Array.isArray(e.sectionEntries)) {
               e.sectionEntries.forEach((se: any) => {
                 const sId = Number(se.sectionId);
                 const count = Number(se.count) || 0;
                 if (!map[sId]) map[sId] = {};
-                map[sId][key] = (map[sId][key] || 0) + count;
+                // for each part, create a normalized key and add the count
+                parts.forEach((part: string) => {
+                  const key = `${e.vasanId}::${part.toLowerCase()}`;
+                  map[sId][key] = (map[sId][key] || 0) + count;
+                });
+                // if no parts found, still add an empty-key entry for compatibility
+                if (parts.length === 0) {
+                  const key = `${e.vasanId}::${''.toLowerCase()}`;
+                  map[sId][key] = (map[sId][key] || 0) + count;
+                }
               });
             }
           });
@@ -300,17 +311,12 @@ const SectionLayoutPlanner: React.FC = () => {
     return allowedBySection[sId] || {};
   }, [allowedBySection, selectedSectionId]);
 
-  const sectionHasAllowed = useMemo(() => {
-    const sId = typeof selectedSectionId === 'number' ? selectedSectionId : -1;
-    return Object.prototype.hasOwnProperty.call(allowedBySection, sId);
-  }, [allowedBySection, selectedSectionId]);
-
   // Unique color per unique food (case-insensitive). Same food across vasans shares color.
   const foodColorMap = useMemo(() => {
     const palette = [
       '#245D6B', '#8E44AD', '#D35400', '#16A085', '#2C3E50', '#C0392B', '#7F8C8D', '#9C27B0', '#607D8B', '#795548', '#3F51B5', '#388E3C'
     ];
-    const foods = Array.from(new Set(vasanOptions.map(v => (v.foodName || '').trim().toLowerCase()).filter(Boolean)));
+    const foods = Array.from(new Set(vasanOptions.map(v => ((v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase())).filter(Boolean)));
     const map: Record<string,string> = {};
     foods.forEach((f, idx) => { map[f] = palette[idx % palette.length]; });
     return map;
@@ -418,20 +424,11 @@ const SectionLayoutPlanner: React.FC = () => {
           <Typography variant='subtitle2' sx={{ fontWeight:700, color:'#245D6B', mb:1 }}>Available Vasans (drag to grid)</Typography>
           <Box sx={{ display:'flex', flexWrap:'wrap', gap:1 }}>
             {vasanOptions.map(v => {
-              const food = (v.foodName && v.foodName.trim()) || '';
-              const normalized = (v as any).normalizedFoodName || food.toLowerCase();
-              const color = getFoodColor(food);
+              const normalized = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
+              const displayFood = (v.foodName && v.foodName.trim()) || (v as any).normalizedFoodName || '';
+              const color = getFoodColor(displayFood);
               const textColor = getContrast(color);
               const key = `${v.vasanId}::${normalized}`;
-              // If the selected section has an allowed list, show only those items present in that list
-              // If the section has NO allowed list at all, hide everything (user expects no items)
-              // If there are explicit allowed rules for any section, and the current section
-              // is not in that map, hide items. But if there are no allowed rules at all,
-              // treat items as unlimited and show them.
-              const hasAnyAllowedRules = Object.keys(allowedBySection).length > 0;
-              if (hasAnyAllowedRules && !sectionHasAllowed) {
-                return null;
-              }
               // If the current section has an allowed map, enforce it. If it doesn't, allow items.
               const currentAllowedMap = allowedForCurrentSection;
               if (Object.keys(currentAllowedMap).length > 0 && !(key in currentAllowedMap)) {
@@ -449,7 +446,7 @@ const SectionLayoutPlanner: React.FC = () => {
                   onDragStart={()=> setDragVasan(v)}
                   onDragEnd={()=> setDragVasan(null)}
                   sx={{ px:1, py:0.5, border:`1px solid ${color}`, borderRadius:1, fontSize:12, cursor:'grab', background:color, color:textColor, userSelect:'none', boxShadow:'0 0 0 1px rgba(255,255,255,0.3)' }}>
-                  {v.vasanName}{food ? ` (${food})` : ''}
+                  {v.vasanName}{displayFood ? ` (${displayFood})` : ''}
                   {typeof remaining === 'number' ? ` (${remaining} left)` : (assignedCounts[v.fillPlanId] ? ` (${assignedCounts[v.fillPlanId]})` : '')}
                 </Box>
               );
@@ -474,7 +471,7 @@ const SectionLayoutPlanner: React.FC = () => {
           >
             {layout.map((cell, idx) => {
               const vasan = (cell as any).fillPlanId ? fillPlanLookup.get((cell as any).fillPlanId) : undefined;
-              const cellFood = vasan?.foodName?.trim();
+              const cellFood = (vasan?.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
               const bgColor = vasan ? getFoodColor(cellFood) : '#fafafa';
               const txtColor = vasan ? getContrast(bgColor) : '#777';
               return (
@@ -518,10 +515,10 @@ const SectionLayoutPlanner: React.FC = () => {
           zIndex:1,
                   }}
                 >
-                  {vasan ? (
+                      {vasan ? (
                     <>
                       <Typography variant='caption' sx={{ lineHeight:1.1 }}>
-                        {vasan.vasanName}{vasan.foodName ? ` (${vasan.foodName.trim()})` : ''}
+                        {vasan.vasanName}{(vasan.foodName && vasan.foodName.trim()) || (vasan as any).normalizedFoodName ? ` (${(vasan.foodName && vasan.foodName.trim()) || (vasan as any).normalizedFoodName})` : ''}
                       </Typography>
                       <IconButton size='small' onClick={()=> removeCellVasan(idx)} sx={{ position:'absolute', top:2, right:2, color:txtColor }}><DeleteIcon fontSize='inherit' /></IconButton>
                     </>
@@ -585,7 +582,7 @@ const SectionLayoutPlanner: React.FC = () => {
               >
                 {item.cells.map((cell, cIdx) => {
                   const vasan = (cell as any)?.fillPlanId ? fillPlanLookup.get((cell as any).fillPlanId) : undefined;
-                  const cellFood = vasan?.foodName?.trim();
+                  const cellFood = (vasan?.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
                   const bgColor = vasan ? getFoodColor(cellFood) : '#fafafa';
                   const txtColor = vasan ? getContrast(bgColor) : '#245D6B';
                   return (
