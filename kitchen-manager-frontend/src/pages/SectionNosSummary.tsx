@@ -13,6 +13,7 @@ interface WeightEntry { vangiName:string; gram:number }
 const SectionNosSummary: React.FC = () => {
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
+  const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
   const [loading, setLoading] = useState(false);
   const [fillPlans, setFillPlans] = useState<VasanFillPlan[]>([]);
   const [nosEntries, setNosEntries] = useState<VasanNosEntry[]>([]);
@@ -36,16 +37,18 @@ const SectionNosSummary: React.FC = () => {
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
       fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
     ]).then(([planData, nosData, recipeData, weightData]) => {
+      if (debugMode) console.debug('SectionNosSummary fetched', { planData, nosData, recipeData, weightData });
       setFillPlans(Array.isArray(planData)? planData: []);
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
       setRecipes(Array.isArray(recipeData)? recipeData: []);
       setWeights(Array.isArray(weightData)? weightData: []);
     }).finally(()=> setLoading(false));
     // fetch saved summary
-    fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
+    fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (debugMode) console.debug('fetched cached summary', saved); if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const rows = useMemo(() => {
+    if (debugMode) console.debug('Computing SectionNosSummary rows', { fillPlans, nosEntries, recipes, weights, cachedRows });
     // Create a mapping of nos entries by vasan-food combination
     const keyFor = (vasanId:number, foodName:string) => `${vasanId}::${(foodName||'').toLowerCase()}`;
     const nosEntryMap = new Map<string, VasanNosEntry>();
@@ -65,6 +68,7 @@ const SectionNosSummary: React.FC = () => {
       if (e.foodName && e.foodName.includes(',')) {
         const k = `grouped_${e.vasanId}_${e.foodName}`;
         groupedEntries.set(k, e);
+        if (debugMode) console.debug('Registered grouped entry', { key: k, entry: e });
       }
     });
 
@@ -117,12 +121,13 @@ const SectionNosSummary: React.FC = () => {
           // Try grouped first
           for (const [, groupedEntry] of groupedEntries) {
             if (groupedEntry.vasanId === plan.vasanId && groupedEntry.foodName) {
-              const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim());
-              if (groupedFoods.includes(foodPlan.foodName)) {
+              const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim().toLowerCase());
+              if (groupedFoods.includes((foodPlan.foodName||'').trim().toLowerCase())) {
                 planNos = groupedEntry.totalVasan;
                 const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
                 planTotalWeightKg = planNos * weightPerVasanKg;
                 entryFound = true;
+                if (debugMode) console.debug('Matched grouped entry for plan', { planId: plan.id, foodPlan: foodPlan.foodName, groupedEntry });
                 break;
               }
             }
@@ -137,6 +142,7 @@ const SectionNosSummary: React.FC = () => {
               const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
               planTotalWeightKg = planNos * weightPerVasanKg;
               entryFound = true;
+              if (debugMode) console.debug('Matched individual entry for plan (preferGrouped fallback)', { individualKey, individualEntry });
             }
           }
         } else {
@@ -154,12 +160,13 @@ const SectionNosSummary: React.FC = () => {
           if (!entryFound) {
             for (const [, groupedEntry] of groupedEntries) {
               if (groupedEntry.vasanId === plan.vasanId && groupedEntry.foodName) {
-                const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim());
-                if (groupedFoods.includes(foodPlan.foodName)) {
+                const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim().toLowerCase());
+                if (groupedFoods.includes((foodPlan.foodName||'').trim().toLowerCase())) {
                   planNos = groupedEntry.totalVasan;
                   const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
                   planTotalWeightKg = planNos * weightPerVasanKg;
                   entryFound = true;
+                  if (debugMode) console.debug('Matched grouped entry for plan (individual fallback)', { planId: plan.id, foodPlan: foodPlan.foodName, groupedEntry });
                   break;
                 }
               }
@@ -168,6 +175,7 @@ const SectionNosSummary: React.FC = () => {
         }
 
         if (planTotalWeightKg > 0) {
+          if (debugMode) console.debug('Plan contributes weight', { planId: plan.id, vasanId: plan.vasanId, food: foodPlan.foodName, planNos, planTotalWeightKg });
           // find recipe: special handling for 'મગજ'
           let recipe: RecipeEntry | undefined;
           if ((foodPlan.foodName || '').trim().startsWith('મગજ')) {
@@ -181,20 +189,24 @@ const SectionNosSummary: React.FC = () => {
 
           if (!agg.has(foodKey)) {
             agg.set(foodKey, { id: plan.id, foodName: displayName, totalNos: planNos, totalWeightKg: planTotalWeightKg, flourRequiredKg: flourForPlan, totalNang: nangForPlan });
+            if (debugMode) console.debug('Created agg entry', { foodKey, entry: agg.get(foodKey) });
           } else {
             const cur = agg.get(foodKey)!;
             // Don't accumulate nos anymore, just accumulate weights and calculations
             cur.totalWeightKg += planTotalWeightKg;
             cur.flourRequiredKg += flourForPlan;
             cur.totalNang += nangForPlan;
+            if (debugMode) console.debug('Updated agg entry', { foodKey, entry: cur });
           }
         }
       });
     });
 
+    if (debugMode) console.debug('Final aggregated map', Array.from(agg.entries()));
     // Convert agg map to array and sort by foodName
     const out = Array.from(agg.values()).map((v, idx) => ({ ...v, id: v.id || idx+1 }));
     out.sort((a,b) => (a.foodName||'').localeCompare(b.foodName || ''));
+    if (debugMode) console.debug('Rows output', out);
     return out;
   }, [fillPlans, nosEntries, recipes, weights]);
 
@@ -310,6 +322,12 @@ const SectionNosSummary: React.FC = () => {
           </TableContainer>
         )}
       </Paper>
+      {debugMode && (
+        <Box sx={{ mt: 2, p: 1, border: '1px dashed #ccc', borderRadius: 1, background: '#fafafa', fontSize: 12 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, color: '#333' }}>Debug (visible only with ?debug=1)</Typography>
+          <pre style={{ maxHeight: 360, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify({ fillPlans, nosEntries, recipes, weights, rows, cachedRows }, null, 2)}</pre>
+        </Box>
+      )}
       <Dialog open={printOpen} onClose={()=> setPrintOpen(false)} maxWidth='xl' fullWidth>
           <DialogTitle>Section Nos Summary Print</DialogTitle>
           <DialogContent
