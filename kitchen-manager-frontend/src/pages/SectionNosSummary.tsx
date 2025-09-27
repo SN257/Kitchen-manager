@@ -40,27 +40,12 @@ const SectionNosSummary: React.FC = () => {
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
       setRecipes(Array.isArray(recipeData)? recipeData: []);
       setWeights(Array.isArray(weightData)? weightData: []);
-    }).catch(error => {
-      console.error('API Error:', error);
     }).finally(()=> setLoading(false));
     // fetch saved summary
     fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const rows = useMemo(() => {
-    console.log('🔄 Processing data - Fill Plans:', fillPlans.length, 'Nos Entries:', nosEntries.length);
-    console.log('🔄 Fill plans data:', fillPlans);
-    console.log('🔄 Nos entries data:', nosEntries);
-    
-    if (fillPlans.length === 0) {
-      console.log('❌ No fill plans data available');
-      return [];
-    }
-    if (nosEntries.length === 0) {
-      console.log('❌ No nos entries data available');
-      return [];
-    }
-    
     // Create a mapping of nos entries by vasan-food combination
     const keyFor = (vasanId:number, foodName:string) => `${vasanId}::${(foodName||'').toLowerCase()}`;
     const nosEntryMap = new Map<string, VasanNosEntry>();
@@ -115,6 +100,7 @@ const SectionNosSummary: React.FC = () => {
         const currentIndex = vasanFoodIndex.get(vasanFoodKey) || 0;
         vasanFoodIndex.set(vasanFoodKey, currentIndex + 1);
         
+
         
         let planNos = 0;
         let planTotalWeightKg = 0;
@@ -181,8 +167,6 @@ const SectionNosSummary: React.FC = () => {
           }
         }
 
-        console.log(`🔍 Processing ${displayName}: nos=${planNos}, weightKg=${planTotalWeightKg}, entryFound=${entryFound}`);
-        
         if (planTotalWeightKg > 0) {
           // find recipe: special handling for 'મગજ'
           let recipe: RecipeEntry | undefined;
@@ -194,8 +178,6 @@ const SectionNosSummary: React.FC = () => {
           const flourForPlan = recipe && Number(recipe.items_per_kg) > 0 ? (planTotalWeightKg / Number(recipe.items_per_kg)) : 0;
           const gramPerPiece = weightMap.get((foodPlan.foodName||'').trim().toLowerCase()) || 0;
           const nangForPlan = gramPerPiece > 0 ? (planTotalWeightKg * 1000) / gramPerPiece : 0;
-
-          console.log(`🔍 Calculations for ${displayName}: flour=${flourForPlan}, nang=${nangForPlan}`);
 
           if (!agg.has(foodKey)) {
             agg.set(foodKey, { id: plan.id, foodName: displayName, totalNos: planNos, totalWeightKg: planTotalWeightKg, flourRequiredKg: flourForPlan, totalNang: nangForPlan });
@@ -213,9 +195,6 @@ const SectionNosSummary: React.FC = () => {
     // Convert agg map to array and sort by foodName
     const out = Array.from(agg.values()).map((v, idx) => ({ ...v, id: v.id || idx+1 }));
     out.sort((a,b) => (a.foodName||'').localeCompare(b.foodName || ''));
-    
-    console.log('🔍 Final aggregated results:', out);
-    
     return out;
   }, [fillPlans, nosEntries, recipes, weights]);
 

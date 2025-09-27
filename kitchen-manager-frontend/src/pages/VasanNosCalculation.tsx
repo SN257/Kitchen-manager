@@ -30,37 +30,24 @@ const VasanNosCalculation: React.FC = () => {
         if (!selectedAnnkutEvent) { setVasans([]); setSections([]); setCounts({}); setEntryId(null); return; }
         const token = localStorage.getItem('token');
         if (!token) return;
-        
         fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.ok ? r.json() : Promise.reject(`Vasans API failed: ${r.status} ${r.statusText}`))
-            .then(d => setVasans(Array.isArray(d) ? d : []))
-            .catch(err => console.error('Vasans fetch error:', err));
-            
+            .then(r => r.json()).then(d => setVasans(Array.isArray(d) ? d : []));
         fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.ok ? r.json() : Promise.reject(`Fill plans API failed: ${r.status} ${r.statusText}`))
-            .then(d => setFillPlans(Array.isArray(d) ? d : []))
-            .catch(err => console.error('Fill plans fetch error:', err));
-            
+            .then(r => r.json()).then(d => setFillPlans(Array.isArray(d)? d: []));
         fetch(`${API_BASE_URL}/api/sections?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.ok ? r.json() : Promise.reject(`Sections API failed: ${r.status} ${r.statusText}`))
-            .then(d => setSections(Array.isArray(d) ? d : []))
-            .catch(err => console.error('Sections fetch error:', err));
-            
+            .then(r => r.json()).then(d => setSections(Array.isArray(d) ? d : []));
         fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
-            .then(r => r.ok ? r.json() : Promise.reject(`Nos entries API failed: ${r.status} ${r.statusText}`))
-            .then(data => {
+            .then(r => r.json()).then(data => {
                 if (data && data.id && data.entries) {
                     setEntryId(data.id);
                     setRawSavedEntries(data.entries);
                 } else { setEntryId(null); setCounts({}); }
-            })
-            .catch(err => console.error('Nos entries fetch error:', err));
+            });
     }, [selectedAnnkutEvent, API_BASE_URL]);
 
-    // When rawSavedEntries are available, map saved counts to new keys.
+    // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new keys.
     useEffect(() => {
-        if (!rawSavedEntries || rawSavedEntries.length === 0) return;
-        
+        if (!rawSavedEntries || !fillPlans.length) return;
         const map: Record<string, string> = {};
         
         rawSavedEntries.forEach((v: any) => {
@@ -70,38 +57,18 @@ const VasanNosCalculation: React.FC = () => {
                 // Check if this is a comma-separated list (grouped entry)
                 if (savedFoodName.includes(',')) {
                     // This is a grouped entry with multiple foods
-                    if (fillPlans.length > 0) {
-                        // Find the matching fill plan that has these exact foods
-                        const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
-                        
-                        const matchingFillPlan = fillPlans.find(fp => {
-                            if (fp.vasanId !== v.vasanId) return false;
-                            const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
-                            
-                            // Normalize food names for comparison (trim and lowercase)
-                            const normalizedSavedFoods = savedFoods.map((f: string) => f.trim().toLowerCase());
-                            const normalizedFpFoods = fpFoods.map((f: string) => f.trim().toLowerCase());
-                            
-                            const lengthMatch = normalizedFpFoods.length === normalizedSavedFoods.length;
-                            const allMatch = normalizedSavedFoods.every((food: string) => normalizedFpFoods.includes(food));
-                            
-                            return lengthMatch && allMatch;
-                        });
-                        
-                        if (matchingFillPlan) {
-                            v.sectionEntries?.forEach((s: any) => {
-                                const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
-                                map[key] = String(s.count);
-                            });
-                        } else {
-                            v.sectionEntries?.forEach((s: any) => {
-                                const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
-                                map[key] = String(s.count);
-                            });
-                        }
-                    } else {
+                    // Find the matching fill plan that has these exact foods
+                    const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
+                    const matchingFillPlan = fillPlans.find(fp => {
+                        if (fp.vasanId !== v.vasanId) return false;
+                        const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                        return fpFoods.length === savedFoods.length && 
+                               savedFoods.every((food: string) => fpFoods.includes(food));
+                    });
+                    
+                    if (matchingFillPlan) {
                         v.sectionEntries?.forEach((s: any) => {
-                            const key = `saved_${v.vasanId}_grouped_${s.sectionId}`;
+                            const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
                             map[key] = String(s.count);
                         });
                     }
@@ -151,76 +118,40 @@ const VasanNosCalculation: React.FC = () => {
         const vasanMap = new Map(vasans.map(v => [v.id, v]));
         const result: any[] = [];
         
-        // If we have fill plans, use them to generate rows
-        if (fillPlans.length > 0) {
-            fillPlans.forEach(fp => {
-                const base = vasanMap.get(fp.vasanId);
-                const vasanName = base?.vasanName || `Vasan ${fp.vasanId}`;
-                const capacity = base?.totalVasan || 0;
-                const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
-                
-                if (foods.length === 1) {
-                    // Single food in this fill plan - create separate row
-                    const key = rowKey(fp.vasanId, foods[0]);
-                    result.push({
-                        key: key,
-                        vasanId: fp.vasanId,
-                        vasanName: vasanName,
-                        foodName: foods[0],
-                        capacity: capacity,
-                        fillPlanId: fp.id,
-                    });
-                } else if (foods.length > 1) {
-                    // Multiple foods in this fill plan - create grouped row
-                    const foodDisplay = foods.join(', ');
-                    const key = `fillplan_${fp.id}_grouped`;
-                    result.push({
-                        key: key,
-                        vasanId: fp.vasanId,
-                        vasanName: vasanName,
-                        foodName: foodDisplay,
-                        capacity: capacity,
-                        fillPlanId: fp.id,
-                        isGrouped: true,
-                    });
-                }
-            });
-        } else if (rawSavedEntries && rawSavedEntries.length > 0) {
-            // Fallback: if no fill plans but we have saved entries, create rows from saved data
-            rawSavedEntries.forEach(entry => {
-                const base = vasanMap.get(entry.vasanId);
-                const vasanName = entry.vasanName || base?.vasanName || `Vasan ${entry.vasanId}`;
-                const capacity = base?.totalVasan || 0;
-                
-                if (entry.foodName) {
-                    if (entry.foodName.includes(',')) {
-                        // Grouped entry
-                        result.push({
-                            key: `saved_${entry.vasanId}_grouped`,
-                            vasanId: entry.vasanId,
-                            vasanName: vasanName,
-                            foodName: entry.foodName,
-                            capacity: capacity,
-                            isGrouped: true,
-                            fromSavedData: true,
-                        });
-                    } else {
-                        // Single food entry
-                        result.push({
-                            key: rowKey(entry.vasanId, entry.foodName),
-                            vasanId: entry.vasanId,
-                            vasanName: vasanName,
-                            foodName: entry.foodName,
-                            capacity: capacity,
-                            fromSavedData: true,
-                        });
-                    }
-                }
-            });
-        }
+        // Create rows based on each fill plan
+        fillPlans.forEach(fp => {
+            const base = vasanMap.get(fp.vasanId);
+            const vasanName = base?.vasanName || `Vasan ${fp.vasanId}`;
+            const capacity = base?.totalVasan || 0;
+            const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+            
+            if (foods.length === 1) {
+                // Single food in this fill plan - create separate row
+                result.push({
+                    key: rowKey(fp.vasanId, foods[0]),
+                    vasanId: fp.vasanId,
+                    vasanName: vasanName,
+                    foodName: foods[0],
+                    capacity: capacity,
+                    fillPlanId: fp.id,
+                });
+            } else if (foods.length > 1) {
+                // Multiple foods in this fill plan - create grouped row
+                const foodDisplay = foods.join(', ');
+                result.push({
+                    key: `fillplan_${fp.id}_grouped`,
+                    vasanId: fp.vasanId,
+                    vasanName: vasanName,
+                    foodName: foodDisplay,
+                    capacity: capacity,
+                    fillPlanId: fp.id,
+                    isGrouped: true,
+                });
+            }
+        });
         
         return result;
-    }, [fillPlans, vasans, rawSavedEntries]);
+    }, [fillPlans, vasans]);
 
     const buildPayload = () => {
         return rows.map(r => {
@@ -358,7 +289,7 @@ const VasanNosCalculation: React.FC = () => {
                                 {selectedEventDetails && <span> | Event: {selectedEventDetails.eventName} - {selectedEventDetails.eventYear}</span>}
                             </div>
                         </div>
-                        {rows.length === 0 || sections.length === 0 ? (
+                        {vasans.length === 0 || sections.length === 0 ? (
                             <div style={{ textAlign: 'center', color: '#999', fontStyle: 'italic', padding: 40, fontSize: 16 }}>No data available for printing.</div>
                         ) : (
                             <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
