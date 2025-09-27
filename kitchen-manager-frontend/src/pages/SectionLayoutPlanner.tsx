@@ -47,10 +47,12 @@ const SectionLayoutPlanner: React.FC = () => {
         if (debugMode) console.debug('fetch /vasan-fill-plans ->', data, 'vasansResp', vasansResp);
         const fpList: any[] = Array.isArray(data)? data: [];
         const vasansById = new Map(vasansResp.map(v => [v.id, v]));
-        const optionList: VasanOption[] = fpList.map(fp => {
-          // fp.foodPlans is an array of foods; normalize to a single display string
-          let foodName = '';
-          let normalizedFoodName = '';
+        
+        // Build options: create individual chips for each food in a vasan
+        const optionList: VasanOption[] = [];
+        fpList.forEach(fp => {
+          let foodNames: string[] = [];
+          
           try {
             let plans = fp.foodPlans;
             if (!plans && fp.foodPlan) plans = fp.foodPlan; // fallback
@@ -58,25 +60,34 @@ const SectionLayoutPlanner: React.FC = () => {
               try { plans = JSON.parse(plans); } catch { /* leave as string */ }
             }
             if (Array.isArray(plans)) {
-              const names = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
-              foodName = names.length === 1 ? names[0] : names.join(', ');
+              foodNames = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
             } else if (fp.foodName) {
-              foodName = fp.foodName.toString().trim();
+              // Handle comma-separated food names from vasan nos calculation entries
+              const rawFoodName = fp.foodName.toString().trim();
+              if (rawFoodName.includes(',')) {
+                foodNames = rawFoodName.split(',').map((f: string) => f.trim()).filter(Boolean);
+              } else {
+                foodNames = [rawFoodName];
+              }
             }
-            normalizedFoodName = (foodName || '').toString().trim().toLowerCase();
           } catch (e) {
-            foodName = (fp.foodName || '').toString().trim();
-            normalizedFoodName = (foodName || '').toLowerCase();
+            const rawFoodName = (fp.foodName || '').toString().trim();
+            foodNames = rawFoodName ? [rawFoodName] : [];
           }
-          return {
-            fillPlanId: fp.id,
-            vasanId: fp.vasanId,
-            vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-            foodName,
-            // attach a normalized key for consistent matching
-            // @ts-ignore - adding runtime prop
-            normalizedFoodName,
-          };
+          
+          // Create one option per food name
+          foodNames.forEach(foodName => {
+            const normalizedFoodName = foodName.toLowerCase().trim();
+            optionList.push({
+              fillPlanId: fp.id,
+              vasanId: fp.vasanId,
+              vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+              foodName,
+              // attach a normalized key for consistent matching
+              // @ts-ignore - adding runtime prop
+              normalizedFoodName,
+            });
+          });
         });
         if (debugMode) console.debug('Computed vasanOptions', optionList);
         setVasanOptions(optionList);
@@ -89,24 +100,13 @@ const SectionLayoutPlanner: React.FC = () => {
         const map: Record<number, Record<string, number>> = {};
         if (data && Array.isArray(data.entries)) {
           data.entries.forEach((e: any) => {
-            const rawFood = (e.foodName || '').toString().trim();
-            // split composite food names like "a, b , c" or using semicolons
-            const parts = rawFood.length === 0 ? [''] : rawFood.split(/[,;]+/).map((p:string) => p.trim()).filter(Boolean);
+            const key = `${e.vasanId}::${(e.foodName || '').toString().trim().toLowerCase()}`;
             if (Array.isArray(e.sectionEntries)) {
               e.sectionEntries.forEach((se: any) => {
                 const sId = Number(se.sectionId);
                 const count = Number(se.count) || 0;
                 if (!map[sId]) map[sId] = {};
-                // for each part, create a normalized key and add the count
-                parts.forEach((part: string) => {
-                  const key = `${e.vasanId}::${part.toLowerCase()}`;
-                  map[sId][key] = (map[sId][key] || 0) + count;
-                });
-                // if no parts found, still add an empty-key entry for compatibility
-                if (parts.length === 0) {
-                  const key = `${e.vasanId}::${''.toLowerCase()}`;
-                  map[sId][key] = (map[sId][key] || 0) + count;
-                }
+                map[sId][key] = (map[sId][key] || 0) + count;
               });
             }
           });
@@ -265,7 +265,16 @@ const SectionLayoutPlanner: React.FC = () => {
       }
     }
     setLayout(prev => {
-      const next = prev.map((c, idx) => idx === cellIndex ? { ...c, vasanId: dragVasan.vasanId, fillPlanId: dragVasan.fillPlanId } : c);
+      const next = prev.map((c, idx) => idx === cellIndex ? { 
+        ...c, 
+        vasanId: dragVasan.vasanId, 
+        fillPlanId: dragVasan.fillPlanId,
+        // Store the specific food name for this placement
+        // @ts-ignore
+        foodName: dragVasan.foodName,
+        // @ts-ignore  
+        normalizedFoodName: (dragVasan as any).normalizedFoodName
+      } : c);
       persist(next);
       return next;
     });
@@ -291,12 +300,23 @@ const SectionLayoutPlanner: React.FC = () => {
   const placedByKey = useMemo(() => {
     const map: Record<string, number> = {};
     layout.forEach(c => {
-      const fpId = (c as any).fillPlanId as number | undefined;
-      if (!fpId) return;
-      const v = fillPlanLookup.get(fpId);
-      if (!v) return;
-      const normalized = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
-      const key = `${v.vasanId}::${normalized}`;
+      const cell = c as any;
+      if (!cell.fillPlanId || !cell.vasanId) return;
+      
+      // Use stored food info from cell, fallback to lookup
+      let normalized: string;
+      if (cell.normalizedFoodName) {
+        normalized = cell.normalizedFoodName;
+      } else if (cell.foodName) {
+        normalized = cell.foodName.toString().trim().toLowerCase();
+      } else {
+        // Fallback to lookup
+        const v = fillPlanLookup.get(cell.fillPlanId);
+        if (!v) return;
+        normalized = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
+      }
+      
+      const key = `${cell.vasanId}::${normalized}`;
       map[key] = (map[key] || 0) + 1;
     });
     return map;
@@ -310,6 +330,8 @@ const SectionLayoutPlanner: React.FC = () => {
     }
     return allowedBySection[sId] || {};
   }, [allowedBySection, selectedSectionId]);
+
+
 
   // Unique color per unique food (case-insensitive). Same food across vasans shares color.
   const foodColorMap = useMemo(() => {
@@ -470,24 +492,40 @@ const SectionLayoutPlanner: React.FC = () => {
             }}
           >
             {layout.map((cell, idx) => {
-              const vasan = (cell as any).fillPlanId ? fillPlanLookup.get((cell as any).fillPlanId) : undefined;
-              const cellFood = (vasan?.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
-              const bgColor = vasan ? getFoodColor(cellFood) : '#fafafa';
-              const txtColor = vasan ? getContrast(bgColor) : '#777';
+              const cellData = cell as any;
+              // Use stored food info from cell, fallback to lookup
+              let vasan = cellData.fillPlanId ? fillPlanLookup.get(cellData.fillPlanId) : undefined;
+              let cellFood = '';
+              let vasanName = '';
+              
+              if (cellData.fillPlanId) {
+                if (cellData.foodName) {
+                  cellFood = cellData.foodName.toString().trim();
+                  vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
+                } else if (vasan) {
+                  cellFood = (vasan.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
+                  vasanName = vasan.vasanName;
+                }
+              }
+              
+              const bgColor = cellFood ? getFoodColor(cellFood) : '#fafafa';
+              const txtColor = cellFood ? getContrast(bgColor) : '#777';
               return (
         <Box
                   key={cell.id}
                   onDragOver={e=> e.preventDefault()}
                   onDrop={()=> handleDrop(idx)}
-                  draggable={Boolean(vasan)}
+                  draggable={Boolean(cellFood)}
                   onDragStart={() => {
-                    if (vasan) {
+                    if (cellFood && cellData.fillPlanId) {
                       setDragSourceCellIndex(idx);
                       setDragVasan({
-                        fillPlanId: (cell as any).fillPlanId,
-                        vasanId: vasan.vasanId,
-                        vasanName: vasan.vasanName,
-                        foodName: vasan.foodName,
+                        fillPlanId: cellData.fillPlanId,
+                        vasanId: cellData.vasanId,
+                        vasanName: vasanName,
+                        foodName: cellFood,
+                        // @ts-ignore
+                        normalizedFoodName: cellData.normalizedFoodName || cellFood.toLowerCase().trim(),
                       });
                     }
                   }}
@@ -510,15 +548,15 @@ const SectionLayoutPlanner: React.FC = () => {
                     textAlign:'center',
                     p:1,
                     transition:'background .2s',
-                    cursor: vasan ? (dragSourceCellIndex === idx ? 'grabbing' : 'grab') : 'default',
+                    cursor: cellFood ? (dragSourceCellIndex === idx ? 'grabbing' : 'grab') : 'default',
                     userSelect:'none',
           zIndex:1,
                   }}
                 >
-                      {vasan ? (
+                      {cellFood ? (
                     <>
                       <Typography variant='caption' sx={{ lineHeight:1.1 }}>
-                        {vasan.vasanName}{(vasan.foodName && vasan.foodName.trim()) || (vasan as any).normalizedFoodName ? ` (${(vasan.foodName && vasan.foodName.trim()) || (vasan as any).normalizedFoodName})` : ''}
+                        {vasanName}{cellFood ? ` (${cellFood})` : ''}
                       </Typography>
                       <IconButton size='small' onClick={()=> removeCellVasan(idx)} sx={{ position:'absolute', top:2, right:2, color:txtColor }}><DeleteIcon fontSize='inherit' /></IconButton>
                     </>
@@ -581,10 +619,24 @@ const SectionLayoutPlanner: React.FC = () => {
                 }}
               >
                 {item.cells.map((cell, cIdx) => {
-                  const vasan = (cell as any)?.fillPlanId ? fillPlanLookup.get((cell as any).fillPlanId) : undefined;
-                  const cellFood = (vasan?.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
-                  const bgColor = vasan ? getFoodColor(cellFood) : '#fafafa';
-                  const txtColor = vasan ? getContrast(bgColor) : '#245D6B';
+                  const cellData = cell as any;
+                  // Use stored food info from cell, fallback to lookup
+                  let vasan = cellData.fillPlanId ? fillPlanLookup.get(cellData.fillPlanId) : undefined;
+                  let cellFood = '';
+                  let vasanName = '';
+                  
+                  if (cellData.fillPlanId) {
+                    if (cellData.foodName) {
+                      cellFood = cellData.foodName.toString().trim();
+                      vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
+                    } else if (vasan) {
+                      cellFood = (vasan.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
+                      vasanName = vasan.vasanName;
+                    }
+                  }
+                  
+                  const bgColor = cellFood ? getFoodColor(cellFood) : '#fafafa';
+                  const txtColor = cellFood ? getContrast(bgColor) : '#245D6B';
                   return (
                     <Box
                       key={cIdx}
@@ -608,7 +660,7 @@ const SectionLayoutPlanner: React.FC = () => {
                         }
                       }}
                     >
-                      {vasan ? `${vasan.vasanName}${vasan.foodName?` (${vasan.foodName})`:''}` : ''}
+                      {cellFood ? `${vasanName} (${cellFood})` : ''}
                     </Box>
                   );
                 })}
