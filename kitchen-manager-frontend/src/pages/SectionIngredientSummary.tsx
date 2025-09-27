@@ -99,6 +99,13 @@ const SectionIngredientSummary = () => {
     // keep rows even if totalKg is 0 so the table can show ingredient rows (will show 0s)
     // if you prefer to hide zero rows, apply a filter here
 
+    if (debugMode) {
+      try {
+        const recipeKeys = Array.from(recipeMap.keys()).slice(0,50);
+        console.debug('SectionIngredientSummary computed', { recipeKeys, cols, ingredientNames, rowsPreview: rows.slice(0,50) });
+      } catch (e) { /* ignore */ }
+    }
+
     return { ingredientMatrixRows: rows, foodColumns: cols };
   }, [sectionSummaryRows, recipes]);
 
