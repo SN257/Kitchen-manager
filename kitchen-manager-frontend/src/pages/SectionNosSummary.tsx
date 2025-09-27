@@ -246,7 +246,10 @@ const SectionNosSummary: React.FC = () => {
   // Always prefer cachedRows (DB snapshot) if present so we display what's persisted
   // But compute totalNang on the fly if missing in snapshot
   const displayRows = useMemo(() => {
-    const base = (cachedRows.length ? cachedRows : rows) as any[];
+    // Prefer cachedRows only when it appears at least as comprehensive as computed rows.
+    // This avoids an out-of-date saved snapshot (e.g., from server) hiding computed foods.
+    const base = (cachedRows.length && cachedRows.length >= rows.length) ? cachedRows : rows;
+    if (debugMode) console.debug('displayRows decision', { cachedRowsLength: cachedRows.length, computedRowsLength: rows.length, using: base === cachedRows ? 'cachedRows' : 'rows' });
     if (!base?.length) return base || [];
     const weightMap = new Map<string, number>((weights||[]).map(w => [ (w.vangiName||'').trim().toLowerCase(), Number(w.gram)||0 ]));
     return base.map(r => {
@@ -283,6 +286,17 @@ const SectionNosSummary: React.FC = () => {
         <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center' }}>
           {autoSaving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Auto-saving...</Typography>}
           <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
+          <Button variant='text' size='small' onClick={async () => {
+            if (!selectedAnnkutEvent) return;
+            const token = localStorage.getItem('token'); if (!token) return;
+            try {
+              const res = await fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }});
+              if (res.ok) {
+                const saved = await res.json(); if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows);
+                if (debugMode) console.debug('Refreshed cachedRows', saved);
+              }
+            } catch (e) { if (debugMode) console.debug('Refresh failed', e); }
+          }} sx={{ color:'#245D6B' }}>Refresh Snapshot</Button>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
