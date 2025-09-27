@@ -4,7 +4,8 @@ import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
-interface VasanFillPlan { id:number; vasanId:number; foodName:string; fillWeightKg:number }
+interface FoodPlan { foodName: string; fillWeightKg: number; }
+interface VasanFillPlan { id:number; vasanId:number; foodPlans: FoodPlan[]; }
 interface VasanNosEntry { vasanId:number; vasanName:string; foodName:string; totalVasan:number; sectionEntries:{ sectionId:number; sectionName:string; count:number }[] }
 interface RecipeEntry { vangiName:string; items_per_kg:number; }
 interface WeightEntry { vangiName:string; gram:number }
@@ -45,18 +46,28 @@ const SectionNosSummary: React.FC = () => {
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const rows = useMemo(() => {
-    // Aggregate by foodName (case-insensitive). For each fillPlan, get its nos and per-plan weight, then sum into food-level totals.
+    // Create a mapping of nos entries by vasan-food combination
     const keyFor = (vasanId:number, foodName:string) => `${vasanId}::${(foodName||'').toLowerCase()}`;
-    const compositeMap = new Map<string, VasanNosEntry>();
+    const nosEntryMap = new Map<string, VasanNosEntry>();
+    
+    // Map individual food entries
     nosEntries.forEach(e => {
-      const k = keyFor(e.vasanId, e.foodName || '');
-      compositeMap.set(k, e);
+      if (e.foodName && !e.foodName.includes(',')) {
+        // Individual food entry
+        const k = keyFor(e.vasanId, e.foodName);
+        nosEntryMap.set(k, e);
+      }
     });
-    // legacy aggregate by vasanId
-    const legacyAggregate = new Map<number, number>();
+    
+    // Map grouped entries separately
+    const groupedEntries = new Map<string, VasanNosEntry>();
     nosEntries.forEach(e => {
-      legacyAggregate.set(e.vasanId, (legacyAggregate.get(e.vasanId) || 0) + (e.totalVasan || 0));
+      if (e.foodName && e.foodName.includes(',')) {
+        const k = `grouped_${e.vasanId}_${e.foodName}`;
+        groupedEntries.set(k, e);
+      }
     });
+
     const weightMap = new Map<string, number>((weights||[]).map(w => [ (w.vangiName||'').trim().toLowerCase(), Number(w.gram)||0 ]));
 
     const agg = new Map<string, {
@@ -68,38 +79,117 @@ const SectionNosSummary: React.FC = () => {
       totalNang: number;
     }>();
 
+    // Count how many times each vasan-food combination appears in fill plans
+    const vasanFoodCounts = new Map<string, number>();
+    const vasanFoodIndex = new Map<string, number>();
+    
     fillPlans.forEach(plan => {
-      const compositeKey = keyFor(plan.vasanId, plan.foodName);
-      const nosEntry = compositeMap.get(compositeKey);
-      let planNos = nosEntry ? nosEntry.totalVasan : 0;
-      if (!nosEntry && !plan.foodName && legacyAggregate.has(plan.vasanId)) {
-        planNos = legacyAggregate.get(plan.vasanId)!;
-      }
-      const weightPerVasanKg = Number(plan.fillWeightKg) || 0;
-      const planTotalWeightKg = planNos * weightPerVasanKg;
+      plan.foodPlans.forEach(foodPlan => {
+        const key = `${plan.vasanId}::${(foodPlan.foodName || '').toLowerCase()}`;
+        vasanFoodCounts.set(key, (vasanFoodCounts.get(key) || 0) + 1);
+      });
+    });
 
-      // find recipe: special handling for 'મગજ'
-      let recipe: RecipeEntry | undefined;
-      if ((plan.foodName || '').trim().startsWith('મગજ')) {
-        recipe = recipes.find(r => r.vangiName.trim() === 'મગજ');
-      } else {
-        recipe = recipes.find(r => r.vangiName.toLowerCase() === (plan.foodName||'').toLowerCase());
-      }
-      const flourForPlan = recipe && Number(recipe.items_per_kg) > 0 ? (planTotalWeightKg / Number(recipe.items_per_kg)) : 0;
-      const gramPerPiece = weightMap.get((plan.foodName||'').trim().toLowerCase()) || 0;
-      const nangForPlan = gramPerPiece > 0 ? (planTotalWeightKg * 1000) / gramPerPiece : 0;
+    fillPlans.forEach(plan => {
+      plan.foodPlans.forEach(foodPlan => {
+        const foodKey = (foodPlan.foodName || '').trim().toLowerCase();
+        const displayName = foodPlan.foodName || '';
+        const vasanFoodKey = `${plan.vasanId}::${(foodPlan.foodName || '').toLowerCase()}`;
+        
+        // Track which occurrence this is for this vasan-food combination
+        const currentIndex = vasanFoodIndex.get(vasanFoodKey) || 0;
+        vasanFoodIndex.set(vasanFoodKey, currentIndex + 1);
+        
 
-      const foodKey = (plan.foodName || '').trim().toLowerCase();
-      const displayName = plan.foodName || '';
-      if (!agg.has(foodKey)) {
-        agg.set(foodKey, { id: plan.id, foodName: displayName, totalNos: planNos, totalWeightKg: planTotalWeightKg, flourRequiredKg: flourForPlan, totalNang: nangForPlan });
-      } else {
-        const cur = agg.get(foodKey)!;
-        cur.totalNos += planNos;
-        cur.totalWeightKg += planTotalWeightKg;
-        cur.flourRequiredKg += flourForPlan;
-        cur.totalNang += nangForPlan;
-      }
+        
+        let planNos = 0;
+        let planTotalWeightKg = 0;
+        
+        // Strategy: If there are multiple occurrences of the same vasan-food combination:
+        // - First occurrence: Try individual entry first, then grouped
+        // - Later occurrences: Try grouped entry first, then individual
+        
+        const preferGrouped = currentIndex > 0; // After first occurrence, prefer grouped
+        
+        let entryFound = false;
+        
+        if (preferGrouped) {
+          // Try grouped first
+          for (const [, groupedEntry] of groupedEntries) {
+            if (groupedEntry.vasanId === plan.vasanId && groupedEntry.foodName) {
+              const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim());
+              if (groupedFoods.includes(foodPlan.foodName)) {
+                planNos = groupedEntry.totalVasan;
+                const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
+                planTotalWeightKg = planNos * weightPerVasanKg;
+                entryFound = true;
+                break;
+              }
+            }
+          }
+          
+          // If no grouped entry found, try individual
+          if (!entryFound) {
+            const individualKey = keyFor(plan.vasanId, foodPlan.foodName);
+            const individualEntry = nosEntryMap.get(individualKey);
+            if (individualEntry) {
+              planNos = individualEntry.totalVasan;
+              const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
+              planTotalWeightKg = planNos * weightPerVasanKg;
+              entryFound = true;
+            }
+          }
+        } else {
+          // Try individual first  
+          const individualKey = keyFor(plan.vasanId, foodPlan.foodName);
+          const individualEntry = nosEntryMap.get(individualKey);
+          if (individualEntry) {
+            planNos = individualEntry.totalVasan;
+            const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
+            planTotalWeightKg = planNos * weightPerVasanKg;
+            entryFound = true;
+          }
+          
+          // If no individual entry found, try grouped
+          if (!entryFound) {
+            for (const [, groupedEntry] of groupedEntries) {
+              if (groupedEntry.vasanId === plan.vasanId && groupedEntry.foodName) {
+                const groupedFoods = groupedEntry.foodName.split(',').map(f => f.trim());
+                if (groupedFoods.includes(foodPlan.foodName)) {
+                  planNos = groupedEntry.totalVasan;
+                  const weightPerVasanKg = Number(foodPlan.fillWeightKg) || 0;
+                  planTotalWeightKg = planNos * weightPerVasanKg;
+                  entryFound = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (planTotalWeightKg > 0) {
+          // find recipe: special handling for 'મગજ'
+          let recipe: RecipeEntry | undefined;
+          if ((foodPlan.foodName || '').trim().startsWith('મગજ')) {
+            recipe = recipes.find(r => r.vangiName.trim() === 'મગજ');
+          } else {
+            recipe = recipes.find(r => r.vangiName.toLowerCase() === (foodPlan.foodName||'').toLowerCase());
+          }
+          const flourForPlan = recipe && Number(recipe.items_per_kg) > 0 ? (planTotalWeightKg / Number(recipe.items_per_kg)) : 0;
+          const gramPerPiece = weightMap.get((foodPlan.foodName||'').trim().toLowerCase()) || 0;
+          const nangForPlan = gramPerPiece > 0 ? (planTotalWeightKg * 1000) / gramPerPiece : 0;
+
+          if (!agg.has(foodKey)) {
+            agg.set(foodKey, { id: plan.id, foodName: displayName, totalNos: planNos, totalWeightKg: planTotalWeightKg, flourRequiredKg: flourForPlan, totalNang: nangForPlan });
+          } else {
+            const cur = agg.get(foodKey)!;
+            // Don't accumulate nos anymore, just accumulate weights and calculations
+            cur.totalWeightKg += planTotalWeightKg;
+            cur.flourRequiredKg += flourForPlan;
+            cur.totalNang += nangForPlan;
+          }
+        }
+      });
     });
 
     // Convert agg map to array and sort by foodName
@@ -198,7 +288,6 @@ const SectionNosSummary: React.FC = () => {
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>ID</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Food Name</TableCell>
                   
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nos</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Weight (Kg)</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Total Nang</TableCell>
                   <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center' }}>Flour Required (Kg)</TableCell>
@@ -210,7 +299,6 @@ const SectionNosSummary: React.FC = () => {
                     <TableCell sx={{ textAlign:'center' }}>{idx + 1}</TableCell>
                     <TableCell sx={{ textAlign:'center' }}>{r.foodName}</TableCell>
           
-          <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${r.totalNos} nos`}</TableCell>
           <TableCell sx={{ textAlign:'center' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
           <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${Math.round(r.totalNang || 0)} nos`}</TableCell>
           <TableCell sx={{ textAlign:'center', fontWeight:600 }}>{`${r.flourRequiredKg.toFixed(2)} kg`}</TableCell>
@@ -247,7 +335,6 @@ const SectionNosSummary: React.FC = () => {
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>ID</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Food Name</TableCell>
                     
-                    <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nos</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Weight (Kg)</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Total Nang</TableCell>
                     <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, textAlign:'center', border:'1px solid #245D6B' }}>Flour Required (Kg)</TableCell>
@@ -259,7 +346,6 @@ const SectionNosSummary: React.FC = () => {
                       <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{idx + 1}</TableCell>
                       <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{r.foodName}</TableCell>
             
-            <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.totalNos} nos`}</TableCell>
             <TableCell sx={{ textAlign:'center', border:'1px solid #245D6B' }}>{`${r.totalWeightKg.toFixed(2)} kg`}</TableCell>
             <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${Math.round(r.totalNang || 0)} nos`}</TableCell>
             <TableCell sx={{ textAlign:'center', fontWeight:600, border:'1px solid #245D6B' }}>{`${r.flourRequiredKg.toFixed(2)} kg`}</TableCell>

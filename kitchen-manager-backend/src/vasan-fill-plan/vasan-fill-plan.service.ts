@@ -22,7 +22,12 @@ export class VasanFillPlanService {
       where: { id: dto.vasanId, userId },
     });
     if (!vasan) throw new NotFoundException('Vasan not found or access denied');
-    const plan = this.repo.create({ ...dto, userId });
+    const plan = this.repo.create({ 
+      vasanId: dto.vasanId,
+      eventId: dto.eventId,
+      foodPlans: dto.foodPlans,
+      userId 
+    });
     return this.repo.save(plan);
   }
 

@@ -29,11 +29,11 @@ export class VasanFillPlan {
   @JoinColumn({ name: 'eventId' })
   event?: Event;
 
-  @Column({ type: 'varchar', length: 200 })
-  foodName: string; // selected food to fill
-
-  @Column('float')
-  fillWeightKg: number; // planned fill weight in Kg
+  @Column({ type: 'json' })
+  foodPlans: Array<{
+    foodName: string;
+    fillWeightKg: number;
+  }>; // Array of foods with their planned fill weights
 
   @Column()
   userId: number;

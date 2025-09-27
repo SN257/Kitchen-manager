@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, MenuItem } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, MenuItem, Checkbox, ListItemText, Chip, InputAdornment } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,7 +12,8 @@ import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
 interface Vasan { id: number; vasanName: string; description?: string; }
-interface Plan { id: number; vasanId: number; foodName: string; fillWeightKg: number; vasan?: Vasan; event?: { eventName: string; eventYear: string }; }
+interface FoodPlan { foodName: string; fillWeightKg: number; }
+interface Plan { id: number; vasanId: number; foodPlans: FoodPlan[]; vasan?: Vasan; event?: { eventName: string; eventYear: string }; }
 interface FoodItem { id: number; vangiName: string; category: string; }
 
 const ROWS_PER_PAGE = 5; // align with other master pages
@@ -25,12 +26,12 @@ const VasanFillPlan: React.FC = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [vasanId, setVasanId] = useState<number | ''>('');
-  const [foodName, setFoodName] = useState('');
+  const [selectedFoods, setSelectedFoods] = useState<FoodItem[]>([]);
   const [magajSubType, setMagajSubType] = useState<string>('');
-  const [fillWeightKg, setFillWeightKg] = useState('');
+  // store per-food planned fill weights keyed by food id (string values to allow incremental typing)
+  const [fillWeights, setFillWeights] = useState<Record<number, string>>({});
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Plan | null>(null);
-  const [editingSubType, setEditingSubType] = useState<string>('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -90,17 +91,41 @@ const VasanFillPlan: React.FC = () => {
       .catch(() => {});
   }, [API_BASE_URL]);
 
-  const clearForm = () => { setVasanId(''); setFoodName(''); setMagajSubType(''); setFillWeightKg(''); };
+  const clearForm = () => { setVasanId(''); setSelectedFoods([]); setMagajSubType(''); setFillWeights({}); };
+  
 
   const handleAdd = async () => {
   if (!currentUser) { setSnackbar({ open: true, message: 'Not authenticated', severity: 'error' }); return; }
   if (!selectedAnnkutEvent) { setSnackbar({ open: true, message: 'Select event first', severity: 'error' }); return; }
-  if (!vasanId || !foodName || !fillWeightKg) { setSnackbar({ open: true, message: 'Fill all fields', severity: 'error' }); return; }
-  if (foodName.trim().startsWith('મગજ') && !magajSubType) { setSnackbar({ open: true, message: 'Select Magaj type', severity: 'error' }); return; }
+  // require vasan, at least one food, and a weight for every selected food
+  if (!vasanId || selectedFoods.length === 0 || selectedFoods.some(f => !fillWeights[f.id])) { setSnackbar({ open: true, message: 'Fill all fields', severity: 'error' }); return; }
+  const anyMagaj = selectedFoods.some(f => f.vangiName.trim().startsWith('મગજ'));
+  if (anyMagaj && !magajSubType) { setSnackbar({ open: true, message: 'Select Magaj type', severity: 'error' }); return; }
     const token = localStorage.getItem('token');
     try {
-      const nameToSave = foodName.trim().startsWith('મગજ') && magajSubType ? `${foodName} (${magajSubType})` : foodName;
-      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: Number(vasanId), foodName: nameToSave, fillWeightKg: Number(fillWeightKg), eventId: selectedAnnkutEvent }) });
+      // Prepare food plans data for single entry creation
+      const foodPlans = selectedFoods.map(f => {
+        const base = f.vangiName;
+        const nameToSave = base.trim().startsWith('મગજ') && magajSubType ? `${base} (${magajSubType})` : base;
+        const weightStr = fillWeights[f.id] || '';
+        return {
+          foodName: nameToSave,
+          fillWeightKg: Number(weightStr)
+        };
+      });
+
+      // Create single entry with multiple food plans
+      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        credentials: 'include', 
+        body: JSON.stringify({ 
+          vasanId: Number(vasanId), 
+          eventId: selectedAnnkutEvent,
+          foodPlans: foodPlans
+        }) 
+      });
+      
       if (!res.ok) throw new Error();
       setSnackbar({ open: true, message: 'Plan added', severity: 'success' }); clearForm(); fetchPlans();
     } catch { setSnackbar({ open: true, message: 'Add failed', severity: 'error' }); }
@@ -110,9 +135,16 @@ const VasanFillPlan: React.FC = () => {
     if (!editing) return;
     const token = localStorage.getItem('token');
     try {
-      const baseName = (editing.foodName || '').split('(')[0].trim();
-      const nameToSave = baseName.startsWith('મગજ') && editingSubType ? `${baseName} (${editingSubType})` : editing.foodName;
-      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ vasanId: editing.vasanId, foodName: nameToSave, fillWeightKg: Number(editing.fillWeightKg), eventId: selectedAnnkutEvent }) });
+      const res = await fetch(`${API_BASE_URL}/vasan-fill-plans/${editing.id}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        credentials: 'include', 
+        body: JSON.stringify({ 
+          vasanId: editing.vasanId, 
+          foodPlans: editing.foodPlans, 
+          eventId: selectedAnnkutEvent 
+        }) 
+      });
       if (!res.ok) throw new Error();
       setSnackbar({ open: true, message: 'Updated', severity: 'success' }); setEditDialogOpen(false); setEditing(null); fetchPlans();
     } catch { setSnackbar({ open: true, message: 'Update failed', severity: 'error' }); }
@@ -130,7 +162,8 @@ const VasanFillPlan: React.FC = () => {
 
   const filtered = useMemo(() => plans.filter(p => {
     const v = vasans.find(vs => vs.id === p.vasanId);
-    return (v?.vasanName || '').toLowerCase().includes(search.toLowerCase()) || p.foodName.toLowerCase().includes(search.toLowerCase());
+    const foodNamesString = p.foodPlans.map(fp => fp.foodName).join(' ');
+    return (v?.vasanName || '').toLowerCase().includes(search.toLowerCase()) || foodNamesString.toLowerCase().includes(search.toLowerCase());
   }), [plans, vasans, search]);
 
   const pageCount = Math.ceil(filtered.length / ROWS_PER_PAGE) || 1;
@@ -145,7 +178,8 @@ const VasanFillPlan: React.FC = () => {
       </Box>
 
       <Paper elevation={4} sx={{ p: { xs: 2, sm: 4 }, mt: 3, width: '100%', borderRadius: 2, boxShadow: '0 4px 24px rgba(36,93,107,0.08)', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
-        <Box sx={{ display: 'flex', gap: 2, width: '100%', flexWrap: 'nowrap', '& > .plan-field': { flex: 1, minWidth: 0 } }}>
+        {/* First row: Vasan, Food selection, Magaj type (if needed), and Add button */}
+        <Box sx={{ display: 'flex', gap: 2, width: '100%', flexWrap: 'nowrap', alignItems: 'flex-start', mb: selectedFoods.length > 0 ? 2 : 0, '& > .plan-field': { flex: 1, minWidth: 0 } }}>
           <Autocomplete
             className="plan-field"
             options={vasans}
@@ -166,27 +200,133 @@ const VasanFillPlan: React.FC = () => {
           />
           <Autocomplete
             className="plan-field"
+            multiple
+            disableCloseOnSelect
             options={foodItems}
             getOptionLabel={(o) => o ? `${o.vangiName}${o.category ? ' – ' + o.category : ''}` : ''}
-            value={foodItems.find(fi => fi.vangiName === foodName) || null}
-            onChange={(_, val) => {
-              setFoodName(val ? val.vangiName : '');
-              if (val && val.vangiName.trim().startsWith('મગજ')) setMagajSubType(MAGAJ_SUBTYPES[0]); else setMagajSubType('');
+            value={selectedFoods}
+            onChange={(_, vals) => {
+              const newSelected = vals as FoodItem[];
+              setSelectedFoods(newSelected);
+              // initialize fillWeights for newly selected foods, preserve existing values
+              setFillWeights(prev => {
+                const next: Record<number, string> = {};
+                newSelected.forEach(f => {
+                  next[f.id] = prev[f.id] ?? '';
+                });
+                return next;
+              });
+              const hasMagaj = newSelected.some(f => f.vangiName.trim().startsWith('મગજ'));
+              if (hasMagaj) setMagajSubType(prev => prev || MAGAJ_SUBTYPES[0]); else setMagajSubType('');
             }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Food Name"
-                placeholder="Select food"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: <RestaurantIcon sx={{ color: '#245D6B', mr: 1 }} />,
-                }}
-              />
-            )}
+            renderOption={(props, option, { selected }) => {
+              const { key, ...otherProps } = props;
+              return (
+                <li key={key} {...otherProps}>
+                  <Checkbox
+                    style={{ marginRight: 8 }}
+                    checked={selected}
+                  />
+                  <ListItemText primary={`${option.vangiName}${option.category ? ' – ' + option.category : ''}`} />
+                </li>
+              );
+            }}
+            renderTags={(value: FoodItem[], getTagProps) => {
+              // Show first two items as chips, then a summary chip for the rest to keep single-line
+              const showCount = 2;
+              const toShow = value.slice(0, showCount);
+              return (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  {toShow.map((option, index) => {
+                    const { key, ...tagProps } = getTagProps({ index });
+                    return (
+                      <Chip
+                        key={key}
+                        label={option.vangiName}
+                        size="small"
+                        {...tagProps}
+                        sx={{ flex: '0 0 auto', maxWidth: 200, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
+                      />
+                    );
+                  })}
+                  {value.length > showCount && (
+                    <Chip label={`+${value.length - showCount} more`} size="small" sx={{ flex: '0 0 auto' }} />
+                  )}
+                </div>
+              );
+            }}
+            renderInput={(params) => {
+              // Make a copy of params and explicitly clear the underlying input placeholder/value
+              const modifiedParams = {
+                ...params,
+                inputProps: {
+                  ...params.inputProps,
+                  placeholder: selectedFoods.length > 0 ? '' : params.inputProps?.placeholder,
+                  value: selectedFoods.length > 0 ? '' : params.inputProps?.value ?? '',
+                }
+              } as typeof params;
+
+              return (
+                <TextField
+                  {...modifiedParams}
+                  label="Food Name"
+                  placeholder={selectedFoods.length > 0 ? '' : 'Select food(s)'}
+                  sx={{
+                    '& .MuiAutocomplete-tags': {
+                      display: 'flex',
+                      gap: 1,
+                      flexWrap: 'nowrap',
+                      overflow: 'hidden',
+                      alignItems: 'center'
+                    },
+                    '& .MuiInputBase-root': {
+                      minHeight: 56,
+                      maxHeight: 56,
+                      alignItems: 'center',
+                      overflow: 'hidden'
+                    }
+                  }}
+                  InputProps={{
+                    ...modifiedParams.InputProps,
+                    // Preserve Autocomplete's generated startAdornment (chips) and add our icon before it.
+                    startAdornment: (() => {
+                      const existing = modifiedParams.InputProps?.startAdornment as any;
+                      // If Autocomplete already provides an InputAdornment (with chips), merge its children
+                      if (existing && existing.props) {
+                        return (
+                          <InputAdornment position="start" sx={{ display: 'flex', alignItems: 'center', height: '100%', mr: 0 }}>
+                            <RestaurantIcon sx={{ color: '#245D6B', mr: 1, verticalAlign: 'middle' }} />
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>{existing.props.children}</Box>
+                          </InputAdornment>
+                        );
+                      }
+                      // Fallback: just show the icon
+                      return (
+                        <InputAdornment position="start"><RestaurantIcon sx={{ color: '#245D6B' }} /></InputAdornment>
+                      );
+                    })(),
+                    // Ensure the input text itself doesn't overflow the chips area
+                    inputProps: {
+                      ...modifiedParams.inputProps,
+                      // Also visually hide the input (prevent line wrap/placeholder showing) when there are selected chips
+                      placeholder: selectedFoods.length > 0 ? '' : modifiedParams.inputProps?.placeholder,
+                      value: selectedFoods.length > 0 ? '' : modifiedParams.inputProps?.value ?? '',
+                      style: {
+                        ...(modifiedParams.inputProps?.style || {}),
+                        width: selectedFoods.length > 0 ? 0 : modifiedParams.inputProps?.style?.width,
+                        opacity: selectedFoods.length > 0 ? 0 : modifiedParams.inputProps?.style?.opacity,
+                        pointerEvents: selectedFoods.length > 0 ? 'none' : modifiedParams.inputProps?.style?.pointerEvents,
+                        padding: selectedFoods.length > 0 ? 0 : modifiedParams.inputProps?.style?.padding,
+                        margin: selectedFoods.length > 0 ? 0 : modifiedParams.inputProps?.style?.margin,
+                      }
+                    }
+                  }}
+                />
+              );
+            }}
             clearOnEscape
           />
-          {foodName.trim().startsWith('મગજ') && (
+          {selectedFoods.some(f => f.vangiName.trim().startsWith('મગજ')) && (
             <TextField
               className="plan-field"
               select
@@ -200,9 +340,38 @@ const VasanFillPlan: React.FC = () => {
               ))}
             </TextField>
           )}
-          <TextField className="plan-field" label="Planned Fill Weight" value={fillWeightKg} onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setFillWeightKg(e.target.value); }} InputProps={{ startAdornment: <ScaleIcon sx={{ color: '#245D6B', mr: 1 }} />, endAdornment: <span style={{ color: '#245D6B', fontWeight: 600, marginLeft: 4 }}>Kg</span> }} />
           <Button variant="contained" sx={{ bgcolor: '#245D6B', height: 56, fontWeight: 600, letterSpacing: 0.5, flex: '0 0 140px' }} onClick={handleAdd}>Add</Button>
         </Box>
+
+        {/* Second row: Per-selected-food planned fill weight inputs */}
+        {selectedFoods.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 2, width: '100%', flexWrap: 'wrap' }}>
+            {selectedFoods.map(f => (
+              <Box key={f.id} sx={{ 
+                minWidth: `calc(33.333% - 16px)`, 
+                maxWidth: `calc(33.333% - 16px)`,
+                flex: '0 0 calc(33.333% - 16px)'
+              }}>
+                <TextField
+                  fullWidth
+                  label={`${f.vangiName} - Fill Weight`}
+                  value={fillWeights[f.id] ?? ''}
+                  onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setFillWeights(prev => ({ ...prev, [f.id]: e.target.value })); }}
+                  InputProps={{ 
+                    startAdornment: <ScaleIcon sx={{ color: '#245D6B', mr: 1 }} />, 
+                    endAdornment: <span style={{ color: '#245D6B', fontWeight: 600, marginLeft: 4 }}>Kg</span> 
+                  }}
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      height: 56,
+                      minHeight: 56
+                    }
+                  }}
+                />
+              </Box>
+            ))}
+          </Box>
+        )}
       </Paper>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2, gap: 2 }}>
         <TextField label="Search" size="small" value={search} onChange={e => setSearch(e.target.value)} sx={{ width: 300, background: '#fff' }} />
@@ -232,8 +401,20 @@ const VasanFillPlan: React.FC = () => {
                 <TableRow key={p.id}>
                   <TableCell>{(page - 1) * ROWS_PER_PAGE + idx + 1}</TableCell>
                   <TableCell>{v?.vasanName || 'N/A'}</TableCell>
-                  <TableCell>{p.foodName}</TableCell>
-                  <TableCell>{p.fillWeightKg} Kg</TableCell>
+                  <TableCell>
+                    {p.foodPlans.map((fp, fpIdx) => (
+                      <div key={fpIdx} style={{ marginBottom: fpIdx < p.foodPlans.length - 1 ? 4 : 0 }}>
+                        {fp.foodName}
+                      </div>
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    {p.foodPlans.map((fp, fpIdx) => (
+                      <div key={fpIdx} style={{ marginBottom: fpIdx < p.foodPlans.length - 1 ? 4 : 0 }}>
+                        {fp.fillWeightKg} Kg
+                      </div>
+                    ))}
+                  </TableCell>
                   <TableCell>{p.event?.eventName || 'N/A'} - {p.event?.eventYear || 'N/A'}</TableCell>
                   <TableCell>
                     <IconButton size="small" sx={{ color: '#245D6B' }} onClick={() => { setEditing(p); setEditDialogOpen(true); }}><EditIcon fontSize="small" /></IconButton>
@@ -251,7 +432,7 @@ const VasanFillPlan: React.FC = () => {
         </Box>
       )}
 
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Edit Fill Plan</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 420 }}>
           <Autocomplete
@@ -271,44 +452,57 @@ const VasanFillPlan: React.FC = () => {
             )}
             clearOnEscape
           />
-          <Autocomplete
-            options={foodItems}
-            getOptionLabel={(o) => o ? `${o.vangiName}${o.category ? ' – ' + o.category : ''}` : ''}
-            value={foodItems.find(fi => fi.vangiName === ((editing?.foodName || '').split('(')[0].trim())) || null}
-            onChange={(_, val) => {
-              if (!editing) return;
-              const newFood = val ? val.vangiName : editing.foodName;
-              const isMagaj = !!val && val.vangiName.trim().startsWith('મગજ');
-              setEditing({ ...editing, foodName: newFood });
-              setEditingSubType(isMagaj ? (editingSubType || MAGAJ_SUBTYPES[0]) : '');
-            }}
-            renderInput={(params) => (
+          
+          {/* Food Plans Editor */}
+          <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Food Plans</Typography>
+          {editing?.foodPlans.map((foodPlan, index) => (
+            <Box key={index} sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 2, border: '1px solid #ddd', borderRadius: 1 }}>
               <TextField
-                {...params}
                 label="Food Name"
-                placeholder="Select food"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: <RestaurantIcon sx={{ color: '#245D6B', mr: 1 }} />,
+                value={foodPlan.foodName}
+                onChange={(e) => {
+                  if (!editing) return;
+                  const newFoodPlans = [...editing.foodPlans];
+                  newFoodPlans[index] = { ...newFoodPlans[index], foodName: e.target.value };
+                  setEditing({ ...editing, foodPlans: newFoodPlans });
                 }}
+                sx={{ flex: 1 }}
               />
-            )}
-            clearOnEscape
-          />
-          {((editing?.foodName || '').split('(')[0].trim().startsWith('મગજ')) && (
-            <TextField
-              select
-              label="Magaj Type"
-              value={editingSubType || (() => { const m = /\(([^)]+)\)/.exec(editing?.foodName || ''); return m ? m[1] : MAGAJ_SUBTYPES[0]; })()}
-              onChange={(e) => setEditingSubType(e.target.value)}
-              size="small"
-            >
-              {MAGAJ_SUBTYPES.map(sub => (
-                <MenuItem key={sub} value={sub}>{sub}</MenuItem>
-              ))}
-            </TextField>
-          )}
-          <TextField label="Planned Fill Weight (Kg)" value={editing?.fillWeightKg ?? ''} onChange={e => { if (/^\d*\.?\d*$/.test(e.target.value)) setEditing(editing ? { ...editing, fillWeightKg: Number(e.target.value) } : editing); }} />
+              <TextField
+                label="Weight (Kg)"
+                value={foodPlan.fillWeightKg}
+                onChange={(e) => {
+                  if (!editing || !/^\d*\.?\d*$/.test(e.target.value)) return;
+                  const newFoodPlans = [...editing.foodPlans];
+                  newFoodPlans[index] = { ...newFoodPlans[index], fillWeightKg: Number(e.target.value) };
+                  setEditing({ ...editing, foodPlans: newFoodPlans });
+                }}
+                sx={{ width: 150 }}
+              />
+              <IconButton 
+                color="error" 
+                onClick={() => {
+                  if (!editing) return;
+                  const newFoodPlans = editing.foodPlans.filter((_, i) => i !== index);
+                  setEditing({ ...editing, foodPlans: newFoodPlans });
+                }}
+                disabled={editing?.foodPlans.length === 1}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+          ))}
+          
+          <Button 
+            onClick={() => {
+              if (!editing) return;
+              const newFoodPlans = [...editing.foodPlans, { foodName: '', fillWeightKg: 0 }];
+              setEditing({ ...editing, foodPlans: newFoodPlans });
+            }}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            Add Food Plan
+          </Button>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
@@ -359,8 +553,16 @@ const VasanFillPlan: React.FC = () => {
                       <tr key={p.id}>
                         <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{idx + 1}</td>
                         <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{v?.vasanName || 'N/A'}</td>
-                        <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{p.foodName}</td>
-                        <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{p.fillWeightKg} Kg</td>
+                        <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>
+                          {p.foodPlans.map((fp, fpIdx) => (
+                            <div key={fpIdx}>{fp.foodName}</div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>
+                          {p.foodPlans.map((fp, fpIdx) => (
+                            <div key={fpIdx}>{fp.fillWeightKg} Kg</div>
+                          ))}
+                        </td>
                         <td style={{ border: '1px solid #ccc', padding: '12px 8px' }}>{p.event?.eventName || 'N/A'} - {p.event?.eventYear || 'N/A'}</td>
                       </tr>
                     );

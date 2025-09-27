@@ -6,7 +6,8 @@ import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
 interface Vasan { id: number; vasanName: string; totalVasan: number; totalWeight: number; }
-interface VasanFillPlan { id:number; vasanId:number; foodName:string; fillWeightKg?:number }
+interface FoodPlan { foodName: string; fillWeightKg: number; }
+interface VasanFillPlan { id:number; vasanId:number; foodPlans: FoodPlan[]; }
 interface Section { id: number; sectionName: string; rows: number; columns: number; }
 
 const VasanNosCalculation: React.FC = () => {
@@ -44,32 +45,64 @@ const VasanNosCalculation: React.FC = () => {
             });
     }, [selectedAnnkutEvent, API_BASE_URL]);
 
-    // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new composite keys.
+    // When fillPlans (and potentially rawSavedEntries) are available, map saved counts to new keys.
     useEffect(() => {
-        if (!rawSavedEntries) return;
+        if (!rawSavedEntries || !fillPlans.length) return;
         const map: Record<string, string> = {};
+        
         rawSavedEntries.forEach((v: any) => {
-            const savedFoodName = v.foodName; // may be undefined on legacy data
+            const savedFoodName = v.foodName; // may be undefined on legacy data or comma-separated for grouped entries
+            
             if (savedFoodName) {
-                // Normal modern case: use provided foodName
-                v.sectionEntries?.forEach((s: any) => {
-                    const key = `${buildRowKey(v.vasanId, savedFoodName)}_${s.sectionId}`;
-                    map[key] = String(s.count);
-                });
-            } else {
-                // Legacy fallback: if exactly one fill plan for this vasan, map counts to that plan's foodName
-                const relatedPlans = fillPlans.filter(fp => fp.vasanId === v.vasanId);
-                if (relatedPlans.length === 1) {
+                // Check if this is a comma-separated list (grouped entry)
+                if (savedFoodName.includes(',')) {
+                    // This is a grouped entry with multiple foods
+                    // Find the matching fill plan that has these exact foods
+                    const savedFoods = savedFoodName.split(',').map((f: string) => f.trim());
+                    const matchingFillPlan = fillPlans.find(fp => {
+                        if (fp.vasanId !== v.vasanId) return false;
+                        const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+                        return fpFoods.length === savedFoods.length && 
+                               savedFoods.every((food: string) => fpFoods.includes(food));
+                    });
+                    
+                    if (matchingFillPlan) {
+                        v.sectionEntries?.forEach((s: any) => {
+                            const key = `fillplan_${matchingFillPlan.id}_grouped_${s.sectionId}`;
+                            map[key] = String(s.count);
+                        });
+                    }
+                } else {
+                    // Single food entry
                     v.sectionEntries?.forEach((s: any) => {
-                        const key = `${buildRowKey(v.vasanId, relatedPlans[0].foodName)}_${s.sectionId}`;
+                        const key = `${buildRowKey(v.vasanId, savedFoodName)}_${s.sectionId}`;
                         map[key] = String(s.count);
                     });
-                } else {
-                    // If multiple plans exist and we have no foodName, skip to avoid ambiguous distribution
                 }
+            } else {
+                // Legacy fallback: find matching fill plan for this vasan
+                const relatedPlans = fillPlans.filter(fp => fp.vasanId === v.vasanId);
+                if (relatedPlans.length === 1) {
+                    const fp = relatedPlans[0];
+                    if (fp.foodPlans.length === 1) {
+                        // Single food in single fill plan
+                        v.sectionEntries?.forEach((s: any) => {
+                            const key = `${buildRowKey(v.vasanId, fp.foodPlans[0].foodName)}_${s.sectionId}`;
+                            map[key] = String(s.count);
+                        });
+                    } else if (fp.foodPlans.length > 1) {
+                        // Multiple foods in single fill plan - use grouped key
+                        v.sectionEntries?.forEach((s: any) => {
+                            const key = `fillplan_${fp.id}_grouped_${s.sectionId}`;
+                            map[key] = String(s.count);
+                        });
+                    }
+                }
+                // If multiple fill plans exist and we have no foodName, skip to avoid ambiguous distribution
             }
         });
-    setCounts({ ...map });
+        
+        setCounts({ ...map });
     }, [rawSavedEntries, fillPlans]);
 
     // Legacy alias for clarity in rest of component
@@ -80,19 +113,44 @@ const VasanNosCalculation: React.FC = () => {
         setCounts(prev => ({ ...prev, [`${rowKeyStr}_${sectionId}`]: value }));
     };
 
-    // Build distinct row models from fill plans (one row per vasan+food)
+    // Build row models - group by fill plan ID, multiple foods per fill plan show grouped
     const rows = React.useMemo(() => {
         const vasanMap = new Map(vasans.map(v => [v.id, v]));
-        return fillPlans.map(fp => {
+        const result: any[] = [];
+        
+        // Create rows based on each fill plan
+        fillPlans.forEach(fp => {
             const base = vasanMap.get(fp.vasanId);
-            return {
-                key: rowKey(fp.vasanId, fp.foodName || ''),
-                vasanId: fp.vasanId,
-                vasanName: base?.vasanName || `Vasan ${fp.vasanId}`,
-                foodName: fp.foodName,
-                capacity: base?.totalVasan || 0,
-            };
+            const vasanName = base?.vasanName || `Vasan ${fp.vasanId}`;
+            const capacity = base?.totalVasan || 0;
+            const foods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
+            
+            if (foods.length === 1) {
+                // Single food in this fill plan - create separate row
+                result.push({
+                    key: rowKey(fp.vasanId, foods[0]),
+                    vasanId: fp.vasanId,
+                    vasanName: vasanName,
+                    foodName: foods[0],
+                    capacity: capacity,
+                    fillPlanId: fp.id,
+                });
+            } else if (foods.length > 1) {
+                // Multiple foods in this fill plan - create grouped row
+                const foodDisplay = foods.join(', ');
+                result.push({
+                    key: `fillplan_${fp.id}_grouped`,
+                    vasanId: fp.vasanId,
+                    vasanName: vasanName,
+                    foodName: foodDisplay,
+                    capacity: capacity,
+                    fillPlanId: fp.id,
+                    isGrouped: true,
+                });
+            }
         });
+        
+        return result;
     }, [fillPlans, vasans]);
 
     const buildPayload = () => {
@@ -100,7 +158,9 @@ const VasanNosCalculation: React.FC = () => {
             const sectionEntries = sections.map(s => ({ sectionId: s.id, sectionName: s.sectionName, count: Number(counts[`${r.key}_${s.id}`]) || 0 })).filter(se => se.count > 0);
             const totalVasan = sectionEntries.reduce((sum, se) => sum + se.count, 0);
             if (sectionEntries.length === 0) return null;
-            return { vasanId: r.vasanId, vasanName: r.vasanName, foodName: r.foodName, totalVasan, sectionEntries };
+            // For grouped entries, save the actual food names (comma-separated), for single entries save the actual food name
+            const foodNameToSave = r.foodName || '';
+            return { vasanId: r.vasanId, vasanName: r.vasanName, foodName: foodNameToSave, totalVasan, sectionEntries };
         }).filter(Boolean);
     };
 
@@ -179,7 +239,7 @@ const VasanNosCalculation: React.FC = () => {
                                         {sections.map(section => {
                                             const key = `${r.key}_${section.id}`;
                                             return (
-                                                <TableCell key={section.id} align="center">
+                                                <TableCell key={key} align="center">
                                                     <TextField type="number" size="small" value={counts[key] || ''} onChange={e => handleChange(r.key, section.id, e.target.value)} inputProps={{ min: 0, style: { width: 60, textAlign: 'center' } }} sx={{ mb: 0.5, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#245D6B' } }} />
                                                 </TableCell>
                                             );
