@@ -50,15 +50,32 @@ const SectionLayoutPlanner: React.FC = () => {
         const optionList: VasanOption[] = fpList.map(fp => {
           // fp.foodPlans is an array of foods; normalize to a single display string
           let foodName = '';
-          if (Array.isArray(fp.foodPlans)) {
-            const names = fp.foodPlans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
-            foodName = names.length === 1 ? names[0] : names.join(', ');
+          let normalizedFoodName = '';
+          try {
+            let plans = fp.foodPlans;
+            if (!plans && fp.foodPlan) plans = fp.foodPlan; // fallback
+            if (typeof plans === 'string') {
+              try { plans = JSON.parse(plans); } catch { /* leave as string */ }
+            }
+            if (Array.isArray(plans)) {
+              const names = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
+              foodName = names.length === 1 ? names[0] : names.join(', ');
+            } else if (fp.foodName) {
+              foodName = fp.foodName.toString().trim();
+            }
+            normalizedFoodName = (foodName || '').toString().trim().toLowerCase();
+          } catch (e) {
+            foodName = (fp.foodName || '').toString().trim();
+            normalizedFoodName = (foodName || '').toLowerCase();
           }
           return {
             fillPlanId: fp.id,
             vasanId: fp.vasanId,
             vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
             foodName,
+            // attach a normalized key for consistent matching
+            // @ts-ignore - adding runtime prop
+            normalizedFoodName,
           };
         });
         if (debugMode) console.debug('Computed vasanOptions', optionList);
@@ -184,8 +201,8 @@ const SectionLayoutPlanner: React.FC = () => {
 
   const handleDrop = (cellIndex:number) => {
     if (!dragVasan) return;
-    const food = (dragVasan.foodName || '').trim().toLowerCase();
-    const key = `${dragVasan.vasanId}::${food}`;
+  const normalizedDragFood = (dragVasan as any).normalizedFoodName || (dragVasan.foodName || '').trim().toLowerCase();
+  const key = `${dragVasan.vasanId}::${normalizedDragFood}`;
 
     // If dragging from another cell, perform move/swap without altering allowed totals
     if (dragSourceCellIndex !== null) {
@@ -224,7 +241,10 @@ const SectionLayoutPlanner: React.FC = () => {
       let currentKeyAtCell: string | undefined;
       if (currentFpId) {
         const v = fillPlanLookup.get(currentFpId);
-        if (v) currentKeyAtCell = `${v.vasanId}::${(v.foodName || '').trim().toLowerCase()}`;
+        if (v) {
+          const n = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
+          currentKeyAtCell = `${v.vasanId}::${n}`;
+        }
       }
       const increment = currentKeyAtCell === key ? 0 : 1;
       const currentPlaced = placedByKey[key] || 0;
@@ -264,7 +284,8 @@ const SectionLayoutPlanner: React.FC = () => {
       if (!fpId) return;
       const v = fillPlanLookup.get(fpId);
       if (!v) return;
-      const key = `${v.vasanId}::${(v.foodName || '').trim().toLowerCase()}`;
+      const normalized = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
+      const key = `${v.vasanId}::${normalized}`;
       map[key] = (map[key] || 0) + 1;
     });
     return map;
@@ -398,9 +419,10 @@ const SectionLayoutPlanner: React.FC = () => {
           <Box sx={{ display:'flex', flexWrap:'wrap', gap:1 }}>
             {vasanOptions.map(v => {
               const food = (v.foodName && v.foodName.trim()) || '';
+              const normalized = (v as any).normalizedFoodName || food.toLowerCase();
               const color = getFoodColor(food);
               const textColor = getContrast(color);
-              const key = `${v.vasanId}::${food.toLowerCase()}`;
+              const key = `${v.vasanId}::${normalized}`;
               // If the selected section has an allowed list, show only those items present in that list
               // If the section has NO allowed list at all, hide everything (user expects no items)
               // If there are explicit allowed rules for any section, and the current section
