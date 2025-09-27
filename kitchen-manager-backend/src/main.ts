@@ -96,10 +96,7 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      // Temporarily allow all origins for debugging
-      console.log(`CORS request from origin: ${origin}`);
-      callback(null, true);
-      // callback(new Error(`Origin ${origin} not allowed by CORS`));
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: ['Content-Type', 'Authorization'],
