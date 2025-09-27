@@ -107,8 +107,24 @@ const VasanNosCalculation: React.FC = () => {
                             if (fp.vasanId !== v.vasanId) return false;
                             const fpFoods = fp.foodPlans.map(plan => plan.foodName).filter(Boolean);
                             console.log('🔍 Checking fill plan', fp.id, 'with foods:', fpFoods);
-                            return fpFoods.length === savedFoods.length && 
-                                   savedFoods.every((food: string) => fpFoods.includes(food));
+                            console.log('🔍 Saved foods:', savedFoods);
+                            console.log('🔍 Fill plan foods:', fpFoods);
+                            console.log('🔍 Lengths match:', fpFoods.length === savedFoods.length);
+                            
+                            // Normalize food names for comparison (trim and lowercase)
+                            const normalizedSavedFoods = savedFoods.map((f: string) => f.trim().toLowerCase());
+                            const normalizedFpFoods = fpFoods.map((f: string) => f.trim().toLowerCase());
+                            
+                            console.log('🔍 Normalized saved foods:', normalizedSavedFoods);
+                            console.log('🔍 Normalized fill plan foods:', normalizedFpFoods);
+                            
+                            const lengthMatch = normalizedFpFoods.length === normalizedSavedFoods.length;
+                            const allMatch = normalizedSavedFoods.every((food: string) => normalizedFpFoods.includes(food));
+                            
+                            console.log('🔍 Normalized lengths match:', lengthMatch);
+                            console.log('🔍 All normalized saved foods found in fill plan:', allMatch);
+                            
+                            return lengthMatch && allMatch;
                         });
                         
                         if (matchingFillPlan) {
