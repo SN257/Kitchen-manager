@@ -40,6 +40,11 @@ const FinalNosSummary: React.FC = () => {
 
   useEffect(() => {
     console.log('Selected Annkut Event:', selectedAnnkutEvent);
+    // reset event-scoped state when event changes to avoid showing previous event data
+    setCachedRows([]);
+    setExtraEntries(new Map());
+    setLastSavedSignature('');
+    inFlightSave.current = '';
     if (!selectedAnnkutEvent) { setAnnkutRows([]); setSectionRows([]); return; }
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -172,7 +177,8 @@ const FinalNosSummary: React.FC = () => {
     };
   });
 
-  const baseRows: SummaryRow[] = (cachedRows && cachedRows.length ? cachedRows : summaryRows);
+  // prefer cachedRows only when it looks as comprehensive as computed summaryRows
+  const baseRows: SummaryRow[] = (cachedRows && cachedRows.length && cachedRows.length >= summaryRows.length) ? cachedRows : summaryRows;
   const displayRows: SummaryRow[] = baseRows.map(r => {
     let tw = Number(r.totalWeightKg) || 0;
     const tn = Number(r.totalNang) || 0;
