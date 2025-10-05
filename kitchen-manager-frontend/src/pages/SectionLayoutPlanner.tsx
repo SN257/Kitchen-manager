@@ -108,48 +108,95 @@ const SectionLayoutPlanner: React.FC = () => {
           foodNames = [vasanName];
         }
 
-        // First, check if the combined foodNames (as they appear in fill plan) match any nos calculation entry
-        if (nosKeys.size > 0 && foodNames.length > 1) {
-          const combinedFood = foodNames.join(', ');
-          const combinedNormalized = combinedFood.toLowerCase();
-          const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
-          
-          if (nosKeys.has(combinedKey) && !seenKeys.has(combinedKey)) {
-            seenKeys.add(combinedKey);
-            optionList.push({
-              fillPlanId: fp.id,
-              vasanId: fp.vasanId,
-              vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-              foodName: combinedFood,
-              // @ts-ignore
-              normalizedFoodName: combinedNormalized,
+        // Check if any exact combined food from nos calculation matches this fill plan
+        let addedCombinedFood = false;
+        if (nosKeys.size > 0) {
+          // Check all possible combinations of the fill plan foods against nos calculation entries
+          if (nosData && Array.isArray(nosData.entries)) {
+            nosData.entries.forEach((nosEntry: any) => {
+              if (nosEntry.vasanId === fp.vasanId) {
+                const nosFood = (nosEntry.foodName || '').toString().trim();
+                const nosFoodNormalized = nosFood.toLowerCase();
+                const nosKey = `${fp.vasanId}::${nosFoodNormalized}`;
+                
+                // Check if this nos entry matches exactly with any combination of the fill plan foods
+                if (nosKeys.has(nosKey) && !seenKeys.has(nosKey)) {
+                  // Check if this nos food is a combination that includes foods from this fill plan
+                  if (nosFood.includes(',')) {
+                    const nosComponents = nosFood.split(',').map((s: string) => s.trim().toLowerCase());
+                    const fpComponents = foodNames.map(f => f.trim().toLowerCase());
+                    
+                    // If the nos food contains all the components from fill plan (or vice versa), use the nos food
+                    const hasAllNosInFp = nosComponents.every((nc: string) => fpComponents.some((fc: string) => fc.includes(nc) || nc.includes(fc)));
+                    const hasAllFpInNos = fpComponents.every((fc: string) => nosComponents.some((nc: string) => nc.includes(fc) || fc.includes(nc)));
+                    
+                    if (hasAllNosInFp || hasAllFpInNos) {
+                      seenKeys.add(nosKey);
+                      optionList.push({
+                        fillPlanId: fp.id,
+                        vasanId: fp.vasanId,
+                        vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+                        foodName: nosFood, // Use the exact food name from nos calculation
+                        // @ts-ignore
+                        normalizedFoodName: nosFoodNormalized,
+                      });
+                      addedCombinedFood = true;
+                    }
+                  }
+                }
+              }
             });
           }
         }
 
-        // Then add individual foods that are present in nos calculation
-        foodNames.forEach(foodName => {
-          const cleanFoodName = foodName.trim();
-          if (!cleanFoodName) return;
-          const normalizedFoodName = cleanFoodName.toLowerCase();
-          const key = `${fp.vasanId}::${normalizedFoodName}`;
+        // Only add individual foods if we haven't already added a combined food for this fill plan
+        if (!addedCombinedFood) {
+          // First, check if the combined foodNames (as they appear in fill plan) match any nos calculation entry
+          if (nosKeys.size > 0 && foodNames.length > 1) {
+            const combinedFood = foodNames.join(', ');
+            const combinedNormalized = combinedFood.toLowerCase();
+            const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
+            
+            if (nosKeys.has(combinedKey) && !seenKeys.has(combinedKey)) {
+              seenKeys.add(combinedKey);
+              optionList.push({
+                fillPlanId: fp.id,
+                vasanId: fp.vasanId,
+                vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+                foodName: combinedFood,
+                // @ts-ignore
+                normalizedFoodName: combinedNormalized,
+              });
+              addedCombinedFood = true;
+            }
+          }
 
-          // If nos calculation exists, only include items that are present in nosKeys.
-          if (nosKeys.size > 0 && !nosKeys.has(key)) return;
+          // Then add individual foods that are present in nos calculation (only if no combined food was added)
+          if (!addedCombinedFood) {
+            foodNames.forEach(foodName => {
+              const cleanFoodName = foodName.trim();
+              if (!cleanFoodName) return;
+              const normalizedFoodName = cleanFoodName.toLowerCase();
+              const key = `${fp.vasanId}::${normalizedFoodName}`;
 
-          // Only include one chip per vasanId::food (pick first fillPlan encountered)
-          if (seenKeys.has(key)) return;
-          seenKeys.add(key);
+              // If nos calculation exists, only include items that are present in nosKeys.
+              if (nosKeys.size > 0 && !nosKeys.has(key)) return;
 
-          optionList.push({
-            fillPlanId: fp.id,
-            vasanId: fp.vasanId,
-            vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-            foodName: cleanFoodName,
-            // @ts-ignore
-            normalizedFoodName,
-          });
-        });
+              // Only include one chip per vasanId::food (pick first fillPlan encountered)
+              if (seenKeys.has(key)) return;
+              seenKeys.add(key);
+
+              optionList.push({
+                fillPlanId: fp.id,
+                vasanId: fp.vasanId,
+                vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+                foodName: cleanFoodName,
+                // @ts-ignore
+                normalizedFoodName,
+              });
+            });
+          }
+        }
       });
 
       // If nos calculation returned no entries, fallback to including all fill plans (existing behaviour)
