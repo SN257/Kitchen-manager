@@ -84,14 +84,28 @@ const FinalNosSummary: React.FC = () => {
       .then(r => r.ok ? r.json() : null)
       .then(saved => {
         if (saved && Array.isArray(saved.rows)) {
-          // sanitize
+          // sanitize and preserve extra fields
           const rows: SummaryRow[] = saved.rows.map((r: any) => ({
             foodName: String(r.foodName || ''),
             totalWeightKg: Number(r.totalWeightKg) || 0,
             totalNang: Number(r.totalNang) || 0,
             finalFlour: Number(r.finalFlour) || 0,
+            // Note: SummaryRow type doesn't currently declare extras; we'll store them in extraEntries map below
           }));
           setCachedRows(rows);
+
+          // initialize extraEntries map from saved rows if extras exist
+          const extrasMap = new Map<string, ExtraEntry>();
+          saved.rows.forEach((r: any) => {
+            const name = String(r.foodName || '').trim();
+            const ew = Number(r.extraWeight) || 0;
+            const en = Number(r.extraNang) || 0;
+            const ef = Number(r.extraFlour) || 0;
+            if (ew > 0 || en > 0 || ef > 0) {
+              extrasMap.set(name, { foodName: name, extraWeight: ew, extraNang: en, extraFlour: ef });
+            }
+          });
+          if (extrasMap.size) setExtraEntries(extrasMap);
         } else {
           setCachedRows([]);
         }
@@ -242,16 +256,46 @@ const FinalNosSummary: React.FC = () => {
     if (!summaryRows.length) return;
     const token = localStorage.getItem('token');
     if (!token) return;
-    const signature = JSON.stringify(summaryRows.map(r => ({ f: r.foodName, tw: r.totalWeightKg, tn: r.totalNang, ff: r.finalFlour })));
+    // include extras in signature so updating only extras still triggers save
+    const signature = JSON.stringify(summaryRows.map(r => {
+      const extras = extraEntries.get(r.foodName) || { extraWeight: 0, extraNang: 0, extraFlour: 0 };
+      return {
+        f: r.foodName,
+        tw: r.totalWeightKg,
+        tn: r.totalNang,
+        ff: r.finalFlour,
+        ew: Number(extras.extraWeight) || 0,
+        en: Number(extras.extraNang) || 0,
+        ef: Number(extras.extraFlour) || 0,
+      };
+    }));
     if (signature === lastSavedSignature) return;
     if (inFlightSave.current === signature) return; // prevent duplicate concurrent save
     inFlightSave.current = signature;
     setAutoSaving(true);
+    // attach extras from extraEntries to rows before saving
+    const rowsToSave = summaryRows.map(r => {
+      const extras = extraEntries.get(r.foodName) || { extraWeight: 0, extraNang: 0, extraFlour: 0 };
+      const ew = Number(extras.extraWeight) || 0;
+      const en = Number(extras.extraNang) || 0;
+      const ef = Number(extras.extraFlour) || 0;
+      // Save aggregated values so database reflects final displayed totals
+      return {
+        foodName: r.foodName,
+        totalWeightKg: Number(r.totalWeightKg || 0) + ew,
+        totalNang: Number(r.totalNang || 0) + en,
+        finalFlour: Number(r.finalFlour || 0) + ef,
+        extraWeight: ew,
+        extraNang: en,
+        extraFlour: ef,
+      };
+    });
+
     fetch(`${API_BASE_URL}/final-nos-summary`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ eventId: selectedAnnkutEvent, rows: summaryRows })
+      body: JSON.stringify({ eventId: selectedAnnkutEvent, rows: rowsToSave })
     })
       .then(res => { if (!res.ok) throw new Error('save failed'); return res.json().catch(() => null); })
       .then(() => {
@@ -261,6 +305,7 @@ const FinalNosSummary: React.FC = () => {
           .then(r => r.ok ? r.json() : null)
           .then(saved => {
             if (saved && Array.isArray(saved.rows)) {
+              // update cached rows and extras map
               const rows: SummaryRow[] = saved.rows.map((r: any) => ({
                 foodName: String(r.foodName || ''),
                 totalWeightKg: Number(r.totalWeightKg) || 0,
@@ -268,6 +313,17 @@ const FinalNosSummary: React.FC = () => {
                 finalFlour: Number(r.finalFlour) || 0,
               }));
               setCachedRows(rows);
+              const extrasMap = new Map<string, ExtraEntry>();
+              saved.rows.forEach((r: any) => {
+                const name = String(r.foodName || '').trim();
+                const ew = Number(r.extraWeight) || 0;
+                const en = Number(r.extraNang) || 0;
+                const ef = Number(r.extraFlour) || 0;
+                if (ew > 0 || en > 0 || ef > 0) {
+                  extrasMap.set(name, { foodName: name, extraWeight: ew, extraNang: en, extraFlour: ef });
+                }
+              });
+              if (extrasMap.size) setExtraEntries(extrasMap);
             }
           });
       })

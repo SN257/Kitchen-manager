@@ -37,6 +37,16 @@ export class FinalNosSummaryController {
   ) {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
+    // log incoming DTO for debugging (contains rows and extras)
+    try {
+      console.log(`FinalNosSummary.save called by user=${userId} eventId=${dto.eventId} rowsCount=${Array.isArray(dto.rows) ? dto.rows.length : 0}`);
+      if (Array.isArray(dto.rows) && dto.rows.length) {
+        console.log('Sample row payload:', JSON.stringify(dto.rows[0]));
+      }
+    } catch (err) {
+      // non-blocking
+      console.error('Error logging incoming final-nos-summary dto', err);
+    }
     return this.service.createOrReplace(dto, userId);
   }
 }

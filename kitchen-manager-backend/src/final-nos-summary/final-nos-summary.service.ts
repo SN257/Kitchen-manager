@@ -20,11 +20,22 @@ export class FinalNosSummaryService {
       userId,
       rows: dto.rows,
     });
+    // debug log the entity rows to verify extras are present
+    try {
+      console.log(`FinalNosSummary.createOrReplace eventId=${dto.eventId} user=${userId} rows=${Array.isArray(dto.rows) ? dto.rows.length : 0}`);
+      if (Array.isArray(dto.rows) && dto.rows.length) console.log('Sample row to save:', JSON.stringify(dto.rows[0]));
+    } catch (err) {
+      console.error('Error logging final-nos-summary entity', err);
+    }
     await this.repo.upsert(entity, {
       conflictPaths: ['eventId', 'userId'],
       skipUpdateIfNoValuesChanged: true,
     });
     // return the latest snapshot
+    const latest = await this.latest(dto.eventId, userId);
+    try {
+      console.log('Saved FinalNosSummary entity id=', latest?.id);
+    } catch (err) {}
     return this.latest(dto.eventId, userId);
   }
 
