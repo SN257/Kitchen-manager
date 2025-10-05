@@ -5,7 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
-interface VasanOption { fillPlanId:number; vasanId:number; vasanName:string; foodName?:string; }
+interface VasanOption { fillPlanId:number; vasanId:number; vasanName:string; foodName?:string; normalizedFoodName?:string; }
 interface CellData { id:string; vasanId?:number; }
 interface Section { id:number; sectionName:string; rows:number; columns:number; }
 
@@ -35,63 +35,175 @@ const SectionLayoutPlanner: React.FC = () => {
     if (!selectedAnnkutEvent) { setVasanOptions([]); setSections([]); setSelectedSectionId(''); setRows(0); setCols(0); return; }
     const token = localStorage.getItem('token');
     if (!token) return;
-    // fetch base vasans
+    // fetch base vasans and fill plans, then restrict options to items present in latest vasan-nos-calculation
     let vasansResp: any[] = [];
-    fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+    let fpList: any[] = [];
+    const vasansPromise = fetch(`${API_BASE_URL}/vasans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r=> r.ok? r.json(): [])
       .then(data => { vasansResp = Array.isArray(data)? data: []; })
-      .finally(()=>{ /* wait for fill plans fetch below to build options */ });
-    fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+      .catch(()=> { vasansResp = []; });
+
+    const fpsPromise = fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r=> r.ok? r.json(): [])
-      .then(data => {
-        if (debugMode) console.debug('fetch /vasan-fill-plans ->', data, 'vasansResp', vasansResp);
-        const fpList: any[] = Array.isArray(data)? data: [];
-        const vasansById = new Map(vasansResp.map(v => [v.id, v]));
-        
-        // Build options: create individual chips for each food in a vasan
-        const optionList: VasanOption[] = [];
-        fpList.forEach(fp => {
-          let foodNames: string[] = [];
-          
-          try {
-            let plans = fp.foodPlans;
-            if (!plans && fp.foodPlan) plans = fp.foodPlan; // fallback
-            if (typeof plans === 'string') {
-              try { plans = JSON.parse(plans); } catch { /* leave as string */ }
-            }
-            if (Array.isArray(plans)) {
-              foodNames = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
-            } else if (fp.foodName) {
-              // Handle comma-separated food names from vasan nos calculation entries
-              const rawFoodName = fp.foodName.toString().trim();
-              if (rawFoodName.includes(',')) {
-                foodNames = rawFoodName.split(',').map((f: string) => f.trim()).filter(Boolean);
-              } else {
-                foodNames = [rawFoodName];
-              }
-            }
-          } catch (e) {
-            const rawFoodName = (fp.foodName || '').toString().trim();
-            foodNames = rawFoodName ? [rawFoodName] : [];
+      .then(data => { fpList = Array.isArray(data)? data: []; })
+      .catch(()=> { fpList = []; });
+
+    // wait for vasans and fill plans, then fetch nos-calculation to filter available foods
+    Promise.all([vasansPromise, fpsPromise]).then(async () => {
+      const vasansById = new Map(vasansResp.map(v => [v.id, v]));
+
+      // fetch latest nos calculation entries and build a set of available keys (vasanId::normalizedFood)
+      let nosData: any = null;
+      try {
+        const r = await fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }});
+        if (r.ok) nosData = await r.json();
+      } catch (e) { nosData = null; }
+
+      const nosKeys = new Set<string>();
+      if (nosData && Array.isArray(nosData.entries)) {
+        nosData.entries.forEach((e:any) => {
+          const raw = (e.foodName || '').toString().trim().toLowerCase();
+          if (!raw) return;
+          // Add the full raw foodName key
+          nosKeys.add(`${e.vasanId}::${raw}`);
+          // Also add individual components if the foodName contains comma-separated parts
+          raw.split(',').map((s:string) => s.trim()).filter(Boolean).forEach((part:string) => {
+            nosKeys.add(`${e.vasanId}::${part}`);
+          });
+        });
+      }
+
+      // Build options: create individual chips for each food in a vasan, but only include those present in nos calculation
+  const optionList: VasanOption[] = [];
+  const seenKeys = new Set<string>();
+      fpList.forEach(fp => {
+        let foodNames: string[] = [];
+        try {
+          let plans = fp.foodPlans;
+          if (!plans && fp.foodPlan) plans = fp.foodPlan;
+          if (typeof plans === 'string') {
+            try { plans = JSON.parse(plans); } catch { plans = null; }
           }
+          if (Array.isArray(plans) && plans.length > 0) {
+            foodNames = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
+          } else if (fp.foodName) {
+            const rawFoodName = fp.foodName.toString().trim();
+            if (rawFoodName.includes(',')) {
+              foodNames = rawFoodName.split(',').map((f:string) => f.trim()).filter(Boolean);
+            } else if (rawFoodName) {
+              foodNames = [rawFoodName];
+            }
+          }
+        } catch (e) {
+          const rawFoodName = (fp.foodName || '').toString().trim();
+          foodNames = rawFoodName ? [rawFoodName] : [];
+        }
+
+        if (foodNames.length === 0) {
+          const vasanName = vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`;
+          foodNames = [vasanName];
+        }
+
+        foodNames.forEach(foodName => {
+          const cleanFoodName = foodName.trim();
+          if (!cleanFoodName) return;
+          const normalizedFoodName = cleanFoodName.toLowerCase();
+          const key = `${fp.vasanId}::${normalizedFoodName}`;
+
+          // If nos calculation exists, only include items that are present in nosKeys.
+          if (nosKeys.size > 0 && !nosKeys.has(key)) return;
+
+          // Only include one chip per vasanId::food (pick first fillPlan encountered)
+          if (seenKeys.has(key)) return;
+          seenKeys.add(key);
+
+          optionList.push({
+            fillPlanId: fp.id,
+            vasanId: fp.vasanId,
+            vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+            foodName: cleanFoodName,
+            // @ts-ignore
+            normalizedFoodName,
+          });
+        });
+
+        // Also check if this fill plan's combined foods match any nos calculation entry
+        if (nosKeys.size > 0 && foodNames.length > 1) {
+          const combinedFood = foodNames.join(', ');
+          const combinedNormalized = combinedFood.toLowerCase();
+          const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
           
-          // Create one option per food name
-          foodNames.forEach(foodName => {
-            const normalizedFoodName = foodName.toLowerCase().trim();
+          if (nosKeys.has(combinedKey) && !seenKeys.has(combinedKey)) {
+            seenKeys.add(combinedKey);
             optionList.push({
               fillPlanId: fp.id,
               vasanId: fp.vasanId,
               vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-              foodName,
-              // attach a normalized key for consistent matching
-              // @ts-ignore - adding runtime prop
-              normalizedFoodName,
+              foodName: combinedFood,
+              // @ts-ignore
+              normalizedFoodName: combinedNormalized,
             });
-          });
-        });
-        if (debugMode) console.debug('Computed vasanOptions', optionList);
-        setVasanOptions(optionList);
+          }
+        }
       });
+
+      // If nos calculation returned no entries, fallback to including all fill plans (existing behaviour)
+      if (nosKeys.size === 0 && optionList.length === 0) {
+        // rebuild optionList from all fill plans
+        fpList.forEach(fp => {
+          let foodNames: string[] = [];
+          try {
+            let plans = fp.foodPlans;
+            if (!plans && fp.foodPlan) plans = fp.foodPlan;
+            if (typeof plans === 'string') {
+              try { plans = JSON.parse(plans); } catch { plans = null; }
+            }
+            if (Array.isArray(plans) && plans.length > 0) {
+              foodNames = plans.map((p:any) => (p.foodName || '').toString().trim()).filter(Boolean);
+            } else if (fp.foodName) {
+              const rawFoodName = fp.foodName.toString().trim();
+              if (rawFoodName.includes(',')) {
+                foodNames = rawFoodName.split(',').map((f:string) => f.trim()).filter(Boolean);
+              } else if (rawFoodName) {
+                foodNames = [rawFoodName];
+              }
+            }
+          } catch (e) { /* ignore */ }
+          if (foodNames.length === 0) foodNames = [vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`];
+          foodNames.forEach(foodName => {
+            const cleanFoodName = foodName.trim();
+            const normalizedFoodName = cleanFoodName.toLowerCase();
+            const key = `${fp.vasanId}::${normalizedFoodName}`;
+            if (seenKeys.has(key)) return;
+            seenKeys.add(key);
+            optionList.push({ fillPlanId: fp.id, vasanId: fp.vasanId, vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`, foodName: cleanFoodName, // @ts-ignore
+              normalizedFoodName });
+          });
+          
+          // Also add combined food option if multiple foods exist
+          if (foodNames.length > 1) {
+            const combinedFood = foodNames.join(', ');
+            const combinedNormalized = combinedFood.toLowerCase();
+            const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
+            if (!seenKeys.has(combinedKey)) {
+              seenKeys.add(combinedKey);
+              optionList.push({ fillPlanId: fp.id, vasanId: fp.vasanId, vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`, foodName: combinedFood, // @ts-ignore
+                normalizedFoodName: combinedNormalized });
+            }
+          }
+        });
+      }
+
+      // Sort options for consistent display: by vasan name, then by food name
+      optionList.sort((a,b) => {
+        const vasanCompare = a.vasanName.localeCompare(b.vasanName);
+        if (vasanCompare !== 0) return vasanCompare;
+        return (a.foodName || '').localeCompare(b.foodName || '');
+      });
+
+      if (debugMode) console.debug('Computed vasanOptions (from nos calc intersection)', optionList, { nosKeys });
+      setVasanOptions(optionList);
+    });
     // fetch allowed counts from latest vasan nos calculation entry
     fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
       .then(r => r.ok ? r.json() : null)
@@ -100,13 +212,18 @@ const SectionLayoutPlanner: React.FC = () => {
         const map: Record<number, Record<string, number>> = {};
         if (data && Array.isArray(data.entries)) {
           data.entries.forEach((e: any) => {
-            const key = `${e.vasanId}::${(e.foodName || '').toString().trim().toLowerCase()}`;
+            const raw = (e.foodName || '').toString().trim().toLowerCase();
+            if (!raw) return;
+            
+            const mainKey = `${e.vasanId}::${raw}`;
             if (Array.isArray(e.sectionEntries)) {
               e.sectionEntries.forEach((se: any) => {
                 const sId = Number(se.sectionId);
                 const count = Number(se.count) || 0;
                 if (!map[sId]) map[sId] = {};
-                map[sId][key] = (map[sId][key] || 0) + count;
+                
+                // Only add count to the exact key (no automatic splitting)
+                map[sId][mainKey] = (map[sId][mainKey] || 0) + count;
               });
             }
           });
@@ -447,8 +564,10 @@ const SectionLayoutPlanner: React.FC = () => {
           <Box sx={{ display:'flex', flexWrap:'wrap', gap:1 }}>
             {vasanOptions.map(v => {
               const normalized = (v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase();
-              const displayFood = (v.foodName && v.foodName.trim()) || (v as any).normalizedFoodName || '';
-              const color = getFoodColor(displayFood);
+              // Use consistent display format: prefer foodName, fallback to vasanName
+              const displayFood = v.foodName && v.foodName.trim() ? v.foodName.trim() : '';
+              const displayName = displayFood ? `${v.vasanName} (${displayFood})` : v.vasanName;
+              const color = getFoodColor(displayFood || v.vasanName);
               const textColor = getContrast(color);
               const key = `${v.vasanId}::${normalized}`;
               // If the current section has an allowed map, enforce it. If it doesn't, allow items.
@@ -468,7 +587,7 @@ const SectionLayoutPlanner: React.FC = () => {
                   onDragStart={()=> setDragVasan(v)}
                   onDragEnd={()=> setDragVasan(null)}
                   sx={{ px:1, py:0.5, border:`1px solid ${color}`, borderRadius:1, fontSize:12, cursor:'grab', background:color, color:textColor, userSelect:'none', boxShadow:'0 0 0 1px rgba(255,255,255,0.3)' }}>
-                  {v.vasanName}{displayFood ? ` (${displayFood})` : ''}
+                  {displayName}
                   {typeof remaining === 'number' ? ` (${remaining} left)` : (assignedCounts[v.fillPlanId] ? ` (${assignedCounts[v.fillPlanId]})` : '')}
                 </Box>
               );
@@ -497,27 +616,39 @@ const SectionLayoutPlanner: React.FC = () => {
               let vasan = cellData.fillPlanId ? fillPlanLookup.get(cellData.fillPlanId) : undefined;
               let cellFood = '';
               let vasanName = '';
+              let displayText = '';
               
               if (cellData.fillPlanId) {
+                // Get vasan name
+                vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
+                
+                // Get food name with priority: stored in cell > from lookup
                 if (cellData.foodName) {
                   cellFood = cellData.foodName.toString().trim();
-                  vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
-                } else if (vasan) {
-                  cellFood = (vasan.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
-                  vasanName = vasan.vasanName;
+                } else if (vasan && vasan.foodName) {
+                  cellFood = vasan.foodName.toString().trim();
+                } else {
+                  cellFood = '';
+                }
+                
+                // Create consistent display text
+                if (cellFood && cellFood !== vasanName) {
+                  displayText = `${vasanName} (${cellFood})`;
+                } else {
+                  displayText = vasanName;
                 }
               }
               
-              const bgColor = cellFood ? getFoodColor(cellFood) : '#fafafa';
-              const txtColor = cellFood ? getContrast(bgColor) : '#777';
+              const bgColor = (cellFood || vasanName) ? getFoodColor(cellFood || vasanName) : '#fafafa';
+              const txtColor = (cellFood || vasanName) ? getContrast(bgColor) : '#777';
               return (
         <Box
                   key={cell.id}
                   onDragOver={e=> e.preventDefault()}
                   onDrop={()=> handleDrop(idx)}
-                  draggable={Boolean(cellFood)}
+                  draggable={Boolean(cellData.fillPlanId)}
                   onDragStart={() => {
-                    if (cellFood && cellData.fillPlanId) {
+                    if (cellData.fillPlanId) {
                       setDragSourceCellIndex(idx);
                       setDragVasan({
                         fillPlanId: cellData.fillPlanId,
@@ -525,7 +656,7 @@ const SectionLayoutPlanner: React.FC = () => {
                         vasanName: vasanName,
                         foodName: cellFood,
                         // @ts-ignore
-                        normalizedFoodName: cellData.normalizedFoodName || cellFood.toLowerCase().trim(),
+                        normalizedFoodName: cellData.normalizedFoodName || (cellFood || vasanName).toLowerCase().trim(),
                       });
                     }
                   }}
@@ -548,15 +679,15 @@ const SectionLayoutPlanner: React.FC = () => {
                     textAlign:'center',
                     p:1,
                     transition:'background .2s',
-                    cursor: cellFood ? (dragSourceCellIndex === idx ? 'grabbing' : 'grab') : 'default',
+                    cursor: cellData.fillPlanId ? (dragSourceCellIndex === idx ? 'grabbing' : 'grab') : 'default',
                     userSelect:'none',
           zIndex:1,
                   }}
                 >
-                      {cellFood ? (
+                      {(cellFood || vasanName) ? (
                     <>
                       <Typography variant='caption' sx={{ lineHeight:1.1 }}>
-                        {vasanName}{cellFood ? ` (${cellFood})` : ''}
+                        {displayText}
                       </Typography>
                       <IconButton size='small' onClick={()=> removeCellVasan(idx)} sx={{ position:'absolute', top:2, right:2, color:txtColor }}><DeleteIcon fontSize='inherit' /></IconButton>
                     </>
@@ -624,19 +755,31 @@ const SectionLayoutPlanner: React.FC = () => {
                   let vasan = cellData.fillPlanId ? fillPlanLookup.get(cellData.fillPlanId) : undefined;
                   let cellFood = '';
                   let vasanName = '';
+                  let displayText = '';
                   
                   if (cellData.fillPlanId) {
+                    // Get vasan name
+                    vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
+                    
+                    // Get food name with priority: stored in cell > from lookup
                     if (cellData.foodName) {
                       cellFood = cellData.foodName.toString().trim();
-                      vasanName = vasan?.vasanName || `Vasan ${cellData.vasanId}`;
-                    } else if (vasan) {
-                      cellFood = (vasan.foodName && vasan.foodName.trim()) || (vasan as any)?.normalizedFoodName || '';
-                      vasanName = vasan.vasanName;
+                    } else if (vasan && vasan.foodName) {
+                      cellFood = vasan.foodName.toString().trim();
+                    } else {
+                      cellFood = '';
+                    }
+                    
+                    // Create consistent display text
+                    if (cellFood && cellFood !== vasanName) {
+                      displayText = `${vasanName} (${cellFood})`;
+                    } else {
+                      displayText = vasanName;
                     }
                   }
                   
-                  const bgColor = cellFood ? getFoodColor(cellFood) : '#fafafa';
-                  const txtColor = cellFood ? getContrast(bgColor) : '#245D6B';
+                  const bgColor = (cellFood || vasanName) ? getFoodColor(cellFood || vasanName) : '#fafafa';
+                  const txtColor = (cellFood || vasanName) ? getContrast(bgColor) : '#245D6B';
                   return (
                     <Box
                       key={cIdx}
@@ -660,7 +803,7 @@ const SectionLayoutPlanner: React.FC = () => {
                         }
                       }}
                     >
-                      {cellFood ? `${vasanName} (${cellFood})` : ''}
+                      {displayText}
                     </Box>
                   );
                 })}
