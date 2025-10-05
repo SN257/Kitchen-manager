@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, Button, Dialog, DialogTitle, DialogContent, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, Button, Dialog, DialogTitle, DialogContent, Snackbar, Alert, TextField } from '@mui/material';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
@@ -12,6 +12,15 @@ interface SummaryRow {
 }
 
 interface WeightEntry { vangiName: string; gram: number }
+
+interface RecipeEntry { vangiName: string; items_per_kg: number }
+
+interface ExtraEntry {
+  foodName: string;
+  extraWeight: number;
+  extraNang: number;
+  extraFlour: number;
+}
 
 const FinalNosSummary: React.FC = () => {
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
@@ -26,6 +35,8 @@ const FinalNosSummary: React.FC = () => {
   const [cachedRows, setCachedRows] = useState<SummaryRow[]>([]);
   const inFlightSave = useRef<string>('');
   const [weights, setWeights] = useState<WeightEntry[]>([]);
+  const [recipes, setRecipes] = useState<RecipeEntry[]>([]);
+  const [extraEntries, setExtraEntries] = useState<Map<string, ExtraEntry>>(new Map());
 
   useEffect(() => {
     console.log('Selected Annkut Event:', selectedAnnkutEvent);
@@ -53,8 +64,10 @@ const FinalNosSummary: React.FC = () => {
           return null;
         }),
       fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : []),
+      fetch(`${API_BASE_URL}/recipe`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : [])
-    ]).then(([annkutData, sectionData, weightData]) => {
+    ]).then(([annkutData, sectionData, weightData, recipeData]) => {
       console.log('FULL Annkut API Response:', annkutData);
       const annkut = Array.isArray(annkutData) ? annkutData : [];
       const section = Array.isArray(sectionData?.rows) ? sectionData.rows : [];
@@ -63,6 +76,7 @@ const FinalNosSummary: React.FC = () => {
       setAnnkutRows(annkut);
       setSectionRows(section);
       setWeights(Array.isArray(weightData) ? weightData : []);
+      setRecipes(Array.isArray(recipeData) ? recipeData : []);
     }).finally(() => setLoading(false));
 
     // Fetch saved snapshot (if backend endpoint exists)
@@ -154,6 +168,65 @@ const FinalNosSummary: React.FC = () => {
     }
     return { ...r, totalWeightKg: tw };
   });
+
+  // Helper to update extra entries with automatic calculations (using SectionNosSummary logic)
+  const updateExtraEntry = (foodName: string, field: 'extraWeight' | 'extraNang' | 'extraFlour', value: number) => {
+    setExtraEntries(prev => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(foodName) || { foodName, extraWeight: 0, extraNang: 0, extraFlour: 0 };
+      
+      // Get the gram per piece for calculations (same as SectionNosSummary)
+      const gram = weightMap.get(normalizeName(foodName)) || weightMap.get(getBaseName(foodName)) || 0;
+      
+      // Find recipe (same logic as SectionNosSummary)
+      let recipe: RecipeEntry | undefined;
+      if (foodName.trim().startsWith('મગજ')) {
+        recipe = recipes.find(r => r.vangiName.trim() === 'મગજ');
+      } else {
+        recipe = recipes.find(r => r.vangiName.toLowerCase() === foodName.toLowerCase());
+      }
+      const itemsPerKg = recipe ? Number(recipe.items_per_kg) : 1;
+      
+      // Create new entry with updated field
+      const newEntry = { ...existing, [field]: value };
+      
+      if (field === 'extraWeight' && value > 0) {
+        // Weight changed -> calculate nang and flour (SectionNosSummary logic)
+        // Nang calculation: nang = (weight_kg * 1000) / gram_per_piece
+        const nang = gram > 0 ? (value * 1000) / gram : 0;
+        // Flour calculation: flour = weight_kg / items_per_kg
+        const flour = itemsPerKg > 0 ? value / itemsPerKg : 0;
+        newEntry.extraNang = Math.round(nang * 100) / 100;
+        newEntry.extraFlour = Math.round(flour * 100) / 100;
+      } else if (field === 'extraNang' && value > 0) {
+        // Nang changed -> calculate weight and flour
+        // Weight calculation: weight = (nang * gram_per_piece) / 1000
+        const weight = gram > 0 ? (value * gram) / 1000 : 0;
+        // Flour calculation: flour = weight / items_per_kg
+        const flour = itemsPerKg > 0 ? weight / itemsPerKg : 0;
+        newEntry.extraWeight = Math.round(weight * 100) / 100;
+        newEntry.extraFlour = Math.round(flour * 100) / 100;
+      } else if (field === 'extraFlour' && value > 0) {
+        // Flour changed -> calculate weight and nang
+        // Weight calculation: weight = flour * items_per_kg
+        const weight = value * itemsPerKg;
+        // Nang calculation: nang = (weight * 1000) / gram_per_piece
+        const nang = gram > 0 ? (weight * 1000) / gram : 0;
+        newEntry.extraWeight = Math.round(weight * 100) / 100;
+        newEntry.extraNang = Math.round(nang * 100) / 100;
+      }
+      
+      // If value is 0 or negative, clear all fields
+      if (value <= 0) {
+        newEntry.extraWeight = 0;
+        newEntry.extraNang = 0;
+        newEntry.extraFlour = 0;
+      }
+      
+      newMap.set(foodName, newEntry);
+      return newMap;
+    });
+  };
 
   // Formatting helpers
   const fmtKg = (n: number) => (n && isFinite(n) && n > 0 ? `${n.toFixed(2)} kg` : '-');
@@ -269,6 +342,7 @@ const FinalNosSummary: React.FC = () => {
                   <TableCell rowSpan={2} sx={{ position: 'sticky', left: 0, zIndex: 4, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', verticalAlign: 'middle' }}>Food Name</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Box-wise Annkut</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Section-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Extra</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', zIndex: 3 }}>Final Summary</TableCell>
                 </TableRow>
                 <TableRow>
@@ -278,6 +352,9 @@ const FinalNosSummary: React.FC = () => {
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Weight (Kg)</TableCell>
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Nang</TableCell>
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Extra Weight (Kg)</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Extra Nang</TableCell>
+                  <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Extra Flour (Kg)</TableCell>
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Weight (Kg)</TableCell>
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Total Nang</TableCell>
                   <TableCell sx={{ position: 'sticky', top: 56, zIndex: 3, background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center' }}>Required Flour (Kg)</TableCell>
@@ -310,21 +387,31 @@ const FinalNosSummary: React.FC = () => {
                     if (gram > 0) sWeight = (sNang * gram) / 1000;
                   }
 
-                  // Final values
-                  let fWeight: number = 0;
-                  let fNang: number = 0;
-                  const fFlour = Math.max(aFlour, sFlour);
+                  // Extra values
+                  const extra = extraEntries.get(displayName) || { foodName: displayName, extraWeight: 0, extraNang: 0, extraFlour: 0 };
+                  const eWeight = Number(extra.extraWeight) || 0;
+                  const eNang = Number(extra.extraNang) || 0;
+                  const eFlour = Number(extra.extraFlour) || 0;
+
+                  // Final values (include extra values)
+                  let baseWeight: number = 0;
+                  let baseNang: number = 0;
+                  let baseFlour = Math.max(aFlour, sFlour);
                   if (aFlour >= sFlour) {
-                    fWeight = aWeight;
-                    fNang = aNang;
+                    baseWeight = aWeight;
+                    baseNang = aNang;
                   } else {
-                    fWeight = sWeight;
-                    fNang = sNang;
+                    baseWeight = sWeight;
+                    baseNang = sNang;
                   }
-                  if ((!fWeight || !isFinite(fWeight)) && fNang > 0) {
+                  if ((!baseWeight || !isFinite(baseWeight)) && baseNang > 0) {
                     const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
-                    if (gram > 0) fWeight = (fNang * gram) / 1000;
+                    if (gram > 0) baseWeight = (baseNang * gram) / 1000;
                   }
+
+                  const fWeight = baseWeight + eWeight;
+                  const fNang = baseNang + eNang;
+                  const fFlour = baseFlour + eFlour;
 
                   return (
                     <TableRow key={`all-${displayName}-${i}`}>
@@ -335,6 +422,54 @@ const FinalNosSummary: React.FC = () => {
                       <TableCell sx={{ textAlign: 'center' }}>{fmtKg(sWeight)}</TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>{fmtNos(sNang)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', borderRight: groupDivider }}>{fmtKg(sFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', p: 1 }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={eWeight || ''}
+                          onChange={(e) => updateExtraEntry(displayName, 'extraWeight', Number(e.target.value) || 0)}
+                          sx={{ 
+                            width: '80px',
+                            '& .MuiOutlinedInput-root': { 
+                              height: '32px',
+                              fontSize: '0.875rem'
+                            }
+                          }}
+                          inputProps={{ step: 0.01, min: 0 }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ textAlign: 'center', p: 1 }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={eNang || ''}
+                          onChange={(e) => updateExtraEntry(displayName, 'extraNang', Number(e.target.value) || 0)}
+                          sx={{ 
+                            width: '80px',
+                            '& .MuiOutlinedInput-root': { 
+                              height: '32px',
+                              fontSize: '0.875rem'
+                            }
+                          }}
+                          inputProps={{ step: 1, min: 0 }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ textAlign: 'center', borderRight: groupDivider, p: 1 }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={eFlour || ''}
+                          onChange={(e) => updateExtraEntry(displayName, 'extraFlour', Number(e.target.value) || 0)}
+                          sx={{ 
+                            width: '80px',
+                            '& .MuiOutlinedInput-root': { 
+                              height: '32px',
+                              fontSize: '0.875rem'
+                            }
+                          }}
+                          inputProps={{ step: 0.01, min: 0 }}
+                        />
+                      </TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>{fmtKg(fWeight)}</TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>{fmtNos(fNang)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B' }}>{fmtKg(fFlour)}</TableCell>
@@ -411,6 +546,7 @@ const FinalNosSummary: React.FC = () => {
                   <TableCell rowSpan={2} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, borderBottom: 0, verticalAlign: 'middle', boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Food Name</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Box-wise Annkut</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Section-wise Annkut</TableCell>
+                  <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Extra</TableCell>
                   <TableCell colSpan={3} sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, borderBottom: 0, '@media print': { background: '#fff !important', color: '#000 !important' } }}>Final Summary</TableCell>
                 </TableRow>
                 <TableRow>
@@ -420,6 +556,9 @@ const FinalNosSummary: React.FC = () => {
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Weight (Kg)</TableCell>
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Nang</TableCell>
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Required Flour (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Extra Weight (Kg)</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Extra Nang</TableCell>
+                  <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', borderRight: headerGroupDivider, border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important', borderRight: '1px solid #245D6B !important' } }}>Extra Flour (Kg)</TableCell>
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Weight (Kg)</TableCell>
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Total Nang</TableCell>
                   <TableCell sx={{ background: '#245D6B', color: '#fff', fontWeight: 700, textAlign: 'center', border: headerBorder, boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.5)', '@media print': { background: '#fff !important', color: '#000 !important' } }}>Required Flour (Kg)</TableCell>
@@ -451,21 +590,31 @@ const FinalNosSummary: React.FC = () => {
                     if (gram > 0) sWeight = (sNang * gram) / 1000;
                   }
 
-                  // Final values
-                  let fWeight: number = 0;
-                  let fNang: number = 0;
-                  const fFlour = Math.max(aFlour, sFlour);
+                  // Extra values
+                  const extra = extraEntries.get(displayName) || { foodName: displayName, extraWeight: 0, extraNang: 0, extraFlour: 0 };
+                  const eWeight = Number(extra.extraWeight) || 0;
+                  const eNang = Number(extra.extraNang) || 0;
+                  const eFlour = Number(extra.extraFlour) || 0;
+
+                  // Final values (include extra values)
+                  let baseWeight: number = 0;
+                  let baseNang: number = 0;
+                  let baseFlour = Math.max(aFlour, sFlour);
                   if (aFlour >= sFlour) {
-                    fWeight = aWeight;
-                    fNang = aNang;
+                    baseWeight = aWeight;
+                    baseNang = aNang;
                   } else {
-                    fWeight = sWeight;
-                    fNang = sNang;
+                    baseWeight = sWeight;
+                    baseNang = sNang;
                   }
-                  if ((!fWeight || !isFinite(fWeight)) && fNang > 0) {
+                  if ((!baseWeight || !isFinite(baseWeight)) && baseNang > 0) {
                     const gram = weightMap.get(normalizeName(displayName)) || weightMap.get(getBaseName(displayName)) || 0;
-                    if (gram > 0) fWeight = (fNang * gram) / 1000;
+                    if (gram > 0) baseWeight = (baseNang * gram) / 1000;
                   }
+
+                  const fWeight = baseWeight + eWeight;
+                  const fNang = baseNang + eNang;
+                  const fFlour = baseFlour + eFlour;
 
                   return (
                     <TableRow key={`print-all-${displayName}-${i}`}>
@@ -476,6 +625,9 @@ const FinalNosSummary: React.FC = () => {
                       <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(sWeight)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(sNang)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{fmtKg(sFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{eWeight > 0 ? fmtKg(eWeight) : '-'}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{eNang > 0 ? fmtNos(eNang) : '-'}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{eFlour > 0 ? fmtKg(eFlour) : '-'}</TableCell>
                       <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(fWeight)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(fNang)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B', border: '1px solid #245D6B' }}>{fmtKg(fFlour)}</TableCell>
