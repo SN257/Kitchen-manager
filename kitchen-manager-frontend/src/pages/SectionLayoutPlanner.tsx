@@ -64,12 +64,16 @@ const SectionLayoutPlanner: React.FC = () => {
         nosData.entries.forEach((e:any) => {
           const raw = (e.foodName || '').toString().trim().toLowerCase();
           if (!raw) return;
-          // Add the full raw foodName key
+          
+          // Always add the exact raw foodName key first
           nosKeys.add(`${e.vasanId}::${raw}`);
-          // Also add individual components if the foodName contains comma-separated parts
-          raw.split(',').map((s:string) => s.trim()).filter(Boolean).forEach((part:string) => {
-            nosKeys.add(`${e.vasanId}::${part}`);
-          });
+          
+          // If the foodName contains commas, also add individual components
+          if (raw.includes(',')) {
+            raw.split(',').map((s:string) => s.trim()).filter(Boolean).forEach((part:string) => {
+              nosKeys.add(`${e.vasanId}::${part}`);
+            });
+          }
         });
       }
 
@@ -104,6 +108,26 @@ const SectionLayoutPlanner: React.FC = () => {
           foodNames = [vasanName];
         }
 
+        // First, check if the combined foodNames (as they appear in fill plan) match any nos calculation entry
+        if (nosKeys.size > 0 && foodNames.length > 1) {
+          const combinedFood = foodNames.join(', ');
+          const combinedNormalized = combinedFood.toLowerCase();
+          const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
+          
+          if (nosKeys.has(combinedKey) && !seenKeys.has(combinedKey)) {
+            seenKeys.add(combinedKey);
+            optionList.push({
+              fillPlanId: fp.id,
+              vasanId: fp.vasanId,
+              vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
+              foodName: combinedFood,
+              // @ts-ignore
+              normalizedFoodName: combinedNormalized,
+            });
+          }
+        }
+
+        // Then add individual foods that are present in nos calculation
         foodNames.forEach(foodName => {
           const cleanFoodName = foodName.trim();
           if (!cleanFoodName) return;
@@ -126,25 +150,6 @@ const SectionLayoutPlanner: React.FC = () => {
             normalizedFoodName,
           });
         });
-
-        // Also check if this fill plan's combined foods match any nos calculation entry
-        if (nosKeys.size > 0 && foodNames.length > 1) {
-          const combinedFood = foodNames.join(', ');
-          const combinedNormalized = combinedFood.toLowerCase();
-          const combinedKey = `${fp.vasanId}::${combinedNormalized}`;
-          
-          if (nosKeys.has(combinedKey) && !seenKeys.has(combinedKey)) {
-            seenKeys.add(combinedKey);
-            optionList.push({
-              fillPlanId: fp.id,
-              vasanId: fp.vasanId,
-              vasanName: vasansById.get(fp.vasanId)?.vasanName || `Vasan ${fp.vasanId}`,
-              foodName: combinedFood,
-              // @ts-ignore
-              normalizedFoodName: combinedNormalized,
-            });
-          }
-        }
       });
 
       // If nos calculation returned no entries, fallback to including all fill plans (existing behaviour)
@@ -215,15 +220,24 @@ const SectionLayoutPlanner: React.FC = () => {
             const raw = (e.foodName || '').toString().trim().toLowerCase();
             if (!raw) return;
             
-            const mainKey = `${e.vasanId}::${raw}`;
+            // Always add the exact food name as it appears in nos calculation
+            const exactKey = `${e.vasanId}::${raw}`;
             if (Array.isArray(e.sectionEntries)) {
               e.sectionEntries.forEach((se: any) => {
                 const sId = Number(se.sectionId);
                 const count = Number(se.count) || 0;
                 if (!map[sId]) map[sId] = {};
                 
-                // Only add count to the exact key (no automatic splitting)
-                map[sId][mainKey] = (map[sId][mainKey] || 0) + count;
+                // Add count to the exact key as it appears in nos calculation
+                map[sId][exactKey] = (map[sId][exactKey] || 0) + count;
+                
+                // If it's a combined food (contains comma), also add individual components
+                if (raw.includes(',')) {
+                  raw.split(',').map((s:string) => s.trim()).filter(Boolean).forEach((part:string) => {
+                    const partKey = `${e.vasanId}::${part}`;
+                    map[sId][partKey] = (map[sId][partKey] || 0) + count;
+                  });
+                }
               });
             }
           });
@@ -455,7 +469,25 @@ const SectionLayoutPlanner: React.FC = () => {
     const palette = [
       '#245D6B', '#8E44AD', '#D35400', '#16A085', '#2C3E50', '#C0392B', '#7F8C8D', '#9C27B0', '#607D8B', '#795548', '#3F51B5', '#388E3C'
     ];
-    const foods = Array.from(new Set(vasanOptions.map(v => ((v as any).normalizedFoodName || (v.foodName || '').trim().toLowerCase())).filter(Boolean)));
+    
+    // Get all unique foods - including both individual and combined foods
+    const allFoods = new Set<string>();
+    vasanOptions.forEach(v => {
+      const foodName = v.foodName || '';
+      if (foodName.trim()) {
+        const normalized = foodName.trim().toLowerCase();
+        allFoods.add(normalized);
+        
+        // If it's a combined food, also add individual components for color mapping
+        if (normalized.includes(',')) {
+          normalized.split(',').map(s => s.trim()).filter(Boolean).forEach(part => {
+            allFoods.add(part);
+          });
+        }
+      }
+    });
+    
+    const foods = Array.from(allFoods);
     const map: Record<string,string> = {};
     foods.forEach((f, idx) => { map[f] = palette[idx % palette.length]; });
     return map;
@@ -705,11 +737,34 @@ const SectionLayoutPlanner: React.FC = () => {
         </Box>
       )}
       <Box sx={{ display:'flex', flexWrap:'wrap', gap:1, mt:1 }}>
-        {Object.entries(foodColorMap).map(([foodKey, color]) => (
-          <Box key={foodKey} sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3, borderRadius:1, background:color, color:getContrast(color), fontSize:11 }}>
-            {vasanOptions.find(v=> v.foodName && v.foodName.trim().toLowerCase() === foodKey)?.foodName || foodKey}
-          </Box>
-        ))}
+        {Object.entries(foodColorMap).map(([foodKey, color]) => {
+          // Find the actual food name to display (prefer original case)
+          const vasanOption = vasanOptions.find(v => {
+            const vFoodName = v.foodName && v.foodName.trim().toLowerCase();
+            return vFoodName === foodKey || (vFoodName && vFoodName.includes(',') && vFoodName.split(',').map(s => s.trim()).includes(foodKey));
+          });
+          
+          let displayName = foodKey;
+          if (vasanOption) {
+            if (vasanOption.foodName && vasanOption.foodName.trim().toLowerCase() === foodKey) {
+              // Exact match - use the original case
+              displayName = vasanOption.foodName.trim();
+            } else if (vasanOption.foodName && vasanOption.foodName.includes(',')) {
+              // Part of combined food - find the matching part with original case
+              const parts = vasanOption.foodName.split(',').map(s => s.trim());
+              const matchingPart = parts.find(p => p.toLowerCase() === foodKey);
+              if (matchingPart) {
+                displayName = matchingPart;
+              }
+            }
+          }
+          
+          return (
+            <Box key={foodKey} sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3, borderRadius:1, background:color, color:getContrast(color), fontSize:11 }}>
+              {displayName}
+            </Box>
+          );
+        })}
       </Box>
       <Typography variant='caption' sx={{ color:'#666', fontStyle:'italic' }}>Drag a vasan (food) chip into a cell. Layout auto-saves. Use Print for a snapshot.</Typography>
       <Dialog open={printOpen} onClose={()=> setPrintOpen(false)} maxWidth='xl' fullWidth>
@@ -817,9 +872,31 @@ const SectionLayoutPlanner: React.FC = () => {
             <Box sx={{ display:'flex', flexWrap:'wrap', gap:1, mt:3, '@media print': { mt:2 } }}>
               {Object.entries(foodColorMap).map(([foodKey, color]) => {
                 const contrast = getContrast(color);
+                
+                // Find the actual food name to display (prefer original case)
+                const vasanOption = vasanOptions.find(v => {
+                  const vFoodName = v.foodName && v.foodName.trim().toLowerCase();
+                  return vFoodName === foodKey || (vFoodName && vFoodName.includes(',') && vFoodName.split(',').map(s => s.trim()).includes(foodKey));
+                });
+                
+                let displayName = foodKey;
+                if (vasanOption) {
+                  if (vasanOption.foodName && vasanOption.foodName.trim().toLowerCase() === foodKey) {
+                    // Exact match - use the original case
+                    displayName = vasanOption.foodName.trim();
+                  } else if (vasanOption.foodName && vasanOption.foodName.includes(',')) {
+                    // Part of combined food - find the matching part with original case
+                    const parts = vasanOption.foodName.split(',').map(s => s.trim());
+                    const matchingPart = parts.find(p => p.toLowerCase() === foodKey);
+                    if (matchingPart) {
+                      displayName = matchingPart;
+                    }
+                  }
+                }
+                
                 return (
                   <Box key={foodKey} sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3, borderRadius:1, background:color, color:contrast, fontSize:11, border:'1px solid rgba(0,0,0,0.15)', '@media print': { WebkitPrintColorAdjust:'exact', printColorAdjust:'exact' } }}>
-                    {vasanOptions.find(v=> v.foodName && v.foodName.trim().toLowerCase() === foodKey)?.foodName || foodKey}
+                    {displayName}
                   </Box>
                 );
               })}
