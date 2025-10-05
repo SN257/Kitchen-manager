@@ -102,7 +102,9 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
       p.startsWith('/dashboard') && (
         p.includes('annkut') ||
         p.includes('section-annkut') ||
-        p.includes('event-master')
+        p.includes('event-master') ||
+        p.includes('finalnossummary') ||
+        p.includes('finalingredientsummary')
       );
 
     if (shouldLoadForPath) {

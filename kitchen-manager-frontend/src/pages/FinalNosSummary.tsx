@@ -255,6 +255,9 @@ const FinalNosSummary: React.FC = () => {
   // Header-specific borders so grid lines are visible on dark header background (lighter and thinner)
   const headerBorder = '0.5px solid rgba(255,255,255,0.6)';
   const headerGroupDivider = '1px solid rgba(255,255,255,0.7)';
+  // Colors used for source highlighting
+  const annkutBg = '#E8F6FF'; // light blue
+  const sectionBg = '#E8FFF0'; // light green
 
   useEffect(() => {
     if (!selectedAnnkutEvent) return;
@@ -359,7 +362,23 @@ const FinalNosSummary: React.FC = () => {
           <Box sx={{ textAlign: 'center', py: 6, fontStyle: 'italic', color: '#999' }}>No data available</Box>
         ) : (
           <TableContainer sx={{ position: 'relative', maxHeight: '70vh' }}>
-            <Table stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, '& td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 } }}>
+            <Table stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', '& td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 } }}>
+                {/* Fixed column widths: 1 name column + 12 data columns (4 groups x 3 cols) */}
+                <colgroup>
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                </colgroup>
               <TableHead sx={{
                 position: 'sticky',
                 top: 0,
@@ -475,15 +494,18 @@ const FinalNosSummary: React.FC = () => {
                   const fNang = baseNang + eNang;
                   const fFlour = baseFlour + eFlour;
 
+                  const picked = aFlour >= sFlour ? 'annkut' : 'section';
+                  const finalBg = picked === 'annkut' ? annkutBg : sectionBg;
+
                   return (
                     <TableRow key={`all-${displayName}-${i}`}>
                       <TableCell sx={{ position: 'sticky', left: 0, zIndex: 1, background: '#fff', textAlign: 'center', borderRight: groupDivider }}>{displayName}</TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(aWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(aNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', borderRight: groupDivider }}>{fmtKg(aFlour)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(sWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(sNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', borderRight: groupDivider }}>{fmtKg(sFlour)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', background: annkutBg }}>{fmtKg(aWeight)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', background: annkutBg }}>{fmtNos(aNang)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', borderRight: groupDivider, background: annkutBg }}>{fmtKg(aFlour)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', background: sectionBg }}>{fmtKg(sWeight)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', background: sectionBg }}>{fmtNos(sNang)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', borderRight: groupDivider, background: sectionBg }}>{fmtKg(sFlour)}</TableCell>
                       <TableCell sx={{ textAlign: 'center', p: 1 }}>
                         <TextField
                           size="small"
@@ -532,9 +554,9 @@ const FinalNosSummary: React.FC = () => {
                           inputProps={{ step: 0.01, min: 0 }}
                         />
                       </TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtKg(fWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>{fmtNos(fNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B' }}>{fmtKg(fFlour)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', background: finalBg }}>{fmtKg(fWeight)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', background: finalBg }}>{fmtNos(fNang)}</TableCell>
+                      <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B', background: finalBg }}>{fmtKg(fFlour)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -561,6 +583,7 @@ const FinalNosSummary: React.FC = () => {
               border: '1px solid #245D6B',
               borderCollapse: 'separate',
               borderSpacing: 0,
+              tableLayout: 'fixed',
               '& th, & td': { border: '1px solid #245D6B' },
               '& tbody td': { borderTop: 0 },
               fontSize: 13,
@@ -573,6 +596,22 @@ const FinalNosSummary: React.FC = () => {
                 '& thead th': { borderRight: '1px solid #245D6B !important' }
               }
             }}>
+              {/* Fixed column widths for print table */}
+              <colgroup>
+                <col style={{ width: '220px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+              </colgroup>
               <TableHead sx={{
                 '& th': {
                   border: headerBorder,
@@ -678,21 +717,24 @@ const FinalNosSummary: React.FC = () => {
                   const fNang = baseNang + eNang;
                   const fFlour = baseFlour + eFlour;
 
+                  const picked = aFlour >= sFlour ? 'annkut' : 'section';
+                  const finalBg = picked === 'annkut' ? annkutBg : sectionBg;
+
                   return (
                     <TableRow key={`print-all-${displayName}-${i}`}>
                       <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{displayName}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(aWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(aNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{fmtKg(aFlour)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(sWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(sNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{fmtKg(sFlour)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{eWeight > 0 ? fmtKg(eWeight) : '-'}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{eNang > 0 ? fmtNos(eNang) : '-'}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{eFlour > 0 ? fmtKg(eFlour) : '-'}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{fmtKg(fWeight)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{fmtNos(fNang)}</TableCell>
-                      <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B', border: '1px solid #245D6B' }}>{fmtKg(fFlour)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B', background: annkutBg }}>{fmtKg(aWeight)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', background: annkutBg }}>{fmtNos(aNang)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' }, background: annkutBg }}>{fmtKg(aFlour)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B', background: sectionBg }}>{fmtKg(sWeight)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', background: sectionBg }}>{fmtNos(sNang)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' }, background: sectionBg }}>{fmtKg(sFlour)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B' }}>{eWeight > 0 ? fmtKg(eWeight) : '-'}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B' }}>{eNang > 0 ? fmtNos(eNang) : '-'}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', borderRight: groupDivider, '@media print': { borderRight: '1px solid #245D6B !important' } }}>{eFlour > 0 ? fmtKg(eFlour) : '-'}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', border: '1px solid #245D6B', background: finalBg }}>{fmtKg(fWeight)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 600, border: '1px solid #245D6B', background: finalBg }}>{fmtNos(fNang)}</TableCell>
+                        <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: '#245D6B', border: '1px solid #245D6B', background: finalBg }}>{fmtKg(fFlour)}</TableCell>
                     </TableRow>
                   );
                 })}
