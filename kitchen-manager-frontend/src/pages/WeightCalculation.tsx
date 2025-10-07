@@ -160,8 +160,10 @@ const WeightCalculation: React.FC = () => {
   // Debounced autosave: save pieces to backend when changed and there are no gram warnings
   React.useEffect(() => {
     const signature = JSON.stringify(pieces);
-    if (signature === lastSavedSignature) return;
-    if (gramWarnings.length > 0) return; // don't autosave while there are warnings
+  if (signature === lastSavedSignature) return;
+  // Note: do NOT block autosave when gramWarnings exist. Warnings should be shown
+  // but not prevent saving to the database. This allows operators to persist data
+  // while still being notified of capacity issues.
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
