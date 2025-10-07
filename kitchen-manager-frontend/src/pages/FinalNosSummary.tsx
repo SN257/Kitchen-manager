@@ -37,6 +37,124 @@ const FinalNosSummary: React.FC = () => {
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [recipes, setRecipes] = useState<RecipeEntry[]>([]);
   const [extraEntries, setExtraEntries] = useState<Map<string, ExtraEntry>>(new Map());
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshIntervalRef = useRef<number | null>(null);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+
+  // Function to fetch all data
+  const fetchData = async (showLoader = true, isAutoRefresh = false) => {
+    if (!selectedAnnkutEvent) {
+      setAnnkutRows([]);
+      setSectionRows([]);
+      return;
+    }
+    
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    if (showLoader) setLoading(true);
+    else setRefreshing(true);
+    
+    try {
+      const annkutUrl = `${API_BASE_URL}/annkut-sidhu-saman/?eventId=${selectedAnnkutEvent}`;
+      const sectionUrl = `${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`;
+      console.log('Fetching Annkut URL:', annkutUrl);
+      console.log('Fetching Section URL:', sectionUrl);
+      
+      const [annkutData, sectionData, weightData, recipeData] = await Promise.all([
+        fetch(annkutUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+          .then(async r => {
+            if (!r.ok) return null;
+            const ct = r.headers.get('content-type');
+            if (ct && ct.includes('application/json')) return await r.json();
+            return null;
+          }),
+        fetch(sectionUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+          .then(async r => {
+            if (!r.ok) return null;
+            const ct = r.headers.get('content-type');
+            if (ct && ct.includes('application/json')) return await r.json();
+            return null;
+          }),
+        fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : []),
+        fetch(`${API_BASE_URL}/recipe`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : [])
+      ]);
+
+      console.log('FULL Annkut API Response:', annkutData);
+      const annkut = Array.isArray(annkutData) ? annkutData : [];
+      const section = Array.isArray(sectionData?.rows) ? sectionData.rows : [];
+      console.log('RAW annkutRows:', annkut);
+      console.log('RAW sectionRows:', section);
+      
+      // Check if data has changed for auto-refresh notifications
+      const currentAnnkutSignature = JSON.stringify(annkut);
+      const currentSectionSignature = JSON.stringify(section);
+      const prevAnnkutSignature = JSON.stringify(annkutRows);
+      const prevSectionSignature = JSON.stringify(sectionRows);
+      
+      const dataHasChanged = currentAnnkutSignature !== prevAnnkutSignature || currentSectionSignature !== prevSectionSignature;
+      
+      setAnnkutRows(annkut);
+      setSectionRows(section);
+      setWeights(Array.isArray(weightData) ? weightData : []);
+      setRecipes(Array.isArray(recipeData) ? recipeData : []);
+
+      // Show notification if data changed during auto-refresh
+      if (isAutoRefresh && dataHasChanged && (annkutRows.length > 0 || sectionRows.length > 0)) {
+        setSnackbar({ open: true, message: 'Data updated automatically', severity: 'success' });
+      }
+
+      // Fetch saved snapshot (if backend endpoint exists)
+      const saved = await fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+
+      if (saved && Array.isArray(saved.rows)) {
+        // sanitize and preserve extra fields
+        const rows: SummaryRow[] = saved.rows.map((r: any) => ({
+          foodName: String(r.foodName || ''),
+          totalWeightKg: Number(r.totalWeightKg) || 0,
+          totalNang: Number(r.totalNang) || 0,
+          finalFlour: Number(r.finalFlour) || 0,
+          // Note: SummaryRow type doesn't currently declare extras; we'll store them in extraEntries map below
+        }));
+        setCachedRows(rows);
+
+        // initialize extraEntries map from saved rows if extras exist
+        const extrasMap = new Map<string, ExtraEntry>();
+        saved.rows.forEach((r: any) => {
+          const name = String(r.foodName || '').trim();
+          const ew = Number(r.extraWeight) || 0;
+          const en = Number(r.extraNang) || 0;
+          const ef = Number(r.extraFlour) || 0;
+          if (ew > 0 || en > 0 || ef > 0) {
+            extrasMap.set(name, { foodName: name, extraWeight: ew, extraNang: en, extraFlour: ef });
+          }
+        });
+        if (extrasMap.size) setExtraEntries(extrasMap);
+      } else {
+        setCachedRows([]);
+      }
+      
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      if (isAutoRefresh) {
+        // Don't show error notifications for auto-refresh failures
+        console.warn('Auto-refresh failed, will retry on next interval');
+      }
+    } finally {
+      if (showLoader) setLoading(false);
+      else setRefreshing(false);
+    }
+  };
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    fetchData(false);
+  };
 
   useEffect(() => {
     console.log('Selected Annkut Event:', selectedAnnkutEvent);
@@ -45,78 +163,48 @@ const FinalNosSummary: React.FC = () => {
     setExtraEntries(new Map());
     setLastSavedSignature('');
     inFlightSave.current = '';
-    if (!selectedAnnkutEvent) { setAnnkutRows([]); setSectionRows([]); return; }
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    setLoading(true);
-    const annkutUrl = `${API_BASE_URL}/annkut-sidhu-saman/?eventId=${selectedAnnkutEvent}`;
-    const sectionUrl = `${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`;
-    console.log('Fetching Annkut URL:', annkutUrl);
-    console.log('Fetching Section URL:', sectionUrl);
-    Promise.all([
-      fetch(annkutUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
-        .then(async r => {
-          if (!r.ok) return null;
-          const ct = r.headers.get('content-type');
-          if (ct && ct.includes('application/json')) return await r.json();
-          return null;
-        }),
-      fetch(sectionUrl, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
-        .then(async r => {
-          if (!r.ok) return null;
-          const ct = r.headers.get('content-type');
-          if (ct && ct.includes('application/json')) return await r.json();
-          return null;
-        }),
-      fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : []),
-      fetch(`${API_BASE_URL}/recipe`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : [])
-    ]).then(([annkutData, sectionData, weightData, recipeData]) => {
-      console.log('FULL Annkut API Response:', annkutData);
-      const annkut = Array.isArray(annkutData) ? annkutData : [];
-      const section = Array.isArray(sectionData?.rows) ? sectionData.rows : [];
-      console.log('RAW annkutRows:', annkut);
-      console.log('RAW sectionRows:', section);
-      setAnnkutRows(annkut);
-      setSectionRows(section);
-      setWeights(Array.isArray(weightData) ? weightData : []);
-      setRecipes(Array.isArray(recipeData) ? recipeData : []);
-    }).finally(() => setLoading(false));
-
-    // Fetch saved snapshot (if backend endpoint exists)
-    fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(saved => {
-        if (saved && Array.isArray(saved.rows)) {
-          // sanitize and preserve extra fields
-          const rows: SummaryRow[] = saved.rows.map((r: any) => ({
-            foodName: String(r.foodName || ''),
-            totalWeightKg: Number(r.totalWeightKg) || 0,
-            totalNang: Number(r.totalNang) || 0,
-            finalFlour: Number(r.finalFlour) || 0,
-            // Note: SummaryRow type doesn't currently declare extras; we'll store them in extraEntries map below
-          }));
-          setCachedRows(rows);
-
-          // initialize extraEntries map from saved rows if extras exist
-          const extrasMap = new Map<string, ExtraEntry>();
-          saved.rows.forEach((r: any) => {
-            const name = String(r.foodName || '').trim();
-            const ew = Number(r.extraWeight) || 0;
-            const en = Number(r.extraNang) || 0;
-            const ef = Number(r.extraFlour) || 0;
-            if (ew > 0 || en > 0 || ef > 0) {
-              extrasMap.set(name, { foodName: name, extraWeight: ew, extraNang: en, extraFlour: ef });
-            }
-          });
-          if (extrasMap.size) setExtraEntries(extrasMap);
-        } else {
-          setCachedRows([]);
-        }
-      })
-      .catch(() => setCachedRows([]));
-  }, [API_BASE_URL, selectedAnnkutEvent]);
+    
+    // Clear any existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+    
+    if (!selectedAnnkutEvent) {
+      setAnnkutRows([]);
+      setSectionRows([]);
+      return;
+    }
+    
+    // Initial fetch
+    fetchData(true);
+    
+    // Set up polling every 30 seconds to check for updates
+    refreshIntervalRef.current = window.setInterval(() => {
+      fetchData(false, true); // false = don't show loader, true = is auto-refresh
+    }, 30000);
+    
+    // Add window focus event listener to refresh when user returns to tab
+    const handleWindowFocus = () => {
+      // Only refresh if it's been more than 10 seconds since last refresh
+      const now = new Date().getTime();
+      const lastRefresh = lastRefreshTime?.getTime() || 0;
+      if (now - lastRefresh > 10000) {
+        fetchData(false, true);
+      }
+    };
+    
+    window.addEventListener('focus', handleWindowFocus);
+    
+    // Cleanup interval and event listener on unmount or event change
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [API_BASE_URL, selectedAnnkutEvent]); // Removed lastRefreshTime from dependency array
 
   // Helper to get the correct food name field from Annkut row
   const getAnnkutFoodName = (row: any) => {
@@ -348,8 +436,23 @@ const FinalNosSummary: React.FC = () => {
         <SummarizeIcon sx={{ color: '#245D6B', fontSize: 32, mr: 1 }} />
         <Typography variant='h5' sx={{ color: '#245D6B', fontWeight: 700 }}>Final Nos Summary</Typography>
         {selectedEventDetails && <Typography variant='body1' sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center', flexDirection: { xs: 'column', sm: 'row' } }}>
           {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
+          {refreshing && <Typography variant='caption' sx={{ color: '#245D6B' }}>Refreshing...</Typography>}
+          {lastRefreshTime && !refreshing && (
+            <Typography variant='caption' sx={{ color: '#666', fontSize: '0.75rem' }}>
+              Last updated: {lastRefreshTime.toLocaleTimeString()}
+            </Typography>
+          )}
+          <Button 
+            variant='outlined' 
+            size='small'
+            disabled={loading || refreshing} 
+            sx={{ borderColor: '#245D6B', color: '#245D6B' }} 
+            onClick={handleRefresh}
+          >
+            Refresh
+          </Button>
           <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor: '#245D6B', color: '#245D6B' }} onClick={() => setPrintOpen(true)}>Print</Button>
         </Box>
       </Box>
