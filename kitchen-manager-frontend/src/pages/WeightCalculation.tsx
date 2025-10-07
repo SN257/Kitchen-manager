@@ -48,6 +48,10 @@ const WeightCalculation: React.FC = () => {
   const [entryId, setEntryId] = useState<number | null>(null);
   const [gramWarnings, setGramWarnings] = useState<string[]>([]);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const saveTimeoutRef = React.useRef<number | null>(null);
+  const inFlightSaveRef = React.useRef<string>('');
+  const [lastSavedSignature, setLastSavedSignature] = React.useState<string>('');
   
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
@@ -124,70 +128,7 @@ const WeightCalculation: React.FC = () => {
       });
   };
 
-  const handleSave = async () => {
-    if (!selectedAnnkutEvent) {
-      setSnackbar({ open: true, message: 'Please select an Annkut event first.', severity: 'error' });
-      return;
-    }
-
-    const hasEntry = Object.values(pieces).some(val => !!val && Number(val) > 0);
-    if (!hasEntry) {
-      setSnackbar({ open: true, message: 'Please enter at least one value before saving.', severity: 'error' });
-      return;
-    }
-    
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setSnackbar({ open: true, message: 'Authentication required. Please login again.', severity: 'error' });
-        return;
-      }
-
-      const dataToSave = mithais.map(mithai => {
-        const boxEntries = boxRanges
-          .map(box => ({
-            boxRange: box.priceRange,
-            pieces: Number(pieces[`${mithai.id}_${box.id}`]) || 0,
-            boxId: box.id,
-          }))
-          .filter(entry => entry.pieces > 0);
-
-        if (boxEntries.length === 0) return null;
-
-        return {
-          mithaiId: mithai.id,
-          mithaiName: mithai.vangiName,
-          totalNang: boxEntries.reduce((sum, entry) => sum + entry.pieces, 0),
-          totalGram: boxEntries.reduce((sum, entry) => sum + entry.pieces * mithai.gram, 0),
-          boxEntries,
-        };
-      }).filter(Boolean);
-
-      const response = await fetch(`${API_BASE_URL}/weight-calculation-entries${entryId ? `/${entryId}` : ''}`, {
-        method: entryId ? 'PUT' : 'POST',
-        credentials: 'include',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          entries: dataToSave,
-          eventId: selectedAnnkutEvent 
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (!entryId && result.id) setEntryId(result.id);
-        setSnackbar({ open: true, message: 'Saved successfully!', severity: 'success' });
-        setIsDirty(false);
-      } else {
-        setSnackbar({ open: true, message: 'Failed to save!', severity: 'error' });
-      }
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to save!', severity: 'error' });
-    }
-  };
+  // Manual save removed — pieces now autosave on change (debounced)
 
   // Add useEffect to calculate gram warnings
   useEffect(() => {
@@ -216,6 +157,77 @@ const WeightCalculation: React.FC = () => {
     setGramWarnings(warnings);
   }, [mithais, boxRanges, pieces, selectedAnnkutEvent]);
 
+  // Debounced autosave: save pieces to backend when changed and there are no gram warnings
+  React.useEffect(() => {
+    const signature = JSON.stringify(pieces);
+    if (signature === lastSavedSignature) return;
+    if (gramWarnings.length > 0) return; // don't autosave while there are warnings
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    saveTimeoutRef.current = window.setTimeout(async () => {
+      if (inFlightSaveRef.current === signature) return;
+      inFlightSaveRef.current = signature;
+      setAutoSaving(true);
+
+      const token = localStorage.getItem('token');
+      if (!token || !selectedAnnkutEvent) {
+        setAutoSaving(false);
+        inFlightSaveRef.current = '';
+        return;
+      }
+
+      try {
+        const dataToSave = mithais.map(mithai => {
+          const boxEntries = boxRanges
+            .map(box => ({ boxId: box.id, pieces: Number(pieces[`${mithai.id}_${box.id}`]) || 0 }))
+            .filter(be => be.pieces > 0);
+          if (boxEntries.length === 0) return null;
+          return { mithaiId: mithai.id, mithaiName: mithai.vangiName, boxEntries, totalNang: boxEntries.reduce((s, b) => s + b.pieces, 0), totalGram: boxEntries.reduce((s, b) => s + b.pieces * mithai.gram, 0) };
+        }).filter(Boolean);
+
+        if ((!dataToSave || dataToSave.length === 0) && !entryId) {
+          setLastSavedSignature(signature);
+          setAutoSaving(false);
+          inFlightSaveRef.current = '';
+          return;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/weight-calculation-entries${entryId ? `/${entryId}` : ''}`, {
+          method: entryId ? 'PUT' : 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ entries: dataToSave, eventId: selectedAnnkutEvent })
+        });
+
+        if (res.ok) {
+          const result = await res.json().catch(() => null);
+          if (!entryId && result && result.id) setEntryId(result.id);
+          setLastSavedSignature(signature);
+        } else {
+          console.warn('Weight autosave failed');
+          setSnackbar({ open: true, message: 'Auto-save failed', severity: 'error' });
+        }
+      } catch (e) {
+        console.error('Weight autosave error', e);
+        setSnackbar({ open: true, message: 'Auto-save error', severity: 'error' });
+      } finally {
+        setAutoSaving(false);
+        inFlightSaveRef.current = '';
+      }
+    }, 800);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
+  }, [pieces, gramWarnings, mithais, boxRanges, selectedAnnkutEvent, API_BASE_URL, entryId, lastSavedSignature]);
+
   return (
     <Box sx={{ p: { xs: 2, sm: 1 } }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, mt: 1 }}>
@@ -230,14 +242,8 @@ const WeightCalculation: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            sx={{ bgcolor: '#245D6B', fontWeight: 600, minWidth: 160 }}
-            onClick={handleSave}
-          >
-            {entryId ? 'Edit Save' : 'Save'}
-          </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
           <Button
             variant="outlined"
             sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }}

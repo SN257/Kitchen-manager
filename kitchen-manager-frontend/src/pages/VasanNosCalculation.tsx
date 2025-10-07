@@ -19,6 +19,7 @@ const VasanNosCalculation: React.FC = () => {
     // counts map key: rowKey_sectionId where rowKey identifies specific vasan-food combination
     const [counts, setCounts] = useState<Record<string, string>>({});
     const [entryId, setEntryId] = useState<number | null>(null);
+    const [autoSaving, setAutoSaving] = useState(false);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
     const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
     const [rawSavedEntries, setRawSavedEntries] = useState<any[] | null>(null); // store raw for remapping when fillPlans arrive
@@ -181,15 +182,9 @@ const VasanNosCalculation: React.FC = () => {
         }).filter(Boolean);
     };
 
-    const handleSave = async () => {
-        if (!selectedAnnkutEvent) { setSnackbar({ open: true, message: 'Select event first', severity: 'error' }); return; }
-        const token = localStorage.getItem('token');
-        if (!token) { setSnackbar({ open: true, message: 'Auth required', severity: 'error' }); return; }
-        const entries = buildPayload();
-        if (!entries || entries.length === 0) { setSnackbar({ open: true, message: 'Enter at least one value', severity: 'error' }); return; }
-        const res = await fetch(`${API_BASE_URL}/vasan-nos-calculation-entries${entryId ? `/${entryId}` : ''}`, { method: entryId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, credentials: 'include', body: JSON.stringify({ entries, eventId: selectedAnnkutEvent }) });
-        if (res.ok) { const data = await res.json(); if (!entryId && data.id) setEntryId(data.id); setSnackbar({ open: true, message: 'Saved successfully', severity: 'success' }); } else { setSnackbar({ open: true, message: 'Save failed', severity: 'error' }); }
-    };
+    const saveTimeoutRef = React.useRef<number | null>(null);
+    const inFlightSaveRef = React.useRef<string>('');
+    const [lastSavedSignature, setLastSavedSignature] = React.useState<string>('');
 
     const getTotalForSection = (sectionId: number) => rows.reduce((sum, r) => sum + ((Number(counts[`${r.key}_${sectionId}`]) || 0)), 0);
     const getRowTotal = (rowKeyStr:string) => sections.reduce((sum, s) => sum + (Number(counts[`${rowKeyStr}_${s.id}`]) || 0), 0);
@@ -219,6 +214,71 @@ const VasanNosCalculation: React.FC = () => {
 
     const uniqueWarnings = Array.from(new Set(validationWarnings));
 
+    // Debounced autosave: watches counts and saves when they change and there are no validation warnings
+    React.useEffect(() => {
+        const signature = JSON.stringify(counts);
+        if (signature === lastSavedSignature) return; // nothing new
+        if (uniqueWarnings.length > 0) return; // don't autosave while there are warnings
+
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+        }
+
+        saveTimeoutRef.current = window.setTimeout(async () => {
+            // prevent duplicate saves
+            if (inFlightSaveRef.current === signature) return;
+            inFlightSaveRef.current = signature;
+            setAutoSaving(true);
+
+            const token = localStorage.getItem('token');
+            if (!token || !selectedAnnkutEvent) {
+                setAutoSaving(false);
+                inFlightSaveRef.current = '';
+                return;
+            }
+
+            try {
+                const entries = buildPayload();
+                if ((!entries || entries.length === 0) && !entryId) {
+                    setLastSavedSignature(signature);
+                    setAutoSaving(false);
+                    inFlightSaveRef.current = '';
+                    return;
+                }
+
+                const res = await fetch(`${API_BASE_URL}/vasan-nos-calculation-entries${entryId ? `/${entryId}` : ''}`, {
+                    method: entryId ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    credentials: 'include',
+                    body: JSON.stringify({ entries, eventId: selectedAnnkutEvent })
+                });
+
+                if (res.ok) {
+                    const data = await res.json().catch(() => null);
+                    if (!entryId && data && data.id) setEntryId(data.id);
+                    setLastSavedSignature(signature);
+                } else {
+                    console.warn('Autosave failed');
+                    setSnackbar({ open: true, message: 'Auto-save failed', severity: 'error' });
+                }
+            } catch (e) {
+                console.error('Autosave error', e);
+                setSnackbar({ open: true, message: 'Auto-save error', severity: 'error' });
+            } finally {
+                setAutoSaving(false);
+                inFlightSaveRef.current = '';
+            }
+        }, 800);
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+        };
+    }, [counts, uniqueWarnings, selectedAnnkutEvent, API_BASE_URL, entryId, lastSavedSignature]);
+
     return (
         <Box sx={{ p: { xs: 2, sm: 1 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, mt: 1 }}>
@@ -227,8 +287,8 @@ const VasanNosCalculation: React.FC = () => {
                     <Typography variant="h5" sx={{ color: '#245D6B', fontWeight: 700 }}>Vasan Nos Calculation</Typography>
                     {selectedEventDetails && <Typography variant="body1" sx={{ ml: 2, color: '#666', fontStyle: 'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
                 </Box>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="contained" sx={{ bgcolor: uniqueWarnings.length ? '#B71C1C' : '#245D6B', fontWeight: 600, minWidth: 160 }} onClick={handleSave} disabled={!!uniqueWarnings.length}>{entryId ? 'Edit Save' : 'Save'}</Button>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
                     <Button variant="outlined" sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={() => setPrintPreviewOpen(true)}>Print</Button>
                 </Box>
             </Box>
