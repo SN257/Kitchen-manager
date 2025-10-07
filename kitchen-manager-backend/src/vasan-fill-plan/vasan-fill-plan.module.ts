@@ -9,5 +9,6 @@ import { VasanFillPlanController } from './vasan-fill-plan.controller';
   imports: [TypeOrmModule.forFeature([VasanFillPlan, Vasan])],
   controllers: [VasanFillPlanController],
   providers: [VasanFillPlanService],
+  exports: [VasanFillPlanService],
 })
 export class VasanFillPlanModule {}

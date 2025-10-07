@@ -10,6 +10,7 @@ import { UserService } from '../user/user.service';
 @Module({
   imports: [TypeOrmModule.forFeature([Recipe, User, ActivityLog])],
   providers: [RecipesService, UserService],
+  exports: [RecipesService],
   controllers: [RecipesController],
 })
 export class RecipesModule {}

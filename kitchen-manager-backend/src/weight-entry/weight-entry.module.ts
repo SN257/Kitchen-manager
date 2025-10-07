@@ -8,6 +8,7 @@ import { WeightEntryController } from './weight-entry.controller';
 @Module({
   imports: [TypeOrmModule.forFeature([WeightEntry, Event])],
   providers: [WeightEntryService],
+  exports: [WeightEntryService],
   controllers: [WeightEntryController],
 })
 export class WeightEntryModule {}
