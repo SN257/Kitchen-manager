@@ -151,10 +151,7 @@ const FinalNosSummary: React.FC = () => {
     }
   };
 
-  // Manual refresh function
-  const handleRefresh = () => {
-    fetchData(false);
-  };
+  // Manual refresh removed (server-side autosync handles updates)
 
   useEffect(() => {
     console.log('Selected Annkut Event:', selectedAnnkutEvent);
@@ -439,20 +436,7 @@ const FinalNosSummary: React.FC = () => {
         <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center', flexDirection: { xs: 'column', sm: 'row' } }}>
           {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
           {refreshing && <Typography variant='caption' sx={{ color: '#245D6B' }}>Refreshing...</Typography>}
-          {lastRefreshTime && !refreshing && (
-            <Typography variant='caption' sx={{ color: '#666', fontSize: '0.75rem' }}>
-              Last updated: {lastRefreshTime.toLocaleTimeString()}
-            </Typography>
-          )}
-          <Button 
-            variant='outlined' 
-            size='small'
-            disabled={loading || refreshing} 
-            sx={{ borderColor: '#245D6B', color: '#245D6B' }} 
-            onClick={handleRefresh}
-          >
-            Refresh
-          </Button>
+          {/* Last updated timestamp removed - UI now relies on auto-save/refresh indicators */}
           <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor: '#245D6B', color: '#245D6B' }} onClick={() => setPrintOpen(true)}>Print</Button>
         </Box>
       </Box>

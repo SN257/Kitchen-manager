@@ -91,10 +91,7 @@ const SectionNosSummary: React.FC = () => {
     }
   };
 
-  // Manual refresh function
-  const handleRefresh = () => {
-    fetchData(false);
-  };
+  // Manual refresh function removed - autosave and background refresh handle updates
 
   useEffect(() => {
     // Clear any existing interval
@@ -457,35 +454,11 @@ const SectionNosSummary: React.FC = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant='h5' sx={{ color:'#245D6B', fontWeight:700 }}>Section Nos Summary</Typography>
         {selectedEventDetails && <Typography variant='body1' sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center', flexDirection: { xs: 'column', sm: 'row' } }}>
+          <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center', flexDirection: { xs: 'column', sm: 'row' } }}>
           {autoSaving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Auto-saving...</Typography>}
           {refreshing && <Typography variant='caption' sx={{ color:'#245D6B' }}>Refreshing...</Typography>}
-          {lastRefreshTime && !refreshing && (
-            <Typography variant='caption' sx={{ color:'#666', fontSize: '0.75rem' }}>
-              Last updated: {lastRefreshTime.toLocaleTimeString()}
-            </Typography>
-          )}
-          <Button 
-            variant='outlined' 
-            size='small'
-            disabled={loading || refreshing} 
-            sx={{ borderColor:'#245D6B', color:'#245D6B' }} 
-            onClick={handleRefresh}
-          >
-            Refresh
-          </Button>
+          {/* Last updated timestamp removed - UI now relies on auto-save/refresh indicators */}
           <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
-          <Button variant='text' size='small' onClick={async () => {
-            if (!selectedAnnkutEvent) return;
-            const token = localStorage.getItem('token'); if (!token) return;
-            try {
-              const res = await fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }});
-              if (res.ok) {
-                const saved = await res.json(); if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows);
-                if (debugMode) console.debug('Refreshed cachedRows', saved);
-              }
-            } catch (e) { if (debugMode) console.debug('Refresh failed', e); }
-          }} sx={{ color:'#245D6B' }}>Refresh Snapshot</Button>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
