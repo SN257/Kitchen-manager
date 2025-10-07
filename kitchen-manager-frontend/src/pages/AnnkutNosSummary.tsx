@@ -102,6 +102,13 @@ const AnnkutNosSummary: React.FC = () => {
     nos_per_kg: undefined,
   }));
 
+  // Debug logging
+  console.log('displayedRows:', displayedRows);
+  console.log('savedRows:', savedRows);
+  console.log('mithais:', mithais);
+  console.log('boxRanges:', boxRanges);
+  console.log('boxTotals:', boxTotals);
+
   useEffect(() => {
     if (!selectedAnnkutEvent) {
       setMithais([]);
@@ -118,17 +125,31 @@ const AnnkutNosSummary: React.FC = () => {
     }
 
     setLoading(true);
-    fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, {
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.entries && data.entries.length > 0) {
-          const sortedMithais = data.entries
+    
+    // Fetch both weight calculation entries and box ranges
+    Promise.all([
+      fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }).then(res => res.json()),
+      fetch(`${API_BASE_URL}/box-ranges?eventId=${selectedAnnkutEvent}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }).then(res => res.json())
+    ])
+      .then(([weightData, boxRangesData]) => {
+        console.log('Weight calculation data:', weightData); // Debug log
+        console.log('Box ranges data:', boxRangesData); // Debug log
+        
+        // Process weight calculation data
+        if (weightData && weightData.entries && weightData.entries.length > 0) {
+          const sortedMithais = weightData.entries
             .map((entry: any) => ({
               id: entry.mithaiId,
               vangiName: entry.mithaiName,
@@ -143,37 +164,46 @@ const AnnkutNosSummary: React.FC = () => {
           const currentIds = sortedMithais.map((m: any) => Number(m.id));
           pruneRemovedSavedRows(currentIds);
 
-          const allBoxes = data.entries.flatMap((entry: any) =>
-            entry.boxEntries.map((b: any) => ({
-              id: b.boxId,
-              priceRange: b.boxRange,
-            }))
-          );
-          const uniqueBoxes = Array.from(
-            new Map(allBoxes.map((b: { id: any }) => [b.id, b])).values()
-          );
-          
-          setBoxRanges(uniqueBoxes.sort((a: any, b: any) => a.id - b.id));
-
           // Build pieces map
           const newPieces: { [key: string]: number } = {};
-          data.entries.forEach((mithai: any) => {
+          weightData.entries.forEach((mithai: any) => {
             mithai.boxEntries.forEach((boxEntry: any) => {
               newPieces[`${mithai.mithaiId}_${boxEntry.boxId}`] =
                 boxEntry.pieces;
             });
           });
           
+          console.log('Pieces map:', newPieces); // Debug log
           setPieces(newPieces);
         } else {
           setMithais([]);
-          setBoxRanges([]);
           setPieces({});
           // All removed -> prune all saved rows for this event
           pruneRemovedSavedRows([]);
         }
+
+        // Process box ranges data
+        if (boxRangesData && Array.isArray(boxRangesData) && boxRangesData.length > 0) {
+          const sortedBoxRanges = boxRangesData
+            .map((box: any) => ({
+              id: box.id,
+              priceRange: box.priceRange,
+            }))
+            .sort((a: any, b: any) => a.id - b.id);
+          
+          console.log('Sorted box ranges:', sortedBoxRanges); // Debug log
+          setBoxRanges(sortedBoxRanges);
+        } else {
+          console.log('No box ranges data or empty array'); // Debug log
+          setBoxRanges([]);
+        }
       })
-  .catch(() => { setMithais([]); setBoxRanges([]); setPieces({}); })
+      .catch((error) => { 
+        console.error('Error fetching data:', error); // Debug log
+        setMithais([]); 
+        setBoxRanges([]); 
+        setPieces({}); 
+      })
       .finally(() => setLoading(false));
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
@@ -198,6 +228,7 @@ const AnnkutNosSummary: React.FC = () => {
     })
       .then((res) => res.json())
       .then((data) => {
+        console.log('Box weight entries data:', data); // Debug log
         
         const filteredData = data.filter((box: any) => {
           const boxEventId = box.eventId?.toString();
@@ -205,13 +236,19 @@ const AnnkutNosSummary: React.FC = () => {
           return boxEventId === selectedEventId;
         });
         
+        console.log('Filtered box weight entries:', filteredData); // Debug log
+        
         const totals: { [priceRange: string]: number } = {};
         filteredData.forEach((box: any) => {
-          totals[box.priceRange] = Number(box.totalBoxes) || Number(box.nos) || 0;
+          totals[box.priceRange] = Number(box.totalBoxes) || 0;
         });
+        
+        console.log('Box totals calculated:', totals); // Debug log
         setBoxTotals(totals);
       })
-  .catch(() => {});
+      .catch((error) => {
+        console.error('Error fetching box weight entries:', error);
+      });
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   useEffect(() => {
@@ -276,11 +313,19 @@ const AnnkutNosSummary: React.FC = () => {
   }, []);
 
   const getTotalNang = (mithai: any) => {
+    console.log('getTotalNang called for mithai:', mithai); // Debug log
+    console.log('Current boxRanges:', boxRanges); // Debug log
+    console.log('Current pieces:', pieces); // Debug log
+    console.log('Current boxTotals:', boxTotals); // Debug log
+    
     const total = boxRanges.reduce((sum: number, box: any) => {
       const nang = pieces[`${mithai.id}_${box.id}`] || 0;
       const totalBoxes = boxTotals[box.priceRange] || 0;
+      console.log(`Box ${box.id} (${box.priceRange}): nang=${nang}, totalBoxes=${totalBoxes}, contribution=${nang * totalBoxes}`); // Debug log
       return sum + nang * totalBoxes;
     }, 0);
+    
+    console.log('Total nang calculated:', total); // Debug log
     return total;
   };
 
@@ -537,7 +582,10 @@ const AnnkutNosSummary: React.FC = () => {
                         >
                           <div>{box.priceRange}</div>
                           <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
-                            ({boxTotals[box.priceRange] || 0})
+                            ({boxTotals[box.priceRange] || 0} g)
+                          </div>
+                          <div style={{ fontSize: '0.7em', fontWeight: 300, fontStyle: 'italic' }}>
+                            {box.gramPerBox ? `${box.gramPerBox}g/box` : ''}
                           </div>
                         </TableCell>
                       ))}
@@ -801,7 +849,7 @@ const AnnkutNosSummary: React.FC = () => {
                       >
                         <div>{box.priceRange}</div>
                         <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
-                          ({boxTotals[box.priceRange] || 0})
+                          ({boxTotals[box.priceRange] || 0} g)
                         </div>
                       </TableCell>
                     ))}
