@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, Button, Dialog, DialogTitle, DialogContent, Snackbar, Alert } from '@mui/material';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -24,27 +24,120 @@ const SectionNosSummary: React.FC = () => {
   const [lastSavedSignature, setLastSavedSignature] = useState<string>('');
   const [snackbar, setSnackbar] = useState<{open:boolean; message:string; severity:'success'|'error'}>({open:false,message:'',severity:'success'});
   const [cachedRows, setCachedRows] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshIntervalRef = useRef<number | null>(null);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
-  useEffect(() => {
-    if (!selectedAnnkutEvent) { setNosEntries([]); setFillPlans([]); setRecipes([]); return; }
+  // Function to fetch all data
+  const fetchData = async (showLoader = true, isAutoRefresh = false) => {
+    if (!selectedAnnkutEvent) {
+      setNosEntries([]);
+      setFillPlans([]);
+      setRecipes([]);
+      return;
+    }
+    
     const token = localStorage.getItem('token');
     if (!token) return;
-    setLoading(true);
-    Promise.all([
-      // vasans not needed for aggregated view
-      fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
-      fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null),
-      fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
-      fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
-    ]).then(([planData, nosData, recipeData, weightData]) => {
+    
+    if (showLoader) setLoading(true);
+    else setRefreshing(true);
+    
+    try {
+      const [planData, nosData, recipeData, weightData] = await Promise.all([
+        fetch(`${API_BASE_URL}/vasan-fill-plans?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
+        fetch(`${API_BASE_URL}/vasan-nos-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null),
+        fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): []),
+        fetch(`${API_BASE_URL}/weight-entries?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): [])
+      ]);
+
       if (debugMode) console.debug('SectionNosSummary fetched', { planData, nosData, recipeData, weightData });
-      setFillPlans(Array.isArray(planData)? planData: []);
+      
+      // Check if data has changed for auto-refresh notifications
+      const currentNosSignature = JSON.stringify(nosData);
+      const currentPlansSignature = JSON.stringify(planData);
+      const prevNosSignature = JSON.stringify(nosEntries);
+      const prevPlansSignature = JSON.stringify(fillPlans);
+      
+      const dataHasChanged = currentNosSignature !== prevNosSignature || currentPlansSignature !== prevPlansSignature;
+      
+      setFillPlans(Array.isArray(planData) ? planData : []);
       if (nosData && Array.isArray(nosData.entries)) setNosEntries(nosData.entries); else setNosEntries([]);
-      setRecipes(Array.isArray(recipeData)? recipeData: []);
-      setWeights(Array.isArray(weightData)? weightData: []);
-    }).finally(()=> setLoading(false));
-    // fetch saved summary
-    fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }}).then(r=> r.ok? r.json(): null).then(saved => { if (debugMode) console.debug('fetched cached summary', saved); if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
+      setRecipes(Array.isArray(recipeData) ? recipeData : []);
+      setWeights(Array.isArray(weightData) ? weightData : []);
+      
+      // Show notification if data changed during auto-refresh
+      if (isAutoRefresh && dataHasChanged && (nosEntries.length > 0 || fillPlans.length > 0)) {
+        setSnackbar({ open: true, message: 'Nos calculation data updated automatically', severity: 'success' });
+      }
+      
+      // Fetch saved summary
+      const saved = await fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
+        .then(r=> r.ok? r.json(): null)
+        .catch(() => null);
+        
+      if (debugMode) console.debug('fetched cached summary', saved);
+      if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows);
+      
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('Error fetching section nos summary data:', error);
+      if (isAutoRefresh) {
+        console.warn('Auto-refresh failed, will retry on next interval');
+      }
+    } finally {
+      if (showLoader) setLoading(false);
+      else setRefreshing(false);
+    }
+  };
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    fetchData(false);
+  };
+
+  useEffect(() => {
+    // Clear any existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+    
+    if (!selectedAnnkutEvent) {
+      setNosEntries([]);
+      setFillPlans([]);
+      setRecipes([]);
+      return;
+    }
+    
+    // Initial fetch
+    fetchData(true);
+    
+    // Set up polling every 20 seconds to check for nos calculation updates
+    // More frequent than FinalNosSummary since this is the source of truth
+    refreshIntervalRef.current = window.setInterval(() => {
+      fetchData(false, true); // false = don't show loader, true = is auto-refresh
+    }, 20000);
+    
+    // Add window focus event listener to refresh when user returns to tab
+    const handleWindowFocus = () => {
+      const now = new Date().getTime();
+      const lastRefresh = lastRefreshTime?.getTime() || 0;
+      if (now - lastRefresh > 10000) {
+        fetchData(false, true);
+      }
+    };
+    
+    window.addEventListener('focus', handleWindowFocus);
+    
+    // Cleanup interval and event listener on unmount or event change
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
   const rows = useMemo(() => {
@@ -213,35 +306,116 @@ const SectionNosSummary: React.FC = () => {
   // Totals row removed per latest requirement; if needed later we can reintroduce.
 
   // Auto-save whenever calculated rows change (after data loaded) and differ from last saved snapshot.
+  // Enhanced to be more aggressive about saving data immediately when changes are detected
   useEffect(() => {
     if (!selectedAnnkutEvent) return;
     if (loading) return; // wait until initial data load done
     if (!rows.length) return;
     const token = localStorage.getItem('token');
     if (!token) return;
+    
     // Build a lightweight signature to detect changes (avoid frequent identical saves)
-  const signature = JSON.stringify(rows.map(r => ({ foodName: r.foodName, n: r.totalNos, tw: r.totalWeightKg, f: r.flourRequiredKg, tn: r.totalNang })));
+    const signature = JSON.stringify(rows.map(r => ({ foodName: r.foodName, n: r.totalNos, tw: r.totalWeightKg, f: r.flourRequiredKg, tn: r.totalNang })));
     if (signature === lastSavedSignature) return;
+    
+    if (debugMode) console.debug('Auto-saving section nos summary due to data change', { rowCount: rows.length, signature: signature.substring(0, 100) + '...' });
+    
     setAutoSaving(true);
+    
+    // Save immediately when data changes
     fetch(`${API_BASE_URL}/section-vasan-summary`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ eventId: selectedAnnkutEvent, rows })
     })
-      .then(res => { if (!res.ok) throw new Error('save failed'); return res.json().catch(()=>null); })
+      .then(res => { 
+        if (!res.ok) throw new Error('save failed'); 
+        return res.json().catch(()=>null); 
+      })
       .then(() => {
         setLastSavedSignature(signature);
+        if (debugMode) console.debug('Section nos summary auto-saved successfully');
+        
         // Refresh saved snapshot to ensure UI shows DB copy
         return fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ Authorization:`Bearer ${token}` }})
           .then(r=> r.ok? r.json(): null)
-          .then(saved => { if (saved && Array.isArray(saved.rows)) setCachedRows(saved.rows); });
+          .then(saved => { 
+            if (saved && Array.isArray(saved.rows)) {
+              setCachedRows(saved.rows);
+              if (debugMode) console.debug('Refreshed cached rows after auto-save', { rowCount: saved.rows.length });
+            }
+          });
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Auto-save failed for section nos summary:', error);
         setSnackbar({ open:true, message:'Auto-save failed', severity:'error' });
       })
       .finally(() => setAutoSaving(false));
-  }, [rows, selectedAnnkutEvent, loading, API_BASE_URL, lastSavedSignature]);
+  }, [rows, selectedAnnkutEvent, loading, API_BASE_URL, lastSavedSignature, debugMode]);
+
+  // Background service effect: Ensures data is calculated and saved even during background updates
+  // This runs independently of the main component logic to guarantee database is always updated
+  useEffect(() => {
+    if (!selectedAnnkutEvent || loading || refreshing) return;
+    if (!fillPlans.length && !nosEntries.length) return;
+    
+    // Only run this background service during auto-refresh cycles
+    if (!lastRefreshTime) return;
+    
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Recalculate rows based on current data
+    const currentRows = rows;
+    if (!currentRows.length) return;
+    
+    // Check if we need to force a save (useful for background updates)
+    const backgroundSignature = JSON.stringify(currentRows.map(r => ({ 
+      foodName: r.foodName, 
+      n: r.totalNos, 
+      tw: r.totalWeightKg, 
+      f: r.flourRequiredKg, 
+      tn: r.totalNang 
+    })));
+    
+    // If signature is different from what we last saved, ensure it gets saved
+    if (backgroundSignature !== lastSavedSignature && !autoSaving) {
+      if (debugMode) console.debug('Background service triggering save due to data drift');
+      
+      // Trigger a background save without UI indicators
+      fetch(`${API_BASE_URL}/section-vasan-summary`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ eventId: selectedAnnkutEvent, rows: currentRows })
+      })
+        .then(res => { 
+          if (!res.ok) throw new Error('background save failed'); 
+          return res.json().catch(() => null); 
+        })
+        .then(() => {
+          setLastSavedSignature(backgroundSignature);
+          if (debugMode) console.debug('Background service save completed');
+          
+          // Update cached rows silently
+          return fetch(`${API_BASE_URL}/section-vasan-summary/latest?eventId=${selectedAnnkutEvent}`, { 
+            credentials:'include', 
+            headers:{ Authorization:`Bearer ${token}` }
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(saved => { 
+              if (saved && Array.isArray(saved.rows)) {
+                setCachedRows(saved.rows);
+              }
+            });
+        })
+        .catch((error) => {
+          if (debugMode) console.warn('Background service save failed:', error);
+          // Don't show error to user for background saves
+        });
+    }
+  }, [selectedAnnkutEvent, loading, refreshing, fillPlans, nosEntries, rows, lastRefreshTime, lastSavedSignature, autoSaving, API_BASE_URL, debugMode]);
 
   // Always prefer cachedRows (DB snapshot) if present so we display what's persisted
   // But compute totalNang on the fly if missing in snapshot
@@ -283,8 +457,23 @@ const SectionNosSummary: React.FC = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant='h5' sx={{ color:'#245D6B', fontWeight:700 }}>Section Nos Summary</Typography>
         {selectedEventDetails && <Typography variant='body1' sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center' }}>
+        <Box sx={{ ml:'auto', display:'flex', gap:1, alignItems:'center', flexDirection: { xs: 'column', sm: 'row' } }}>
           {autoSaving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Auto-saving...</Typography>}
+          {refreshing && <Typography variant='caption' sx={{ color:'#245D6B' }}>Refreshing...</Typography>}
+          {lastRefreshTime && !refreshing && (
+            <Typography variant='caption' sx={{ color:'#666', fontSize: '0.75rem' }}>
+              Last updated: {lastRefreshTime.toLocaleTimeString()}
+            </Typography>
+          )}
+          <Button 
+            variant='outlined' 
+            size='small'
+            disabled={loading || refreshing} 
+            sx={{ borderColor:'#245D6B', color:'#245D6B' }} 
+            onClick={handleRefresh}
+          >
+            Refresh
+          </Button>
           <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
           <Button variant='text' size='small' onClick={async () => {
             if (!selectedAnnkutEvent) return;
