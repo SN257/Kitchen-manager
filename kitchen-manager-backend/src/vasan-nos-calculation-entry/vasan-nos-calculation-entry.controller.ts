@@ -29,6 +29,16 @@ export class VasanNosCalculationEntryController {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
     const saved = await this.service.create(dto, userId);
+    // Try to trigger server-side recompute of section summary
+    try {
+      // service may expose recomputeAndSaveSummary
+      if (typeof (this.service as any).recomputeAndSaveSummary === 'function') {
+        await (this.service as any).recomputeAndSaveSummary(dto.eventId, userId);
+      }
+    } catch (err) {
+      // do not fail the request if recompute fails
+      console.error('Recompute after create failed', err);
+    }
     return { success: true, id: saved.id };
   }
 
@@ -41,6 +51,13 @@ export class VasanNosCalculationEntryController {
     const { userId } = req.session;
     if (!userId) throw new UnauthorizedException('Not logged in');
     const updated = await this.service.update(id, dto, userId);
+    try {
+      if (typeof (this.service as any).recomputeAndSaveSummary === 'function') {
+        await (this.service as any).recomputeAndSaveSummary(dto.eventId ?? updated?.eventId, userId);
+      }
+    } catch (err) {
+      console.error('Recompute after update failed', err);
+    }
     return { success: true, id: updated?.id };
   }
 
