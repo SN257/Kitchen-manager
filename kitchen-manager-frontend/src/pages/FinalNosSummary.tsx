@@ -665,7 +665,7 @@ const FinalNosSummary: React.FC = () => {
             </Typography>
           </Box>
           {/* Print: One combined table */}
-          <TableContainer sx={{ width: '100%', boxShadow: 'none', '@media print': { width: '100%', overflow: 'visible' } }}>
+          <TableContainer id="finalnos-print" sx={{ width: '100%', boxShadow: 'none', '@media print': { width: '100%', overflow: 'visible' } }}>
             <Table stickyHeader sx={{
               border: '1px solid #245D6B',
               borderCollapse: 'separate',

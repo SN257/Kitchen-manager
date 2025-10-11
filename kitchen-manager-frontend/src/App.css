@@ -65,6 +65,42 @@
     width: 100% !important;
     max-width: 100% !important;
   }
+
+  /* Final Nos Summary specific print tweaks to avoid horizontal cutoff */
+  #finalnos-print table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 11px !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  #finalnos-print th, #finalnos-print td {
+    padding: 4px 6px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    vertical-align: middle !important;
+  }
+
+  /* Allow header cells to wrap so long header labels don't get truncated with ellipsis */
+  #finalnos-print th {
+    white-space: normal !important;
+    word-break: break-word !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Allow data cells to wrap in print so long values are visible (will increase row height if needed) */
+  #finalnos-print td {
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  /* slightly reduce the first column width and squeeze others for print */
+  #finalnos-print colgroup col:nth-child(1) { width: 160px !important; }
+  #finalnos-print colgroup col { width: 72px !important; }
+
+  /* allow table to scale down if required */
+  #finalnos-print table { transform-origin: left top; }
 }
 
 /* Remove up/down arrows from number inputs globally */
