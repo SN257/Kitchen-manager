@@ -78,7 +78,8 @@ const Dashboard: React.FC = () => {
     location.pathname.startsWith("/dashboard/section-annkut") ||
   location.pathname.startsWith("/dashboard/annkut/") ||
   location.pathname === "/dashboard/FinalNosSummary" ||
-  location.pathname === "/dashboard/FinalIngredientSummary"
+  location.pathname === "/dashboard/FinalIngredientSummary" ||
+  location.pathname === "/dashboard/FinalOrderSummary"
   );
 
   const [boxAnnkutOpen, setBoxAnnkutOpen] = React.useState(
@@ -158,7 +159,8 @@ const Dashboard: React.FC = () => {
       '/dashboard/section-annkut/vasan-fill-plan',
       '/dashboard/section-annkut/layout-planner',
   '/dashboard/FinalNosSummary',
-  '/dashboard/FinalIngredientSummary'
+  '/dashboard/FinalIngredientSummary',
+  '/dashboard/FinalOrderSummary'
     ];
     return annkutPages.some(page => pathname.includes(page));
   };
@@ -172,7 +174,8 @@ const Dashboard: React.FC = () => {
     const isAnnkutComparison = currentPath.includes('/annkut-comparison');
   const isFinalNosSummary = currentPath === '/dashboard/FinalNosSummary';
   const isFinalIngredientSummary = currentPath === '/dashboard/FinalIngredientSummary';
-  const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isFoodSelection || isAnnkutComparison || isFinalNosSummary || isFinalIngredientSummary;
+  const isFinalOrderSummary = currentPath === '/dashboard/FinalOrderSummary';
+  const isAnyAnnkut = isBoxAnnkut || isSectionAnnkut || isFoodSelection || isAnnkutComparison || isFinalNosSummary || isFinalIngredientSummary || isFinalOrderSummary;
 
     if (!isAnyAnnkut) {
       setAnnkutOpen(false);
@@ -525,6 +528,16 @@ const Dashboard: React.FC = () => {
                 <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
               </ListItemIcon>
               <ListItemText primary="Final Ingredient Summary" />
+            </ListItemButton>
+            <ListItemButton
+              selected={isActive("/dashboard/FinalOrderSummary")}
+              sx={{ pl: 4, ...sidebarItemSx }}
+              onClick={() => navigate("/dashboard/FinalOrderSummary")}
+            >
+              <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              <ListItemText primary="Final Order Summary" />
             </ListItemButton>
           </List>
         </Collapse>

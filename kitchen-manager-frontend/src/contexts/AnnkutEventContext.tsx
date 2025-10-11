@@ -104,7 +104,8 @@ export const AnnkutEventProvider: React.FC<AnnkutEventProviderProps> = ({ childr
         p.includes('section-annkut') ||
         p.includes('event-master') ||
         p.includes('finalnossummary') ||
-        p.includes('finalingredientsummary')
+        p.includes('finalingredientsummary') ||
+        p.includes('finalordersummary')
       );
 
     if (shouldLoadForPath) {
