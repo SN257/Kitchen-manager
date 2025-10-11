@@ -407,16 +407,6 @@ const Dashboard: React.FC = () => {
                 </ListItemButton>
 
                 <ListItemButton
-                  selected={isActive("/dashboard/box-annkut/AnnkutSidhuSaman")}
-                  sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/box-annkut/AnnkutSidhuSaman")}
-                >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
-                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
-                  </ListItemIcon>
-                  <ListItemText primary="Annakut Sidhu Saman" />
-                </ListItemButton>
-                <ListItemButton
                   selected={isActive("/dashboard/box-annkut/annkut-comparison")}
                   sx={{ pl: 8, ...sidebarItemSx }}
                   onClick={() => navigate("/dashboard/box-annkut/annkut-comparison")}
@@ -487,16 +477,7 @@ const Dashboard: React.FC = () => {
                   </ListItemIcon>
                   <ListItemText primary="Nos Summary" />
                 </ListItemButton>
-                <ListItemButton
-                  selected={isActive("/dashboard/section-annkut/section-ingredient-summary")}
-                  sx={{ pl: 8, ...sidebarItemSx }}
-                  onClick={() => navigate("/dashboard/section-annkut/section-ingredient-summary")}
-                >
-                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
-                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
-                  </ListItemIcon>
-                  <ListItemText primary="Ingredient Summary" />
-                </ListItemButton>
+                {/* Annakut Sidhu Saman and Section Ingredient Summary hidden as requested */}
                 <ListItemButton
                   selected={isActive("/dashboard/section-annkut/layout-planner")}
                   sx={{ pl: 8, ...sidebarItemSx }}

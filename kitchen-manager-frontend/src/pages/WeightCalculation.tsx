@@ -29,6 +29,86 @@ const WeightCalculation: React.FC = () => {
     const piecesCount = Number(pieces[`${mithai.id}_${boxId}`]) || 0;
     return piecesCount * mithai.gram;
   };
+
+  // Recompute Annkut Nos Summary and persist rows by calling the annkut-sidhu-saman endpoint.
+  // This mirrors the server-side recompute done for vasan entries; here we perform
+  // the same aggregation client-side after weight autosave so the AnnkutNosSummary
+  // page will reflect changes without an explicit visit.
+  const recomputeAndSaveAnnkutSummary = async () => {
+    if (!selectedAnnkutEvent) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      // Fetch box totals (box-weight-entries)
+      const boxRes = await fetch(`${API_BASE_URL}/box-weight-entries?eventId=${selectedAnnkutEvent}`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const boxData = await boxRes.json().catch(() => []);
+      const boxTotals: { [priceRange: string]: number } = {};
+      (Array.isArray(boxData) ? boxData : []).forEach((b: any) => {
+        boxTotals[b.priceRange] = Number(b.totalBoxes) || 0;
+      });
+
+      // Fetch recipes
+      const recipesRes = await fetch(`${API_BASE_URL}/recipe`, {
+        credentials: 'include',
+        headers: token ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } : {},
+      });
+      const recipes = await recipesRes.json().catch(() => []);
+
+      // Compute totals per mithai using current pieces and boxTotals
+      for (const mithai of mithais) {
+        const totalNang = boxRanges.reduce((sum, box) => {
+          const nang = Number(pieces[`${mithai.id}_${box.id}`]) || 0;
+          const totalBoxes = boxTotals[box.priceRange] || 0;
+          return sum + nang * totalBoxes;
+        }, 0);
+
+        // find recipe by base name
+        const baseName = (name: string) => name.split('(')[0].trim().toLowerCase();
+        const mithaiBase = baseName(mithai.vangiName || '');
+        const recipeEntry = (recipes || []).find((r: any) => r.vangiName && baseName(r.vangiName) === mithaiBase);
+
+        let itemPerKg = null;
+        if (recipeEntry && recipeEntry.items_per_kg !== undefined && recipeEntry.items_per_kg !== null && String(recipeEntry.items_per_kg).trim() !== '') {
+          itemPerKg = Number(String(recipeEntry.items_per_kg).replace(',', '.').replace(/[^0-9.]/g, ''));
+        }
+
+        const nosFromItemPerKg = (mithai.gram && itemPerKg && itemPerKg > 0)
+          ? Math.floor((itemPerKg * 1000) / mithai.gram)
+          : null;
+
+        const flourKg = (typeof nosFromItemPerKg === 'number' && nosFromItemPerKg > 0)
+          ? Number((totalNang / nosFromItemPerKg).toFixed(2))
+          : null;
+
+        // Only POST if we have meaningful totals
+        if (totalNang > 0 && flourKg !== null && !isNaN(flourKg)) {
+          try {
+            await fetch(`${API_BASE_URL}/annkut-sidhu-saman`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                mithai_id: Number(mithai.id),
+                mithai_name: String(mithai.vangiName),
+                total_nang: Number(totalNang),
+                total_flour: Number(flourKg),
+                nos_per_kg: Number(nosFromItemPerKg || 0),
+                eventId: Number(selectedAnnkutEvent),
+              }),
+            });
+          } catch (err) {
+            console.warn('Failed to save annkut row for', mithai.vangiName, err);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Recompute annkut failed', err);
+    }
+  };
   const handlePieceChange = (mithaiId: number, boxId: number, value: string) => {
     setPieces(prevPieces => ({
       ...prevPieces,
@@ -209,6 +289,14 @@ const WeightCalculation: React.FC = () => {
           const result = await res.json().catch(() => null);
           if (!entryId && result && result.id) setEntryId(result.id);
           setLastSavedSignature(signature);
+          // Recompute and save Annkut Nos Summary on server so summary pages reflect changes
+          // without requiring the user to visit the AnnkutNosSummary page.
+          try {
+            await recomputeAndSaveAnnkutSummary();
+          } catch (err) {
+            // Do not fail the save if recompute fails; just log for debugging
+            console.warn('Recompute Annkut summary failed', err);
+          }
         } else {
           console.warn('Weight autosave failed');
           setSnackbar({ open: true, message: 'Auto-save failed', severity: 'error' });

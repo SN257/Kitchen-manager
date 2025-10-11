@@ -188,6 +188,7 @@ const AnnkutNosSummary: React.FC = () => {
             .map((box: any) => ({
               id: box.id,
               priceRange: box.priceRange,
+            boxTypeDisplay: Array.isArray(box.boxType) ? (box.boxType.join(',') || '') : (box.boxType || ''),
             }))
             .sort((a: any, b: any) => a.id - b.id);
           
@@ -582,7 +583,7 @@ const AnnkutNosSummary: React.FC = () => {
                         >
                           <div>{box.priceRange}</div>
                           <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
-                            ({boxTotals[box.priceRange] || 0} g)
+                            ({box.boxTypeDisplay ? `${box.boxTypeDisplay} - ` : ''}{boxTotals[box.priceRange] || 0} g)
                           </div>
                           <div style={{ fontSize: '0.7em', fontWeight: 300, fontStyle: 'italic' }}>
                             {box.gramPerBox ? `${box.gramPerBox}g/box` : ''}
@@ -849,7 +850,7 @@ const AnnkutNosSummary: React.FC = () => {
                       >
                         <div>{box.priceRange}</div>
                         <div style={{ fontSize: '0.8em', fontWeight: 400 }}>
-                          ({boxTotals[box.priceRange] || 0} g)
+                          ({box.boxTypeDisplay ? `${box.boxTypeDisplay} - ` : ''}{boxTotals[box.priceRange] || 0} g)
                         </div>
                       </TableCell>
                     ))}
