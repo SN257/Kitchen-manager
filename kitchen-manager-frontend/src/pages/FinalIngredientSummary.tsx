@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
+import DownloadIcon from '@mui/icons-material/Download';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -19,6 +20,206 @@ const FinalIngredientSummary = () => {
   const [finalRows, setFinalRows] = useState<FinalNosRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
+  const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+  const handleExportClose = () => setExportAnchorEl(null);
+
+  const exportToExcel = async () => {
+    handleExportClose();
+    try {
+      // Direct dynamic import - packages are installed (npm install) so Vite will resolve these
+      const XLSXmod = await import('xlsx');
+      const XLSX = (XLSXmod && (XLSXmod as any).default) || XLSXmod;
+      
+      // Build Excel data matching print layout (no title rows, just header + data)
+      const wsData: any[][] = [];
+      
+      // Header row
+      const header = ['ID', 'Ingredient Name', ...foodColumns.map(c => c.name), 'Total Weight'];
+      wsData.push(header);
+      
+      // Data rows
+      const dataRows = ingredientMatrixRows.map(r => [
+        r.id, 
+        r.ingredientName, 
+        ...foodColumns.map(c => r.perFood[c.key] ? r.perFood[c.key] : ''), 
+        r.totalKg
+      ]);
+      wsData.push(...dataRows);
+      
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      // Set column widths
+      const colWidths = [
+        { wch: 8 },  // ID
+        { wch: 35 }, // Ingredient Name
+        ...foodColumns.map(() => ({ wch: 18 })), // Food columns
+        { wch: 18 }  // Total Weight
+      ];
+      ws['!cols'] = colWidths;
+      
+      // Style the worksheet
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      
+      // Header row (row 1, index 0) - bold white text on colored background, centered middle aligned, borders
+      for (let col = 0; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (ws[cellAddress]) {
+          ws[cellAddress].s = {
+            font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+            fill: { fgColor: { rgb: '245D6B' } },
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+            border: {
+              top: { style: 'thin', color: { rgb: '000000' } },
+              bottom: { style: 'thin', color: { rgb: '000000' } },
+              left: { style: 'thin', color: { rgb: '000000' } },
+              right: { style: 'thin', color: { rgb: '000000' } }
+            }
+          };
+        }
+      }
+      
+      // Data rows - all cells centered and middle aligned with borders
+      for (let row = 1; row <= range.e.r; row++) {
+        for (let col = 0; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (ws[cellAddress]) {
+            ws[cellAddress].s = {
+              alignment: { 
+                horizontal: 'center',
+                vertical: 'center',
+                wrapText: col === 1 // Wrap text for ingredient names only
+              },
+              border: {
+                top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+              },
+              font: { sz: 10 }
+            };
+            
+            // Format numbers with 3 decimal places
+            if (col > 1 && typeof ws[cellAddress].v === 'number') {
+              ws[cellAddress].z = '0.000';
+            }
+            
+            // Highlight Total Weight column with bold and brand color
+            if (col === range.e.c) {
+              ws[cellAddress].s.font = { bold: true, sz: 10, color: { rgb: '245D6B' } };
+            }
+          }
+        }
+      }
+      
+      // Add auto-filter to header row
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
+      
+      // Set row heights for consistent appearance
+      ws['!rows'] = [
+        { hpt: 30 }, // Header row
+        ...dataRows.map(() => ({ hpt: 22 })) // Data rows
+      ];
+      
+      // Create workbook and export
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Final Ingredient Summary');
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `FinalIngredientSummary_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Excel export failed', err);
+      alert('Excel export failed (ensure xlsx is installed)');
+    }
+  };
+
+  const exportToPdf = async () => {
+    handleExportClose();
+    try {
+      // Direct dynamic imports - Vite will resolve these now that packages are installed
+      const h2cMod = await import('html2canvas');
+      const html2canvas = (h2cMod && (h2cMod as any).default) || h2cMod;
+      const jspdfMod = await import('jspdf');
+      const jsPDF = (jspdfMod && (jspdfMod as any).jsPDF) || jspdfMod;
+      
+      // Build the print-styled content with header and table (matching print dialog layout)
+      const printContent = `
+        <div style="background: #fff; padding: 20px; width: 1100px;">
+          <div style="margin-bottom: 20px; border-bottom: 2px solid #245D6B; padding-bottom: 12px;">
+            <h1 style="font-weight: 700; color: #245D6B; letter-spacing: 1px; font-size: 26px; margin: 0 0 8px 0;">Final Ingredient Summary Report</h1>
+            <p style="color: #000; margin: 0; font-size: 14px;">
+              ${new Date().toLocaleDateString()} | Powered by Kitchen Manager
+              ${selectedEventDetails ? `| Event: ${selectedEventDetails.eventName} - ${selectedEventDetails.eventYear}` : ''}
+            </p>
+          </div>
+          <table class="ingredient-print-table" style="border: 1px solid #245D6B; font-size: 13px; table-layout: fixed; width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 4px 6px; text-align: center; white-space: normal;">ID</th>
+                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 4px 6px; min-width: 140px; white-space: normal;">Ingredient Name</th>
+                ${foodColumns.map(col => `<th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 4px 6px; text-align: center; white-space: normal;">${col.name}</th>`).join('')}
+                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 4px 6px; text-align: center; white-space: normal;">Total Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ingredientMatrixRows.map((row) => {
+                return `<tr style="background: #fff;">
+                  <td style="border: 1px solid #245D6B; padding: 4px 6px; text-align: center;">${row.id}</td>
+                  <td style="border: 1px solid #245D6B; padding: 4px 6px; min-width: 140px; word-wrap: break-word; white-space: normal;">${row.ingredientName}</td>
+                  ${foodColumns.map(col => {
+                    const val = row.perFood[col.key];
+                    return `<td style="border: 1px solid #245D6B; padding: 4px 6px; text-align: center;">${val ? `${val.toFixed(3)} kg` : '-'}</td>`;
+                  }).join('')}
+                  <td style="border: 1px solid #245D6B; padding: 4px 6px; text-align: center; font-weight: 600; color: #245D6B;">${row.totalKg.toFixed(3)} kg</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      // Create temporary container offscreen with print content
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.background = '#fff';
+      container.innerHTML = printContent;
+      document.body.appendChild(container);
+      
+      // Wait for fonts and rendering
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Capture with html2canvas
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#fff' });
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Create PDF
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const imgProps = (pdf as any).getImageProperties(imgData);
+      const imgWidth = pageWidth - 40;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      
+      // Add image to PDF
+      pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight);
+      pdf.save(`FinalIngredientSummary_${new Date().toISOString().slice(0,10)}.pdf`);
+      
+      // Cleanup
+      container.remove();
+    } catch (err) {
+      console.error('PDF export failed', err);
+      alert('PDF export failed (ensure html2canvas and jspdf are installed)');
+    }
+  };
 
   useEffect(() => {
     if (!selectedAnnkutEvent) { setRecipes([]); setFinalRows([]); return; }
@@ -66,6 +267,34 @@ const FinalIngredientSummary = () => {
     const cols = Array.from(byFood.values()).filter(c => (c.finalFlour || 0) > 0)
       .sort((a,b)=> a.name.localeCompare(b.name));
 
+    // If there are multiple Magaj subtypes (names starting with 'મગજ'), aggregate them into a single 'મગજ' column
+    const baseNameFn = (s: string) => String(s||'').split('(')[0].trim();
+    const isMagaj = (name: string) => baseNameFn(name).toLowerCase().startsWith('મગજ');
+    const magajCols = cols.filter(c => isMagaj(c.name));
+    let displayCols = cols;
+    let magajAggregateKey = '';
+    if (magajCols.length > 1) {
+      // Create aggregated magaj column
+      magajAggregateKey = 'magaj_agg';
+      const aggregated = {
+        key: magajAggregateKey,
+        name: 'મગજ',
+        finalFlour: magajCols.reduce((s, x) => s + (Number(x.finalFlour) || 0), 0),
+        ingredients: [] as RecipeIngredient[]
+      } as any;
+      // Build displayCols by replacing the first group of magaj cols with aggregated
+      let seenMagaj = false;
+      displayCols = [];
+      for (const c of cols) {
+        if (isMagaj(c.name)) {
+          if (!seenMagaj) { displayCols.push(aggregated); seenMagaj = true; }
+          // skip other magaj cols
+        } else {
+          displayCols.push(c);
+        }
+      }
+    }
+
     // Collect all ingredient names used by any recipe for the selected foods
     const ingSet = new Set<string>();
     cols.forEach(c => c.ingredients.forEach(i => ingSet.add(i.ingredientName)));
@@ -74,20 +303,30 @@ const FinalIngredientSummary = () => {
     const rows = ingNames.map((ingName, idx) => {
       let total = 0;
       const perFood: Record<string, number> = {};
-      cols.forEach(col => {
-        const ing = col.ingredients.find(i => i.ingredientName === ingName);
-        if (ing && col.finalFlour > 0) {
-          const kg = (Number(ing.kg) || 0) * (Number(col.finalFlour) || 0);
-          if (kg > 0) {
-            perFood[col.key] = kg;
-            total += kg;
+      // iterate displayCols (which may include an aggregated magaj column)
+      displayCols.forEach(col => {
+        if (magajAggregateKey && col.key === magajAggregateKey) {
+          // sum across original magajCols for this ingredient
+          let kgSum = 0;
+          magajCols.forEach(mc => {
+            const ing = mc.ingredients.find((i: RecipeIngredient) => i.ingredientName === ingName);
+            if (ing && mc.finalFlour > 0) {
+              kgSum += (Number(ing.kg) || 0) * (Number(mc.finalFlour) || 0);
+            }
+          });
+          if (kgSum > 0) { perFood[col.key] = kgSum; total += kgSum; }
+        } else {
+          const ing = col.ingredients.find((i: RecipeIngredient) => i.ingredientName === ingName);
+          if (ing && col.finalFlour > 0) {
+            const kg = (Number(ing.kg) || 0) * (Number(col.finalFlour) || 0);
+            if (kg > 0) { perFood[col.key] = kg; total += kg; }
           }
         }
       });
       return { id: idx+1, ingredientName: ingName, perFood, totalKg: total };
     }).filter(r => r.totalKg > 0);
 
-    return { ingredientMatrixRows: rows, foodColumns: cols };
+    return { ingredientMatrixRows: rows, foodColumns: displayCols };
   }, [finalRows, recipes]);
 
   return (
@@ -96,8 +335,13 @@ const FinalIngredientSummary = () => {
         <SummarizeIcon sx={{ color:'#245D6B', fontSize:32, mr:1 }} />
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Final Ingredient Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
-        <Box sx={{ ml:'auto' }}>
+        <Box sx={{ ml:'auto', display:'flex', alignItems:'center', gap:1 }}>
           <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
+          <Button variant='outlined' startIcon={<DownloadIcon />} onClick={handleExportClick} disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B', textTransform:'none' }}>Export</Button>
+          <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+            <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={!ingredientMatrixRows.length}>Export Excel</MenuItem>
+            <MenuItem onClick={() => { handleExportClose(); exportToPdf(); }} disabled={!ingredientMatrixRows.length}>Export PDF</MenuItem>
+          </Menu>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
@@ -118,7 +362,7 @@ const FinalIngredientSummary = () => {
               '&::-webkit-scrollbar-track': { background:'rgba(0,0,0,0.08)' }
             }}
           >
-            <Table sx={{ width:'100%' }} stickyHeader>
+            <Table className='ingredient-print-table' sx={{ width:'100%' }} stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:4, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
@@ -207,7 +451,9 @@ const FinalIngredientSummary = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+          </Box>
           <Button onClick={()=> setPrintDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Close</Button>
         </DialogActions>
       </Dialog>

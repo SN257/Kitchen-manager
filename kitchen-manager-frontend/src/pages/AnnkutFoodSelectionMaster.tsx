@@ -358,12 +358,14 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 											(e) => e.vangiName === item.vangiName && e.eventId?.toString() === selectedAnnkutEvent.toString(),
 										);
 										if (item.vangiName.trim().startsWith('મગજ')) {
-											const hasAnyMagaj = MAGAJ_SUBTYPES.some((sub) =>
+											// Check if ALL three Magaj subtypes are saved
+											const allMagajSaved = MAGAJ_SUBTYPES.every((sub) =>
 												entries.some(
 													(e) => e.vangiName === `મગજ (${sub})` && e.eventId?.toString() === selectedAnnkutEvent.toString(),
 												),
 											);
-											return !hasAnyMagaj;
+											// Show મગજ in available list until all three subtypes are saved
+											return !allMagajSaved;
 										}
 										return !alreadySaved;
 									})

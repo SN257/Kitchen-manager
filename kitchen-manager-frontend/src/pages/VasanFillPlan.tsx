@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, MenuItem, Checkbox, ListItemText, Chip, InputAdornment } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, Checkbox, ListItemText, Chip, InputAdornment } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import EditIcon from '@mui/icons-material/Edit';
@@ -17,7 +17,6 @@ interface Plan { id: number; vasanId: number; foodPlans: FoodPlan[]; vasan?: Vas
 interface FoodItem { id: number; vangiName: string; category: string; }
 
 const ROWS_PER_PAGE = 5; // align with other master pages
-const MAGAJ_SUBTYPES = ["લાડુડી", "લાડવા", "ચોસલા"];
 
 const VasanFillPlan: React.FC = () => {
   const API_BASE_URL = useApiBaseUrl();
@@ -27,7 +26,6 @@ const VasanFillPlan: React.FC = () => {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [vasanId, setVasanId] = useState<number | ''>('');
   const [selectedFoods, setSelectedFoods] = useState<FoodItem[]>([]);
-  const [magajSubType, setMagajSubType] = useState<string>('');
   // store per-food planned fill weights keyed by food id (string values to allow incremental typing)
   const [fillWeights, setFillWeights] = useState<Record<number, string>>({});
   const [search, setSearch] = useState('');
@@ -82,16 +80,27 @@ const VasanFillPlan: React.FC = () => {
   }, [API_BASE_URL]);
 
   // Fetch food items (Food Master)
+  // Fetch food items from Annkut Food Selection for the selected event
   useEffect(() => {
+    if (!selectedAnnkutEvent) { setFoodItems([]); return; }
     const token = localStorage.getItem('token');
-    if (!token) return;
-    fetch(`${API_BASE_URL}/food-item`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+    if (!token) { setFoodItems([]); return; }
+    fetch(`${API_BASE_URL}/annkut-food-selections?eventId=${selectedAnnkutEvent}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
       .then(r => r.json())
-      .then(d => setFoodItems(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [API_BASE_URL]);
+      .then(d => {
+        const arr = Array.isArray(d) ? d : [];
+        const mapped = arr.map((s: any) => ({
+          id: s.id,
+          // selection might use vangiName or foodName field depending on backend version
+          vangiName: s.vangiName || s.foodName || s.name || s.food_item_name || s.vangi_name || '',
+          category: s.category ?? ''
+        }));
+        setFoodItems(mapped);
+      })
+      .catch(() => setFoodItems([]));
+  }, [API_BASE_URL, selectedAnnkutEvent]);
 
-  const clearForm = () => { setVasanId(''); setSelectedFoods([]); setMagajSubType(''); setFillWeights({}); };
+  const clearForm = () => { setVasanId(''); setSelectedFoods([]); setFillWeights({}); };
   
 
   const handleAdd = async () => {
@@ -99,17 +108,13 @@ const VasanFillPlan: React.FC = () => {
   if (!selectedAnnkutEvent) { setSnackbar({ open: true, message: 'Select event first', severity: 'error' }); return; }
   // require vasan, at least one food, and a weight for every selected food
   if (!vasanId || selectedFoods.length === 0 || selectedFoods.some(f => !fillWeights[f.id])) { setSnackbar({ open: true, message: 'Fill all fields', severity: 'error' }); return; }
-  const anyMagaj = selectedFoods.some(f => f.vangiName.trim().startsWith('મગજ'));
-  if (anyMagaj && !magajSubType) { setSnackbar({ open: true, message: 'Select Magaj type', severity: 'error' }); return; }
     const token = localStorage.getItem('token');
     try {
       // Prepare food plans data for single entry creation
       const foodPlans = selectedFoods.map(f => {
-        const base = f.vangiName;
-        const nameToSave = base.trim().startsWith('મગજ') && magajSubType ? `${base} (${magajSubType})` : base;
         const weightStr = fillWeights[f.id] || '';
         return {
-          foodName: nameToSave,
+          foodName: f.vangiName,
           fillWeightKg: Number(weightStr)
         };
       });
@@ -178,7 +183,7 @@ const VasanFillPlan: React.FC = () => {
       </Box>
 
       <Paper elevation={4} sx={{ p: { xs: 2, sm: 4 }, mt: 3, width: '100%', borderRadius: 2, boxShadow: '0 4px 24px rgba(36,93,107,0.08)', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
-        {/* First row: Vasan, Food selection, Magaj type (if needed), and Add button */}
+        {/* First row: Vasan, Food selection, and Add button */}
         <Box sx={{ display: 'flex', gap: 2, width: '100%', flexWrap: 'nowrap', alignItems: 'flex-start', mb: selectedFoods.length > 0 ? 2 : 0, '& > .plan-field': { flex: 1, minWidth: 0 } }}>
           <Autocomplete
             className="plan-field"
@@ -216,8 +221,6 @@ const VasanFillPlan: React.FC = () => {
                 });
                 return next;
               });
-              const hasMagaj = newSelected.some(f => f.vangiName.trim().startsWith('મગજ'));
-              if (hasMagaj) setMagajSubType(prev => prev || MAGAJ_SUBTYPES[0]); else setMagajSubType('');
             }}
             renderOption={(props, option, { selected }) => {
               const { key, ...otherProps } = props;
@@ -326,20 +329,6 @@ const VasanFillPlan: React.FC = () => {
             }}
             clearOnEscape
           />
-          {selectedFoods.some(f => f.vangiName.trim().startsWith('મગજ')) && (
-            <TextField
-              className="plan-field"
-              select
-              label="Magaj Type"
-              value={magajSubType || MAGAJ_SUBTYPES[0]}
-              onChange={(e) => setMagajSubType(e.target.value)}
-              size="small"
-            >
-              {MAGAJ_SUBTYPES.map(sub => (
-                <MenuItem key={sub} value={sub}>{sub}</MenuItem>
-              ))}
-            </TextField>
-          )}
           <Button variant="contained" sx={{ bgcolor: '#245D6B', height: 56, fontWeight: 600, letterSpacing: 0.5, flex: '0 0 140px' }} onClick={handleAdd}>Add</Button>
         </Box>
 

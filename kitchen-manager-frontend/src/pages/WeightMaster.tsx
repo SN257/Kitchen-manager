@@ -14,8 +14,8 @@ import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 const ROWS_PER_PAGE = 5;
 
 const WeightEntry: React.FC = () => {
-    const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string }[]>([]);
-    const [selectedItems, setSelectedItems] = useState<{ [id: number]: { vangiName: string; gram: string } }>({});
+    const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string; uniqueKey: string }[]>([]);
+    const [selectedItems, setSelectedItems] = useState<{ [key: string]: { vangiName: string; gram: string } }>({});
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
@@ -113,9 +113,23 @@ const WeightEntry: React.FC = () => {
                     .map((entry: any) => ({
                         id: entry?.foodItem?.id ?? entry?.id,
                         vangiName: entry?.vangiName ?? entry?.foodItem?.vangiName,
+                        uniqueKey: `${entry?.foodItem?.id ?? entry?.id}-${entry?.vangiName ?? entry?.foodItem?.vangiName}`,
                     }))
                     // de-duplicate by vangiName
                     .filter((itm: any, idx: number, arr: any[]) => arr.findIndex(x => x.vangiName === itm.vangiName) === idx);
+
+                // Remove items that already have weight entries for the selected event (avoid duplicates)
+                try {
+                    const existingNames = new Set(
+                        (Array.isArray(weightEntries) ? weightEntries : [])
+                            .filter((w) => selectedAnnkutEvent ? w.eventId?.toString() === selectedAnnkutEvent.toString() : true)
+                            .map((w) => (w.vangiName || '').trim())
+                    );
+                    const filtered = items.filter((it: any) => !existingNames.has((it.vangiName || '').trim()));
+                    setFoodItems(filtered);
+                } catch (e) {
+                    setFoodItems(items);
+                }
                 setFoodItems(items);
             } catch {
                 setFoodItems([]);
@@ -178,16 +192,16 @@ const WeightEntry: React.FC = () => {
         return () => window.removeEventListener('afterprint', handleAfterPrint);
     }, []);
 
-    const handleCheck = (item: { id: number; vangiName: string }) => {
+    const handleCheck = (item: { id: number; vangiName: string; uniqueKey: string }) => {
         setSelectedItems(prev => {
-            if (prev[item.id]) {
+            if (prev[item.uniqueKey]) {
                 const copy = { ...prev };
-                delete copy[item.id];
+                delete copy[item.uniqueKey];
                 return copy;
             } else {
                 return {
                     ...prev,
-                    [item.id]: {
+                    [item.uniqueKey]: {
                         vangiName: item.vangiName,
                         gram: '',
                         nang: '',
@@ -447,13 +461,13 @@ const WeightEntry: React.FC = () => {
                                         return !isAlreadySaved;
                                     })
                                     .map(item => (
-                                        <Grid key={item.id} columns={{ xs: 12, sm: 6 }}>
+                                        <Grid key={item.uniqueKey} columns={{ xs: 12, sm: 6 }}>
                                             <Box
                                                 sx={{
                                                     p: 2,
                                                     borderRadius: 2,
-                                                    background: selectedItems[item.id] ? 'rgba(36,93,107,0.08)' : '#fff',
-                                                    boxShadow: selectedItems[item.id] ? '0 2px 8px rgba(36,93,107,0.10)' : 'none',
+                                                    background: selectedItems[item.uniqueKey] ? 'rgba(36,93,107,0.08)' : '#fff',
+                                                    boxShadow: selectedItems[item.uniqueKey] ? '0 2px 8px rgba(36,93,107,0.10)' : 'none',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'space-between',
@@ -469,7 +483,7 @@ const WeightEntry: React.FC = () => {
                                                 }}
                                             >
                                                 <Checkbox
-                                                    checked={!!selectedItems[item.id]}
+                                                    checked={!!selectedItems[item.uniqueKey]}
                                                     onChange={() => handleCheck(item)}
                                                     sx={{
                                                         color: '#245D6B',
@@ -484,12 +498,12 @@ const WeightEntry: React.FC = () => {
                                                 {/* No subtype dropdown for મગજ */}
                                                 <TextField
                                                     label="Weight (g)"
-                                                    value={selectedItems[item.id]?.gram || ''}
+                                                    value={selectedItems[item.uniqueKey]?.gram || ''}
                                                     onChange={e =>
                                                         setSelectedItems(prev => ({
                                                             ...prev,
-                                                            [item.id]: {
-                                                                ...prev[item.id],
+                                                            [item.uniqueKey]: {
+                                                                vangiName: item.vangiName,
                                                                 gram: e.target.value,
                                                             },
                                                         }))
@@ -521,7 +535,7 @@ const WeightEntry: React.FC = () => {
                                                     InputLabelProps={{
                                                         style: { color: '#245D6B', fontWeight: 400 },
                                                     }}
-                                                    disabled={!selectedItems[item.id]}
+                                                    disabled={!selectedItems[item.uniqueKey]}
                                                 />
                                             </Box>
                                         </Grid>
