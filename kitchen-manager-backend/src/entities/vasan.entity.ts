@@ -22,7 +22,7 @@ export class Vasan {
   @Column({ nullable: true })
   eventId: number;
 
-  @ManyToOne(() => Event, { eager: true, nullable: true })
+  @ManyToOne(() => Event, { eager: true, nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'eventId' })
   event: Event;
 

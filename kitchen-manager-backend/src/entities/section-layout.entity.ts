@@ -17,7 +17,7 @@ export class SectionLayout {
   @Column()
   eventId: number;
 
-  @ManyToOne(() => Event)
+  @ManyToOne(() => Event, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'eventId' })
   event: Event;
 

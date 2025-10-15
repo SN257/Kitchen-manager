@@ -21,7 +21,7 @@ export class FinalNosSummary {
   @Column()
   eventId: number;
 
-  @ManyToOne(() => Event)
+  @ManyToOne(() => Event, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'eventId' })
   event: Event;
 

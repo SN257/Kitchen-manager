@@ -22,7 +22,7 @@ export class WeightEntry {
   @Column({ nullable: true })
   eventId: number;
 
-  @ManyToOne(() => Event, { eager: true })
+  @ManyToOne(() => Event, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'eventId' })
   event: Event;
 
