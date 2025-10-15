@@ -10,6 +10,7 @@ import {
 	InputAdornment,
 	Checkbox,
 	MenuItem,
+	Menu,
 	Table,
 	TableBody,
 	TableCell,
@@ -27,6 +28,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -62,6 +64,7 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [editEntry, setEditEntry] = useState<any>(null);
+	const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
 
 	useEffect(() => {
 		const fetchCurrentUser = async () => {
@@ -249,6 +252,127 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 	const handleEditOpen = (entry: any) => {
 		setEditEntry({ ...entry });
 		setEditDialogOpen(true);
+	};
+
+	const handleExportClick = (event: React.MouseEvent<HTMLElement>) => {
+		setExportAnchorEl(event.currentTarget);
+	};
+
+	const handleExportClose = () => {
+		setExportAnchorEl(null);
+	};
+
+	const exportToExcel = async () => {
+		handleExportClose();
+		try {
+			const XLSX = await import('xlsx');
+			const data = filteredEntries.map((entry) => ({
+				ID: entry.id,
+				"Food Name": entry.vangiName,
+				Event: entry.event ? `${entry.event.eventName} - ${entry.event.eventYear}` : selectedEventDetails ? `${selectedEventDetails.eventName} - ${selectedEventDetails.eventYear}` : 'N/A',
+				Date: new Date(entry.createdAt).toLocaleString(),
+			}));
+
+			const ws = XLSX.utils.json_to_sheet(data);
+			const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+			for (let C = range.s.c; C <= range.e.c; ++C) {
+				const address = XLSX.utils.encode_col(C) + '1';
+				if (!ws[address]) continue;
+				ws[address].s = {
+					fill: { fgColor: { rgb: '245D6B' } },
+					font: { bold: true, color: { rgb: 'FFFFFF' } },
+					alignment: { horizontal: 'center', vertical: 'center' },
+					border: {
+						top: { style: 'thin', color: { rgb: '000000' } },
+						bottom: { style: 'thin', color: { rgb: '000000' } },
+						left: { style: 'thin', color: { rgb: '000000' } },
+						right: { style: 'thin', color: { rgb: '000000' } },
+					},
+				};
+			}
+
+			ws['!cols'] = [{ width: 8 }, { width: 40 }, { width: 28 }, { width: 20 }];
+			const wb = XLSX.utils.book_new();
+			XLSX.utils.book_append_sheet(wb, ws, 'Annkut Food Selection');
+			XLSX.writeFile(wb, `Annkut_Food_Selection_${selectedEventDetails?.eventName || 'Export'}.xlsx`);
+		} catch (err) {
+			console.error('Export to Excel failed', err);
+			setOpenSnackbar(true);
+		}
+	};
+
+	const exportToPdf = async () => {
+		handleExportClose();
+		try {
+			const html2canvas = (await import('html2canvas')).default;
+			const jsPDF = (await import('jspdf')).default;
+
+			const tableHtml = `
+				<div style="padding:20px;background:white;">
+					<h2 style="text-align:center;color:#245D6B;margin-bottom:20px;">Annkut Food Selection - ${selectedEventDetails?.eventName || 'All Events'}</h2>
+					<table style="width:100%;border-collapse:collapse;">
+						<thead>
+							<tr style="background:#245D6B;color:#fff;">
+								<th style="border:1px solid #000;padding:10px;text-align:center;">ID</th>
+								<th style="border:1px solid #000;padding:10px;text-align:center;">Food Name</th>
+								<th style="border:1px solid #000;padding:10px;text-align:center;">Event</th>
+								<th style="border:1px solid #000;padding:10px;text-align:center;">Date</th>
+							</tr>
+						</thead>
+						<tbody>
+							${filteredEntries
+								.map(
+									(entry) => `
+									<tr>
+										<td style="border:1px solid #000;padding:8px;text-align:center;">${entry.id}</td>
+										<td style="border:1px solid #000;padding:8px;text-align:center;">${entry.vangiName}</td>
+										<td style="border:1px solid #000;padding:8px;text-align:center;">${entry.event ? `${entry.event.eventName} - ${entry.event.eventYear}` : selectedEventDetails ? `${selectedEventDetails.eventName} - ${selectedEventDetails.eventYear}` : 'N/A'}</td>
+										<td style="border:1px solid #000;padding:8px;text-align:center;">${new Date(entry.createdAt).toLocaleString()}</td>
+									</tr>
+								`,
+								)
+								.join('')}
+						</tbody>
+					</table>
+				</div>
+			`;
+
+			const tempDiv = document.createElement('div');
+			tempDiv.innerHTML = tableHtml;
+			tempDiv.style.position = 'absolute';
+			tempDiv.style.left = '-9999px';
+			document.body.appendChild(tempDiv);
+
+			const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#ffffff', logging: false });
+			document.body.removeChild(tempDiv);
+
+			const imgData = canvas.toDataURL('image/png');
+			const pdf = new jsPDF('p', 'mm', 'a4');
+			const pdfWidth = pdf.internal.pageSize.getWidth();
+			const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+			pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+			pdf.save(`Annkut_Food_Selection_${selectedEventDetails?.eventName || 'Export'}.pdf`);
+		} catch (err) {
+			console.error('Export to PDF failed', err);
+			setOpenSnackbar(true);
+		}
+	};
+
+	const handlePrint = () => {
+		// Open a new window with the same table HTML and trigger print
+		const tableHtml = document.querySelector('#annkut-food-selection-table')?.outerHTML;
+		const w = window.open('', '_blank');
+		if (w) {
+			w.document.write(`<html><head><title>Print - Annkut Food Selection</title></head><body style="font-family: Arial, sans-serif;">`);
+			w.document.write(`<h2 style="text-align:center;color:#245D6B;">Annkut Food Selection - ${selectedEventDetails?.eventName || 'All Events'}</h2>`);
+			w.document.write(tableHtml || '<div>No data</div>');
+			w.document.write('</body></html>');
+			w.document.close();
+			w.focus();
+			w.print();
+			w.close();
+		}
 	};
 
 	const handleEditChange = (field: string, value: any) => {
@@ -439,11 +563,46 @@ const AnnkutFoodSelectionMaster: React.FC = () => {
 						onChange={(e) => setSavedItemSearch(e.target.value)}
 						sx={{ width: 300, background: '#fff', borderRadius: 1 }}
 					/>
-					{/* Optional: add print later */}
+					{selectedAnnkutEvent && filteredEntries.length > 0 && (
+						<>
+							<Button
+								variant="outlined"
+								startIcon={<DownloadIcon />}
+								onClick={handleExportClick}
+								sx={{
+									color: '#245D6B',
+									borderColor: '#245D6B',
+									fontWeight: 600,
+									height: 40,
+									textTransform: 'none',
+									'&:hover': { bgcolor: '#f5fafd', borderColor: '#4A7D91' },
+								}}
+							>
+								Export
+							</Button>
+							<Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+								<MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+								<MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+							</Menu>
+							<Button
+								variant="outlined"
+								sx={{
+									color: '#245D6B',
+									borderColor: '#245D6B',
+									fontWeight: 600,
+									height: 40,
+									'&:hover': { bgcolor: '#f5fafd', borderColor: '#4A7D91' },
+								}}
+								onClick={handlePrint}
+							>
+								Print
+							</Button>
+						</>
+					)}
 				</Box>
 			)}
 
-			<TableContainer component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
+			<TableContainer id="annkut-food-selection-table" component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
 				<Table sx={{ tableLayout: 'fixed', width: '100%' }}>
 					<TableHead>
 						<TableRow>

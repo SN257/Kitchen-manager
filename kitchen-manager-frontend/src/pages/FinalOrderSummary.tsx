@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -17,6 +18,7 @@ const FinalOrderSummary = () => {
   const [finalRows, setFinalRows] = useState<FinalNosRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     if (!selectedAnnkutEvent) { setRecipes([]); setFinalRows([]); return; }
@@ -91,6 +93,49 @@ const FinalOrderSummary = () => {
     return rows;
   }, [recipes, finalRows]);
 
+  const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+  const handleExportClose = () => setExportAnchorEl(null);
+
+  const exportToExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const rowsData = ingredientTotals.map((r: any, idx: number) => ({
+        ID: idx + 1,
+        'Ingredient Name': r.ingredientName,
+        'Total Weight (Kg)': Number(r.totalKg) || 0,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rowsData);
+      ws['!cols'] = [{ wch: 6 }, { wch: 50 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Final Order Summary');
+      XLSX.writeFile(wb, `final-order-summary-${selectedAnnkutEvent || 'all'}.xlsx`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export excel failed', err);
+      handleExportClose();
+    }
+  };
+
+  const exportToPdf = async () => {
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+      const el = document.getElementById('final-order-summary-print');
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('l', 'pt', 'a4');
+      const imgProps = (pdf as any).getImageProperties ? (pdf as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`final-order-summary-${selectedAnnkutEvent || 'all'}.pdf`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export pdf failed', err);
+      handleExportClose();
+    }
+  };
+
   return (
     <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
       <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
@@ -98,7 +143,14 @@ const FinalOrderSummary = () => {
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Final Order Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
         <Box sx={{ ml:'auto' }}>
-          <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientTotals.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
+          <>
+            <Button variant="outlined" startIcon={<DownloadIcon />} disabled={!selectedAnnkutEvent || !ingredientTotals.length} sx={{ borderColor:'#245D6B', color:'#245D6B', mr:1 }} onClick={handleExportClick}>Export</Button>
+            <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+              <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={!selectedAnnkutEvent || !ingredientTotals.length}>Export Excel</MenuItem>
+              <MenuItem onClick={() => { handleExportClose(); exportToPdf(); }} disabled={!selectedAnnkutEvent || !ingredientTotals.length}>Export PDF</MenuItem>
+            </Menu>
+            <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientTotals.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
+          </>
         </Box>
       </Box>
 
@@ -174,7 +226,7 @@ const FinalOrderSummary = () => {
               .ingredient-print-table td { vertical-align: middle !important; }
             }
           `}</Box>
-          <Box sx={{ mb:2, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
+          <Box id="final-order-summary-print" sx={{ mb:2, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
             <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:1, '@media print': { color:'#245D6B', fontSize:20 } }}>Final Order Summary Report</Typography>
             <Typography variant='body2' sx={{ color:'#555', mt:0.5, '@media print': { color:'#000' } }}>
               {new Date().toLocaleDateString()} | Powered by Kitchen Manager

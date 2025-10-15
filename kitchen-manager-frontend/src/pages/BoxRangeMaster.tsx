@@ -20,10 +20,13 @@ import {
     Pagination,
     Snackbar,
     Alert,
+    Menu,
+    MenuItem,
 } from '@mui/material';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -66,11 +69,161 @@ const BoxRangeEntry: React.FC = () => {
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
+    const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
     
     // Use context instead of local state
     const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
     
     const API_BASE_URL = useApiBaseUrl();
+
+    const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+    const handleExportClose = () => setExportAnchorEl(null);
+
+    const exportToExcel = async () => {
+        handleExportClose();
+        try {
+            const XLSXmod = await import('xlsx');
+            const XLSX = (XLSXmod && (XLSXmod as any).default) || XLSXmod;
+            
+            const wsData: any[][] = [];
+            const header = ['ID', 'Price Range', 'Box Types', 'Gram per Box'];
+            wsData.push(header);
+            
+            const dataRows = filteredBoxRanges.map((box, idx) => [
+                idx + 1,
+                box.priceRange,
+                box.boxType.join(', '),
+                box.gramPerBox
+            ]);
+            wsData.push(...dataRows);
+            
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            ws['!cols'] = [{ wch: 8 }, { wch: 20 }, { wch: 40 }, { wch: 15 }];
+            
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            for (let col = 0; col <= range.e.c; col++) {
+                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+                if (ws[cellAddress]) {
+                    ws[cellAddress].s = {
+                        font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                        fill: { fgColor: { rgb: '245D6B' } },
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                        border: {
+                            top: { style: 'thin', color: { rgb: '000000' } },
+                            bottom: { style: 'thin', color: { rgb: '000000' } },
+                            left: { style: 'thin', color: { rgb: '000000' } },
+                            right: { style: 'thin', color: { rgb: '000000' } }
+                        }
+                    };
+                }
+            }
+            
+            for (let row = 1; row <= range.e.r; row++) {
+                for (let col = 0; col <= range.e.c; col++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].s = {
+                            alignment: { horizontal: 'center', vertical: 'center', wrapText: col === 2 },
+                            border: {
+                                top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+                                right: { style: 'thin', color: { rgb: 'CCCCCC' } }
+                            }
+                        };
+                    }
+                }
+            }
+            
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
+            ws['!rows'] = [{ hpt: 30 }, ...dataRows.map(() => ({ hpt: 22 }))];
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Box Range Master');
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `BoxRangeMaster_${new Date().toISOString().slice(0,10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Excel export failed', err);
+            alert('Excel export failed (ensure xlsx is installed)');
+        }
+    };
+
+    const exportToPdf = async () => {
+        handleExportClose();
+        try {
+            const h2cMod = await import('html2canvas');
+            const html2canvas = (h2cMod && (h2cMod as any).default) || h2cMod;
+            const jspdfMod = await import('jspdf');
+            const jsPDF = (jspdfMod && (jspdfMod as any).jsPDF) || jspdfMod;
+            
+            const printContent = `
+                <div style="background: #fff; padding: 20px; width: 1100px;">
+                    <div style="margin-bottom: 20px; border-bottom: 2px solid #245D6B; padding-bottom: 12px;">
+                        <h1 style="font-weight: 700; color: #245D6B; letter-spacing: 1px; font-size: 26px; margin: 0 0 8px 0;">Box Range Master Report</h1>
+                        <p style="color: #000; margin: 0; font-size: 14px;">
+                            ${new Date().toLocaleDateString()} | Powered by Kitchen Manager
+                            ${selectedEventDetails ? `| Event: ${selectedEventDetails.eventName} - ${selectedEventDetails.eventYear}` : ''}
+                        </p>
+                    </div>
+                    <table style="border: 1px solid #245D6B; font-size: 13px; table-layout: fixed; width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 8px; text-align: center; width: 8%;">ID</th>
+                                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 8px; text-align: center; width: 20%;">Price Range</th>
+                                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 8px; text-align: center; width: 52%;">Box Types</th>
+                                <th style="background: #245D6B; color: #fff; font-weight: 700; border: 1px solid #245D6B; padding: 8px; text-align: center; width: 20%;">Gram per Box</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredBoxRanges.map((box, idx) => `
+                                <tr>
+                                    <td style="border: 1px solid #245D6B; padding: 8px; text-align: center;">${idx + 1}</td>
+                                    <td style="border: 1px solid #245D6B; padding: 8px; text-align: center;">${box.priceRange}</td>
+                                    <td style="border: 1px solid #245D6B; padding: 8px; text-align: center;">${box.boxType.join(', ')}</td>
+                                    <td style="border: 1px solid #245D6B; padding: 8px; text-align: center;">${box.gramPerBox}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            const container = document.createElement('div');
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.background = '#fff';
+            container.innerHTML = printContent;
+            document.body.appendChild(container);
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#fff' });
+            const imgData = canvas.toDataURL('image/png');
+            
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const imgProps = (pdf as any).getImageProperties(imgData);
+            const imgWidth = pageWidth - 40;
+            const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+            
+            pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight);
+            pdf.save(`BoxRangeMaster_${new Date().toISOString().slice(0,10)}.pdf`);
+            
+            container.remove();
+        } catch (err) {
+            console.error('PDF export failed', err);
+            alert('PDF export failed (ensure html2canvas and jspdf are installed)');
+        }
+    };
 
     // Fetch current user data
     useEffect(() => {
@@ -503,22 +656,50 @@ const BoxRangeEntry: React.FC = () => {
                     }}
                 />
                 {selectedAnnkutEvent && filteredBoxRanges.length > 0 && (
-                    <Button
-                        variant="outlined"
-                        sx={{
-                            color: '#245D6B',
-                            borderColor: '#245D6B',
-                            fontWeight: 600,
-                            height: 40,
-                            '&:hover': {
-                                bgcolor: '#f5fafd',
-                                borderColor: '#4A7D91',
-                            },
-                        }}
-                        onClick={() => setPrintDialogOpen(true)}
-                    >
-                        Print
-                    </Button>
+                    <>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DownloadIcon />}
+                            onClick={handleExportClick}
+                            sx={{
+                                color: '#245D6B',
+                                borderColor: '#245D6B',
+                                fontWeight: 600,
+                                height: 40,
+                                textTransform: 'none',
+                                '&:hover': {
+                                    bgcolor: '#f5fafd',
+                                    borderColor: '#4A7D91',
+                                },
+                            }}
+                        >
+                            Export
+                        </Button>
+                        <Menu
+                            anchorEl={exportAnchorEl}
+                            open={Boolean(exportAnchorEl)}
+                            onClose={handleExportClose}
+                        >
+                            <MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+                            <MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+                        </Menu>
+                        <Button
+                            variant="outlined"
+                            sx={{
+                                color: '#245D6B',
+                                borderColor: '#245D6B',
+                                fontWeight: 600,
+                                height: 40,
+                                '&:hover': {
+                                    bgcolor: '#f5fafd',
+                                    borderColor: '#4A7D91',
+                                },
+                            }}
+                            onClick={() => setPrintDialogOpen(true)}
+                        >
+                            Print
+                        </Button>
+                    </>
                 )}
             </Box>
             <TableContainer

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, TextField, Button, Snackbar, Alert, InputAdornment,
     Checkbox, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Pagination
+    IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Pagination,
+    Menu, MenuItem,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import '../App.css';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -38,6 +40,7 @@ const WeightEntry: React.FC = () => {
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editEntry, setEditEntry] = useState<any>(null);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
+    const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
     const [page, setPage] = useState(1);
     const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
 
@@ -341,6 +344,81 @@ const WeightEntry: React.FC = () => {
         }
     };
 
+    const handleExportClick = (event: React.MouseEvent<HTMLElement>) => {
+        setExportAnchorEl(event.currentTarget);
+    };
+
+    const handleExportClose = () => {
+        setExportAnchorEl(null);
+    };
+
+    const exportToExcel = async () => {
+        handleExportClose();
+        try {
+            const XLSX = await import('xlsx');
+            const data = filteredWeightEntries.map((item) => ({
+                ID: item.id,
+                'Food Name': item.vangiName,
+                '1 Piece Weight (g)': item.gram,
+                Event: item.event ? `${item.event.eventName} - ${item.event.eventYear}` : selectedEventDetails ? `${selectedEventDetails.eventName} - ${selectedEventDetails.eventYear}` : 'N/A',
+                Date: new Date(item.createdAt).toLocaleString(),
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_col(C) + '1';
+                if (!ws[address]) continue;
+                ws[address].s = {
+                    fill: { fgColor: { rgb: '245D6B' } },
+                    font: { bold: true, color: { rgb: 'FFFFFF' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border: {
+                        top: { style: 'thin', color: { rgb: '000000' } },
+                        bottom: { style: 'thin', color: { rgb: '000000' } },
+                        left: { style: 'thin', color: { rgb: '000000' } },
+                        right: { style: 'thin', color: { rgb: '000000' } },
+                    },
+                };
+            }
+            ws['!cols'] = [{ width: 8 }, { width: 40 }, { width: 18 }, { width: 28 }, { width: 20 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Weight Master');
+            XLSX.writeFile(wb, `Weight_Master_${selectedEventDetails?.eventName || 'Export'}.xlsx`);
+        } catch (err) {
+            console.error('Export to Excel failed', err);
+            setOpenSnackbar(true);
+        }
+    };
+
+    const exportToPdf = async () => {
+        handleExportClose();
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const jsPDF = (await import('jspdf')).default;
+
+            const printSection = document.querySelector('#print-section');
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.left = '-9999px';
+            tempDiv.innerHTML = printSection ? printSection.innerHTML : '<div>No data</div>';
+            document.body.appendChild(tempDiv);
+
+            const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#ffffff', logging: false });
+            document.body.removeChild(tempDiv);
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Weight_Master_${selectedEventDetails?.eventName || 'Export'}.pdf`);
+        } catch (err) {
+            console.error('Export to PDF failed', err);
+            setOpenSnackbar(true);
+        }
+    };
+
     // Filter weight entries by search and selected event
     const filteredWeightEntries = weightEntries
         .slice() // make a copy to avoid mutating state
@@ -585,23 +663,47 @@ const WeightEntry: React.FC = () => {
                             '& .MuiInputBase-input': { color: '#245D6B' },
                         }}
                     />
-                    <Button
-                        variant="outlined"
-                        sx={{
-                            color: '#245D6B',
-                            borderColor: '#245D6B',
-                            fontWeight: 600,
-                            ml: 0,
-                            height: 40,
-                            '&:hover': {
-                                bgcolor: '#f5fafd',
-                                borderColor: '#4A7D91',
-                            },
-                        }}
-                        onClick={() => setPrintDialogOpen(true)}
-                    >
-                        Print
-                    </Button>
+                    <>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DownloadIcon />}
+                            onClick={handleExportClick}
+                            sx={{
+                                color: '#245D6B',
+                                borderColor: '#245D6B',
+                                fontWeight: 600,
+                                height: 40,
+                                textTransform: 'none',
+                                '&:hover': {
+                                    bgcolor: '#f5fafd',
+                                    borderColor: '#4A7D91',
+                                },
+                            }}
+                        >
+                            Export
+                        </Button>
+                        <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+                            <MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+                            <MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+                        </Menu>
+                        <Button
+                            variant="outlined"
+                            sx={{
+                                color: '#245D6B',
+                                borderColor: '#245D6B',
+                                fontWeight: 600,
+                                ml: 0,
+                                height: 40,
+                                '&:hover': {
+                                    bgcolor: '#f5fafd',
+                                    borderColor: '#4A7D91',
+                                },
+                            }}
+                            onClick={() => setPrintDialogOpen(true)}
+                        >
+                            Print
+                        </Button>
+                    </>
                 </Box>
             )}
             <TableContainer component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>

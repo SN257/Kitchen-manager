@@ -20,9 +20,11 @@ import {
   Alert,
   Pagination,
   MenuItem,
+  Menu,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -38,6 +40,7 @@ const BoxWeightEntry: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<{ id: number; priceRange: string; totalBoxes: number; boxType: string; displayId?: number } | null>(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -275,6 +278,144 @@ const BoxWeightEntry: React.FC = () => {
     }
   };
 
+  const handleExportClick = (event: React.MouseEvent<HTMLElement>) => {
+    setExportAnchorEl(event.currentTarget);
+  };
+
+  const handleExportClose = () => {
+    setExportAnchorEl(null);
+  };
+
+  const exportToExcel = async () => {
+    handleExportClose();
+    try {
+      const XLSX = await import('xlsx');
+      
+      const data = filteredBoxEntries.map((entry: { id: number; displayId?: number; priceRange: string; boxType: string; totalBoxes: number }) => ({
+        'ID': entry.displayId || entry.id,
+        'Box Price Range': entry.priceRange,
+        'Box Type': entry.boxType,
+        'Total Boxes': entry.totalBoxes,
+        'Event': selectedEventDetails?.name || 'N/A',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      
+      const headerStyle = {
+        fill: { fgColor: { rgb: '245D6B' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: '000000' } },
+          bottom: { style: 'thin', color: { rgb: '000000' } },
+          left: { style: 'thin', color: { rgb: '000000' } },
+          right: { style: 'thin', color: { rgb: '000000' } },
+        },
+      };
+      
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_col(C) + '1';
+        if (!ws[address]) continue;
+        ws[address].s = headerStyle;
+      }
+
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const address = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[address]) continue;
+          ws[address].s = {
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: '000000' } },
+              bottom: { style: 'thin', color: { rgb: '000000' } },
+              left: { style: 'thin', color: { rgb: '000000' } },
+              right: { style: 'thin', color: { rgb: '000000' } },
+            },
+          };
+        }
+      }
+
+      ws['!cols'] = [
+        { width: 10 },
+        { width: 20 },
+        { width: 15 },
+        { width: 15 },
+        { width: 25 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Box Nos Master');
+      XLSX.writeFile(wb, `Box_Nos_Master_${selectedEventDetails?.name || 'Export'}.xlsx`);
+    } catch (error) {
+      console.error('Export to Excel failed:', error);
+      setSnackbar({ open: true, message: 'Failed to export to Excel', severity: 'error' });
+    }
+  };
+
+  const exportToPdf = async () => {
+    handleExportClose();
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
+      const tableHtml = `
+        <div style="padding: 20px; background: white;">
+          <h2 style="text-align: center; color: #245D6B; margin-bottom: 20px;">
+            Box Nos Master - ${selectedEventDetails?.name || 'All Events'}
+          </h2>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background-color: #245D6B; color: white;">
+                <th style="border: 1px solid #000; padding: 12px; text-align: center;">ID</th>
+                <th style="border: 1px solid #000; padding: 12px; text-align: center;">Box Price Range</th>
+                <th style="border: 1px solid #000; padding: 12px; text-align: center;">Box Type</th>
+                <th style="border: 1px solid #000; padding: 12px; text-align: center;">Total Boxes</th>
+                <th style="border: 1px solid #000; padding: 12px; text-align: center;">Event</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredBoxEntries.map((entry: { id: number; displayId?: number; priceRange: string; boxType: string; totalBoxes: number }) => `
+                <tr>
+                  <td style="border: 1px solid #000; padding: 10px; text-align: center;">${entry.displayId || entry.id}</td>
+                  <td style="border: 1px solid #000; padding: 10px; text-align: center;">${entry.priceRange}</td>
+                  <td style="border: 1px solid #000; padding: 10px; text-align: center;">${entry.boxType}</td>
+                  <td style="border: 1px solid #000; padding: 10px; text-align: center;">${entry.totalBoxes}</td>
+                  <td style="border: 1px solid #000; padding: 10px; text-align: center;">${selectedEventDetails?.name || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = tableHtml;
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      document.body.appendChild(tempDiv);
+
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      document.body.removeChild(tempDiv);
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Box_Nos_Master_${selectedEventDetails?.name || 'Export'}.pdf`);
+    } catch (error) {
+      console.error('Export to PDF failed:', error);
+      setSnackbar({ open: true, message: 'Failed to export to PDF', severity: 'error' });
+    }
+  };
+
   const filteredBoxEntries = boxEntries
     .filter(entry => {
       if (!selectedAnnkutEvent) {
@@ -459,22 +600,50 @@ const BoxWeightEntry: React.FC = () => {
             }}
           />
           {selectedAnnkutEvent && filteredBoxEntries.length > 0 && (
-            <Button
-              variant="outlined"
-              sx={{
-                color: '#245D6B',
-                borderColor: '#245D6B',
-                fontWeight: 600,
-                height: 40,
-                '&:hover': {
-                  bgcolor: '#f5fafd',
-                  borderColor: '#4A7D91',
-                },
-              }}
-              onClick={() => setPrintDialogOpen(true)}
-            >
-              Print
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportClick}
+                sx={{
+                  color: '#245D6B',
+                  borderColor: '#245D6B',
+                  fontWeight: 600,
+                  height: 40,
+                  textTransform: 'none',
+                  '&:hover': {
+                    bgcolor: '#f5fafd',
+                    borderColor: '#4A7D91',
+                  },
+                }}
+              >
+                Export
+              </Button>
+              <Menu
+                anchorEl={exportAnchorEl}
+                open={Boolean(exportAnchorEl)}
+                onClose={handleExportClose}
+              >
+                <MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+                <MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+              </Menu>
+              <Button
+                variant="outlined"
+                sx={{
+                  color: '#245D6B',
+                  borderColor: '#245D6B',
+                  fontWeight: 600,
+                  height: 40,
+                  '&:hover': {
+                    bgcolor: '#f5fafd',
+                    borderColor: '#4A7D91',
+                  },
+                }}
+                onClick={() => setPrintDialogOpen(true)}
+              >
+                Print
+              </Button>
+            </>
           )}
         </Box>
         {/* Table Section */}

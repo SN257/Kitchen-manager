@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, Checkbox, ListItemText, Chip, InputAdornment } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, Checkbox, ListItemText, Chip, InputAdornment, Menu, MenuItem } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import AddTaskIcon from '@mui/icons-material/AddTask';
 import EditIcon from '@mui/icons-material/Edit';
@@ -8,6 +8,7 @@ import CategoryIcon from '@mui/icons-material/Category';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import ScaleIcon from '@mui/icons-material/Scale';
 import PrintIcon from '@mui/icons-material/Print';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
@@ -37,6 +38,7 @@ const VasanFillPlan: React.FC = () => {
   const [page, setPage] = useState(1);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
 
   const fetchVasans = () => {
     if (!selectedAnnkutEvent) { setVasans([]); return; }
@@ -173,6 +175,57 @@ const VasanFillPlan: React.FC = () => {
 
   const pageCount = Math.ceil(filtered.length / ROWS_PER_PAGE) || 1;
   const paginated = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+
+  const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+  const handleExportClose = () => setExportAnchorEl(null);
+
+  const exportToExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const rows: any[] = [];
+      filtered.forEach((p, idx) => {
+        const v = vasans.find(vs => vs.id === p.vasanId);
+        p.foodPlans.forEach(fp => {
+          rows.push({
+            'Sr. No.': idx + 1,
+            'Vasan Name': v?.vasanName || 'N/A',
+            'Food Name': fp.foodName,
+            'Planned Fill Weight (Kg)': fp.fillWeightKg,
+            'Event': p.event?.eventName ? `${p.event.eventName} - ${p.event.eventYear}` : 'N/A'
+          });
+        });
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 40 }, { wch: 20 }, { wch: 30 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Vasan Fill Plan');
+      XLSX.writeFile(wb, `vasan-fill-plan-${selectedAnnkutEvent || 'all'}.xlsx`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export excel failed', err);
+      handleExportClose();
+    }
+  };
+
+  const exportToPdf = async () => {
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+      const el = document.getElementById('vasan-fill-plan-print');
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const imgProps = (pdf as any).getImageProperties ? (pdf as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`vasan-fill-plan-${selectedAnnkutEvent || 'all'}.pdf`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export pdf failed', err);
+      handleExportClose();
+    }
+  };
 
   return (
     <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
@@ -364,7 +417,16 @@ const VasanFillPlan: React.FC = () => {
       </Paper>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2, gap: 2 }}>
         <TextField label="Search" size="small" value={search} onChange={e => setSearch(e.target.value)} sx={{ width: 300, background: '#fff' }} />
-        {selectedAnnkutEvent && filtered.length > 0 && <Button variant="outlined" startIcon={<PrintIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={() => setPrintDialogOpen(true)}>Print</Button>}
+        {selectedAnnkutEvent && filtered.length > 0 && (
+          <>
+            <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={handleExportClick}>Export</Button>
+            <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+              <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={filtered.length === 0}>Export Excel</MenuItem>
+              <MenuItem onClick={() => { handleExportClose(); exportToPdf(); }} disabled={filtered.length === 0}>Export PDF</MenuItem>
+            </Menu>
+            <Button variant="outlined" startIcon={<PrintIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={() => setPrintDialogOpen(true)}>Print</Button>
+          </>
+        )}
       </Box>
 
       <TableContainer component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
@@ -514,7 +576,7 @@ const VasanFillPlan: React.FC = () => {
           <Button variant="contained" sx={{ float: 'right', bgcolor: '#245D6B', ml: 2 }} onClick={() => window.print()}>Print</Button>
         </DialogTitle>
         <DialogContent>
-          <Box>
+          <Box id="vasan-fill-plan-print">
             <div style={{ textAlign: 'left', marginBottom: 24, borderBottom: '2px solid #245D6B', paddingBottom: 12 }}>
               <h1 style={{ color: '#245D6B', margin: 0, fontSize: 32, letterSpacing: 2, fontWeight: 700 }}>Vasan Fill Plan Report</h1>
               <div style={{ color: '#555', fontSize: 16, marginTop: 4 }}>

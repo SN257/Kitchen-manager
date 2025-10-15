@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, DialogActions } from '@mui/material';
+import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, DialogActions, Menu, MenuItem } from '@mui/material';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import DownloadIcon from '@mui/icons-material/Download';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -128,6 +129,7 @@ const WeightCalculation: React.FC = () => {
   const [entryId, setEntryId] = useState<number | null>(null);
   const [gramWarnings, setGramWarnings] = useState<string[]>([]);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const saveTimeoutRef = React.useRef<number | null>(null);
   const inFlightSaveRef = React.useRef<string>('');
@@ -135,6 +137,61 @@ const WeightCalculation: React.FC = () => {
   
   const { selectedAnnkutEvent, selectedEventDetails } = useAnnkutEvent();
   const API_BASE_URL = useApiBaseUrl();
+
+  const handleExportClick = (event: React.MouseEvent<HTMLElement>) => {
+    setExportAnchorEl(event.currentTarget);
+  };
+
+  const handleExportClose = () => {
+    setExportAnchorEl(null);
+  };
+
+  const exportToExcel = async () => {
+    handleExportClose();
+    try {
+      const XLSX = await import('xlsx');
+      const rows = mithais.slice().map((m) => {
+        const obj: any = { 'Food Name': m.vangiName, '1 Piece Weight (g)': m.gram };
+        boxRanges.forEach((b) => {
+          obj[b.priceRange] = pieces[`${m.id}_${b.id}`] || 0;
+        });
+        return obj;
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ width: 30 }, { width: 18 }, ...boxRanges.map(() => ({ width: 12 }))];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Weight Calculation');
+      XLSX.writeFile(wb, `Weight_Calculation_${selectedEventDetails?.eventName || 'Export'}.xlsx`);
+    } catch (err) {
+      console.error('Export to Excel failed', err);
+      setSnackbar({ open: true, message: 'Failed to export', severity: 'error' });
+    }
+  };
+
+  const exportToPdf = async () => {
+    handleExportClose();
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+      const printSection = document.querySelector('#weight-calculation-print');
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.innerHTML = printSection ? printSection.innerHTML : '<div>No data</div>';
+      document.body.appendChild(tempDiv);
+      const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      document.body.removeChild(tempDiv);
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Weight_Calculation_${selectedEventDetails?.eventName || 'Export'}.pdf`);
+    } catch (err) {
+      console.error('Export to PDF failed', err);
+      setSnackbar({ open: true, message: 'Failed to export', severity: 'error' });
+    }
+  };
 
   // Refresh data when event is selected
   useEffect(() => {
@@ -334,6 +391,18 @@ const WeightCalculation: React.FC = () => {
         </Box>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={handleExportClick}
+            sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120, textTransform: 'none' }}
+          >
+            Export
+          </Button>
+          <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+            <MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+            <MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+          </Menu>
           <Button
             variant="outlined"
             sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }}

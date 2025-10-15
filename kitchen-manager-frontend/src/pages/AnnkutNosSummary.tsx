@@ -11,6 +11,8 @@ import {
   TableRow,
   CircularProgress,
   Button,
+  Menu,
+  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -18,6 +20,7 @@ import {
   Alert,
 } from "@mui/material";
 import SummarizeIcon from "@mui/icons-material/Summarize";
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from "../config/config";
 import "../App.css";
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
@@ -338,6 +341,87 @@ const AnnkutNosSummary: React.FC = () => {
     setPrintDialogOpen(true);
   };
 
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleExportClick = (event: React.MouseEvent<HTMLElement>) => {
+    setExportAnchorEl(event.currentTarget);
+  };
+
+  const handleExportClose = () => {
+    setExportAnchorEl(null);
+  };
+
+  const exportToExcel = async () => {
+    handleExportClose();
+    try {
+      const XLSX = await import('xlsx');
+      if (!mithais || mithais.length === 0) {
+        setSnackbar({ open: true, message: 'No data to export', severity: 'error' });
+        return;
+      }
+
+      const rows = mithais.map((m: any, idx: number) => {
+        const row: any = {};
+        row['Id'] = idx + 1;
+        row['1 Piece weight (g)'] = m.gram || '';
+        row['Mithai'] = m.vangiName || '';
+        boxRanges.forEach((b: any) => {
+          const nang = pieces[`${m.id}_${b.id}`] || 0;
+          const totalBoxes = boxTotals[b.priceRange] || 0;
+          row[b.priceRange] = nang * totalBoxes;
+        });
+        const totalNang = getTotalNang(m);
+        row['Total Nang'] = totalNang;
+        const gramEntry = weightEntries.find(w => w.vangiName && w.vangiName.trim() === m.vangiName.trim());
+        const gram = gramEntry ? Number(gramEntry.gram) : null;
+        const recipeEntry = recipes.find((r: any) => r.vangiName && r.vangiName.split('(')[0].trim().toLowerCase() === (m.vangiName || '').split('(')[0].trim().toLowerCase());
+        let itemPerKg = null;
+        if (recipeEntry && recipeEntry.items_per_kg !== undefined && recipeEntry.items_per_kg !== null && String(recipeEntry.items_per_kg).trim() !== '') {
+          itemPerKg = Number(String(recipeEntry.items_per_kg).replace(',', '.').replace(/[^0-9.]/g, ''));
+        }
+        const nosFromItemPerKg = (gram && itemPerKg && itemPerKg > 0) ? Math.floor((itemPerKg * 1000) / gram) : null;
+        row['Nos per kg'] = nosFromItemPerKg || '';
+        const flourKg = (typeof nosFromItemPerKg === 'number' && nosFromItemPerKg > 0) ? Number((totalNang / nosFromItemPerKg).toFixed(2)) : '';
+        row['Total Flour (kg)'] = flourKg;
+        return row;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ width: 8 }, { width: 12 }, { width: 30 }, ...boxRanges.map(() => ({ width: 12 })), { width: 12 }, { width: 12 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Annkut Nos Summary');
+      XLSX.writeFile(wb, `Annkut_Nos_Summary_${selectedEventDetails?.eventName || 'Export'}.xlsx`);
+    } catch (err) {
+      console.error('Export to Excel failed', err);
+      setSnackbar({ open: true, message: 'Failed to export', severity: 'error' });
+    }
+  };
+
+  const exportToPdf = async () => {
+    handleExportClose();
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+      const printSection = document.querySelector('#annkut-print-title');
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.innerHTML = printSection ? printSection.innerHTML : '<div>No data</div>';
+      document.body.appendChild(tempDiv);
+      const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      document.body.removeChild(tempDiv);
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Annkut_Nos_Summary_${selectedEventDetails?.eventName || 'Export'}.pdf`);
+    } catch (err) {
+      console.error('Export to PDF failed', err);
+      setSnackbar({ open: true, message: 'Failed to export', severity: 'error' });
+    }
+  };
+
   
 
   // Check for existing saved entries when data loads
@@ -489,6 +573,27 @@ const AnnkutNosSummary: React.FC = () => {
                 - {selectedEventDetails.eventName} {selectedEventDetails.eventYear}
               </Typography>
             )}
+            <Box sx={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={handleExportClick}
+                sx={{ color: '#245D6B', borderColor: '#245D6B', fontWeight: 600, textTransform: 'none' }}
+              >
+                Export
+              </Button>
+              <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+                <MenuItem onClick={exportToExcel}>Export Excel</MenuItem>
+                <MenuItem onClick={exportToPdf}>Export PDF</MenuItem>
+              </Menu>
+              <Button
+                variant="outlined"
+                sx={{ color: '#245D6B', borderColor: '#245D6B', fontWeight: 600 }}
+                onClick={handlePrint}
+              >
+                Print
+              </Button>
+            </Box>
           </Box>
         </Box>
         <Paper elevation={3} sx={{ p: 3, borderRadius: 2, opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none' }}>
@@ -740,22 +845,9 @@ const AnnkutNosSummary: React.FC = () => {
                 </Table>
               </TableContainer>
               {/* Pagination below the table, centered, like BoxWeightEntry */}
-            </>
-          )}
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
-            <Button
-              variant="contained"
-              sx={{
-                background: "#245D6B",
-                fontWeight: 700,
-                textTransform: "none",
-              }}
-              onClick={handlePrint}
-            >
-              Print
-            </Button>
-          </Box>
-        </Paper>
+              </>
+            )}
+          </Paper>
         {/* Remove the entire pagination section */}
       </Box>
       <Dialog

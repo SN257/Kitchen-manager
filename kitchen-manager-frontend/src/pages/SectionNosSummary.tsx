@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, Button, Dialog, DialogTitle, DialogContent, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, Button, Dialog, DialogTitle, DialogContent, Snackbar, Alert, Menu, MenuItem } from '@mui/material';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
@@ -23,6 +24,7 @@ const SectionNosSummary: React.FC = () => {
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSavedSignature, setLastSavedSignature] = useState<string>('');
   const [snackbar, setSnackbar] = useState<{open:boolean; message:string; severity:'success'|'error'}>({open:false,message:'',severity:'success'});
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
   const [cachedRows, setCachedRows] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const refreshIntervalRef = useRef<number | null>(null);
@@ -448,6 +450,52 @@ const SectionNosSummary: React.FC = () => {
     });
   }, [cachedRows, rows, weights]);
 
+  const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+  const handleExportClose = () => setExportAnchorEl(null);
+
+  const exportToExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const rowsData = displayRows.map((r: any, idx: number) => ({
+        'ID': idx + 1,
+        'Food Name': r.foodName,
+        'Total Weight (Kg)': Number(r.totalWeightKg) || 0,
+        'Total Nang': Math.round(Number(r.totalNang) || 0),
+        'Flour Required (Kg)': Number(r.flourRequiredKg) || 0,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rowsData);
+      const cols = [{ wch: 6 }, { wch: 40 }, { wch: 18 }, { wch: 12 }, { wch: 18 }];
+      ws['!cols'] = cols;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Section Nos Summary');
+      XLSX.writeFile(wb, `section-nos-summary-${selectedAnnkutEvent || 'all'}.xlsx`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export excel failed', err);
+      handleExportClose();
+    }
+  };
+
+  const exportToPdf = async () => {
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+      const el = document.getElementById('section-nos-summary-print');
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const imgProps = (pdf as any).getImageProperties ? (pdf as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`section-nos-summary-${selectedAnnkutEvent || 'all'}.pdf`);
+      handleExportClose();
+    } catch (err) {
+      console.error('Export pdf failed', err);
+      handleExportClose();
+    }
+  };
+
   return (
     <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
       <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
@@ -458,7 +506,14 @@ const SectionNosSummary: React.FC = () => {
           {autoSaving && <Typography variant='caption' sx={{ color:'#245D6B' }}>Auto-saving...</Typography>}
           {refreshing && <Typography variant='caption' sx={{ color:'#245D6B' }}>Refreshing...</Typography>}
           {/* Last updated timestamp removed - UI now relies on auto-save/refresh indicators */}
-          <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
+          <>
+            <Button variant='outlined' startIcon={<DownloadIcon />} disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={handleExportClick}>Export</Button>
+            <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+              <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={!displayRows.length}>Export Excel</MenuItem>
+              <MenuItem onClick={() => { handleExportClose(); exportToPdf(); }} disabled={!displayRows.length}>Export PDF</MenuItem>
+            </Menu>
+            <Button variant='outlined' disabled={!displayRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintOpen(true)}>Print</Button>
+          </>
         </Box>
       </Box>
       <Paper elevation={3} sx={{ p:2, opacity: selectedAnnkutEvent?1:0.5, pointerEvents: selectedAnnkutEvent? 'auto':'none' }}>
@@ -515,7 +570,7 @@ const SectionNosSummary: React.FC = () => {
               }
             }}
           >
-            <Box sx={{ mb:3, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
+            <Box id="section-nos-summary-print" sx={{ mb:3, borderBottom:'2px solid #245D6B', pb:1.5, '@media print': { mb:2, pb:1, borderBottom:'2px solid #245D6B' } }}>
               <Typography variant='h5' sx={{ fontWeight:700, color:'#245D6B', letterSpacing:1, '@media print': { color:'#245D6B', fontSize:26 } }}>Section Nos Summary Report</Typography>
               <Typography variant='body2' sx={{ color:'#555', mt:0.5, '@media print': { color:'#000' } }}>
                 {new Date().toLocaleDateString()} | Powered by Kitchen Manager

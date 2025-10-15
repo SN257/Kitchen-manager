@@ -11,6 +11,8 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    Menu,
+    MenuItem,
     IconButton,
     Dialog,
     DialogTitle,
@@ -25,6 +27,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import GridOnIcon from '@mui/icons-material/GridOn';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -53,6 +56,7 @@ const SectionMaster: React.FC = () => {
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
+    const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
     const [editSection, setEditSection] = useState<Section | null>(null);
     const [deleteSectionId, setDeleteSectionId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -406,6 +410,70 @@ const SectionMaster: React.FC = () => {
                     }}
                 />
                 {selectedAnnkutEvent && filteredSections.length > 0 && (
+                    <>
+                    <Button
+                        variant="outlined"
+                        sx={{
+                            color: '#245D6B',
+                            borderColor: '#245D6B',
+                            fontWeight: 600,
+                            height: 40,
+                            '&:hover': {
+                                bgcolor: '#f5fafd',
+                                borderColor: '#4A7D91',
+                            },
+                        }}
+                        startIcon={<DownloadIcon />}
+                        onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                    >
+                        Export
+                    </Button>
+                    <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={() => setExportAnchorEl(null)}>
+                        <MenuItem onClick={async () => { setExportAnchorEl(null);
+                            try {
+                                const XLSX = await import('xlsx');
+                                const data = filteredSections.map(sec => ({
+                                    ID: sec.id,
+                                    'Section Name': sec.sectionName,
+                                    Rows: sec.rows,
+                                    Columns: sec.columns,
+                                    Event: sec.event ? `${sec.event.eventName} - ${sec.event.eventYear}` : '',
+                                    Description: sec.description || '',
+                                }));
+                                const ws = XLSX.utils.json_to_sheet(data);
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, 'Sections');
+                                XLSX.writeFile(wb, `Sections_${selectedEventDetails?.eventName || 'Export'}.xlsx`);
+                            } catch (err) {
+                                setSnackbarMessage('Failed to export');
+                                setSnackbarSeverity('error');
+                                setOpenSnackbar(true);
+                            }
+                        }}>Export Excel</MenuItem>
+                        <MenuItem onClick={async () => { setExportAnchorEl(null);
+                            try {
+                                const html2canvas = (await import('html2canvas')).default;
+                                const jsPDF = (await import('jspdf')).default;
+                                const elem = document.querySelector('#sections-print');
+                                const tempDiv = document.createElement('div');
+                                tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px';
+                                tempDiv.innerHTML = elem ? elem.innerHTML : '<div>No data</div>';
+                                document.body.appendChild(tempDiv);
+                                const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#fff' });
+                                document.body.removeChild(tempDiv);
+                                const imgData = canvas.toDataURL('image/png');
+                                const pdf = new jsPDF('p', 'mm', 'a4');
+                                const pdfWidth = pdf.internal.pageSize.getWidth();
+                                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                                pdf.save(`Sections_${selectedEventDetails?.eventName || 'Export'}.pdf`);
+                            } catch (err) {
+                                setSnackbarMessage('Failed to export');
+                                setSnackbarSeverity('error');
+                                setOpenSnackbar(true);
+                            }
+                        }}>Export PDF</MenuItem>
+                    </Menu>
                     <Button
                         variant="outlined"
                         sx={{
@@ -422,6 +490,7 @@ const SectionMaster: React.FC = () => {
                     >
                         Print
                     </Button>
+                    </>
                 )}
             </Box>
 

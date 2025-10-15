@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Pagination, Menu, MenuItem } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PrintIcon from '@mui/icons-material/Print';
 import CategoryIcon from '@mui/icons-material/Category';
 import DescriptionIcon from '@mui/icons-material/Description';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useApiBaseUrl } from '../config/config';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 
@@ -24,6 +25,7 @@ const VasanMaster: React.FC = () => {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -136,7 +138,16 @@ const VasanMaster: React.FC = () => {
       </Paper>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: -2, gap: 2 }}>
         <TextField label="Search" size="small" value={search} onChange={e => setSearch(e.target.value)} sx={{ width: 300, background: '#fff' }} />
-        {selectedAnnkutEvent && filtered.length > 0 && <Button variant="outlined" startIcon={<PrintIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={() => setPrintDialogOpen(true)}>Print</Button>}
+        {selectedAnnkutEvent && filtered.length > 0 && (
+          <>
+            <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={(e) => setExportAnchorEl(e.currentTarget)}>Export</Button>
+            <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={() => setExportAnchorEl(null)}>
+              <MenuItem onClick={async () => { setExportAnchorEl(null); try { const XLSX = await import('xlsx'); const data = filtered.map((en:any, idx:number) => ({ ID: idx+1, 'Vasan Name': en.vasanName, Description: en.description || '', Event: en.event ? `${en.event.eventName} - ${en.event.eventYear}` : '' })); const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vasan Master'); XLSX.writeFile(wb, `Vasan_Master_${selectedEventDetails?.eventName || 'Export'}.xlsx`);} catch (err) { setOpenSnackbar(true); setSuccess(''); setError('Failed to export'); } }}>Export Excel</MenuItem>
+              <MenuItem onClick={async () => { setExportAnchorEl(null); try { const html2canvas = (await import('html2canvas')).default; const jsPDF = (await import('jspdf')).default; const elem = document.querySelector('#vasan-print'); const tempDiv = document.createElement('div'); tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px'; tempDiv.innerHTML = elem ? elem.innerHTML : '<div>No data</div>'; document.body.appendChild(tempDiv); const canvas = await html2canvas(tempDiv, { scale: 2, backgroundColor: '#fff' }); document.body.removeChild(tempDiv); const imgData = canvas.toDataURL('image/png'); const pdf = new jsPDF('p', 'mm', 'a4'); const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeight = (canvas.height * pdfWidth) / canvas.width; pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight); pdf.save(`Vasan_Master_${selectedEventDetails?.eventName || 'Export'}.pdf`);} catch (err) { setOpenSnackbar(true); setSuccess(''); setError('Failed to export'); } }}>Export PDF</MenuItem>
+            </Menu>
+            <Button variant="outlined" startIcon={<PrintIcon />} sx={{ color: '#245D6B', borderColor: '#245D6B' }} onClick={() => setPrintDialogOpen(true)}>Print</Button>
+          </>
+        )}
       </Box>
       <TableContainer component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
         <Table>

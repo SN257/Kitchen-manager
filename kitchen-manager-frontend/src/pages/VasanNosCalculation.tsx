@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Button, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useAnnkutEvent } from '../contexts/AnnkutEventContext';
 import { useApiBaseUrl } from '../config/config';
 
@@ -22,6 +23,7 @@ const VasanNosCalculation: React.FC = () => {
     const [autoSaving, setAutoSaving] = useState(false);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
     const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+    const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
     const [rawSavedEntries, setRawSavedEntries] = useState<any[] | null>(null); // store raw for remapping when fillPlans arrive
     // Enable a small on-page debug panel when ?debug=1 is present in the URL
     const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
@@ -171,6 +173,58 @@ const VasanNosCalculation: React.FC = () => {
         return result;
     }, [fillPlans, vasans]);
 
+    const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
+    const handleExportClose = () => setExportAnchorEl(null);
+
+    const exportToExcel = async () => {
+        try {
+            const XLSX = await import('xlsx');
+            const dataRows: any[] = rows.map(r => {
+                const base: any = {
+                    'Vasan (Food)': r.foodName ? `${r.vasanName} (${r.foodName.trim()})` : r.vasanName
+                };
+                sections.forEach(s => {
+                    base[s.sectionName] = Number(counts[`${r.key}_${s.id}`]) || 0;
+                });
+                base['Total'] = getRowTotal(r.key);
+                return base;
+            });
+            const ws = XLSX.utils.json_to_sheet(dataRows);
+            // create reasonable column widths: first column wider, sections narrower, last column moderate
+            const cols = [{ wch: 40 }];
+            for (let i = 0; i < sections.length; i++) cols.push({ wch: 12 });
+            cols.push({ wch: 12 });
+            ws['!cols'] = cols;
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Vasan Nos Calculation');
+            XLSX.writeFile(wb, `vasan-nos-calculation-${selectedAnnkutEvent || 'all'}.xlsx`);
+            handleExportClose();
+        } catch (err) {
+            console.error('Export excel failed', err);
+            handleExportClose();
+        }
+    };
+
+    const exportToPdf = async () => {
+        try {
+            const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+            const el = document.getElementById('vasan-nos-calculation-print');
+            if (!el) return;
+            const canvas = await html2canvas(el, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'pt', 'a4');
+            const imgProps = (pdf as any).getImageProperties ? (pdf as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`vasan-nos-calculation-${selectedAnnkutEvent || 'all'}.pdf`);
+            handleExportClose();
+        } catch (err) {
+            console.error('Export pdf failed', err);
+            handleExportClose();
+        }
+    };
+
     const buildPayload = () => {
         return rows.map(r => {
             const sectionEntries = sections.map(s => ({ sectionId: s.id, sectionName: s.sectionName, count: Number(counts[`${r.key}_${s.id}`]) || 0 })).filter(se => se.count > 0);
@@ -289,7 +343,14 @@ const VasanNosCalculation: React.FC = () => {
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     {autoSaving && <Typography variant='caption' sx={{ color: '#245D6B' }}>Auto-saving...</Typography>}
-                    <Button variant="outlined" sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={() => setPrintPreviewOpen(true)}>Print</Button>
+                    <>
+                        <Button variant="outlined" startIcon={<DownloadIcon />} sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={handleExportClick}>Export</Button>
+                        <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
+                            <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={rows.length === 0}>Export Excel</MenuItem>
+                            <MenuItem onClick={() => { handleExportClose(); exportToPdf(); }} disabled={rows.length === 0}>Export PDF</MenuItem>
+                        </Menu>
+                        <Button variant="outlined" sx={{ borderColor: '#245D6B', color: '#245D6B', fontWeight: 600, minWidth: 120 }} onClick={() => setPrintPreviewOpen(true)}>Print</Button>
+                    </>
                 </Box>
             </Box>
             <Paper elevation={3} sx={{ p: 2, borderRadius: 2, mx: 'auto', opacity: selectedAnnkutEvent ? 1 : 0.5, pointerEvents: selectedAnnkutEvent ? 'auto' : 'none', position: 'relative' }}>
