@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, Checkbox, DialogContentText, List, ListItem, ListItemText, ListItemIcon, ListItemButton } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useApiBaseUrl } from '../config/config';
@@ -20,6 +20,12 @@ const FinalIngredientSummary = () => {
   const [finalRows, setFinalRows] = useState<FinalNosRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  // Print menu & selection dialog states
+  const [printAnchorEl, setPrintAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
+  const [selectedFoodKeys, setSelectedFoodKeys] = useState<string[]>([]);
+  const handlePrintClick = (e: React.MouseEvent<HTMLElement>) => setPrintAnchorEl(e.currentTarget);
+  const handlePrintClose = () => setPrintAnchorEl(null);
   const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
   const handleExportClick = (e: React.MouseEvent<HTMLElement>) => setExportAnchorEl(e.currentTarget);
   const handleExportClose = () => setExportAnchorEl(null);
@@ -151,8 +157,9 @@ const FinalIngredientSummary = () => {
       const jsPDF = (jspdfMod && (jspdfMod as any).jsPDF) || jspdfMod;
       
       // Build the print-styled content with header and table (matching print dialog layout)
+      // Use a width suitable for portrait pages so exported PDF matches portrait layout
       const printContent = `
-        <div style="background: #fff; padding: 20px; width: 1100px;">
+        <div style="background: #fff; padding: 20px; width: 780px;">
           <div style="margin-bottom: 20px; border-bottom: 2px solid #245D6B; padding-bottom: 12px;">
             <h1 style="font-weight: 700; color: #245D6B; letter-spacing: 1px; font-size: 26px; margin: 0 0 8px 0;">Final Ingredient Summary Report</h1>
             <p style="color: #000; margin: 0; font-size: 14px;">
@@ -203,7 +210,8 @@ const FinalIngredientSummary = () => {
       const imgData = canvas.toDataURL('image/png');
       
       // Create PDF
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  // Create PDF in portrait orientation to match printed pages
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const imgProps = (pdf as any).getImageProperties(imgData);
       const imgWidth = pageWidth - 40;
@@ -219,6 +227,370 @@ const FinalIngredientSummary = () => {
       console.error('PDF export failed', err);
       alert('PDF export failed (ensure html2canvas and jspdf are installed)');
     }
+  };
+
+  // Build printable card HTML for given columns (cards per food)
+  const buildCardsHtml = (cols: { key:string; name:string }[]) => {
+    const headerHtml = `
+      <div class="header">
+        <div class="header-left">
+          <h1>Final Ingredient Summary</h1>
+          <div class="subtitle">${new Date().toLocaleDateString()} &middot; Powered by Kitchen Manager${selectedEventDetails ? ` &middot; ${selectedEventDetails.eventName} ${selectedEventDetails.eventYear}` : ''}</div>
+        </div>
+        <div class="header-right">Summary</div>
+      </div>
+    `;
+
+    const cardHtml = cols.map(col => {
+      // build rows for this food from ingredientMatrixRows
+      const rows = ingredientMatrixRows
+        .map(r => ({ ingredientName: r.ingredientName, val: r.perFood[col.key] }))
+        .filter(x => x.val && x.val > 0)
+        .map(x => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">${x.ingredientName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${x.val.toFixed(3)} kg</td></tr>`) 
+        .join('');
+  // compute total weight for this food (removed - not displayed in card)
+
+      return `
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">${col.name}</div>
+            <div class="card-badge">${rows ? ingredientMatrixRows.filter(r => r.perFood[col.key] && r.perFood[col.key] > 0).length : 0} items</div>
+          </div>
+          <div class="card-body">
+            <table class="card-table">
+              <thead>
+                <tr>
+                  <th class="ing-col">Ingredient</th>
+                  <th class="wt-col">Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows || `<tr class="empty-row"><td class="ing-col" colspan="2">No ingredients</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const styles = `
+      <style>
+        :root { 
+          --brand: #245D6B; 
+          --brand-light: #2d7089;
+          --brand-lighter: #e8f2f5;
+          --brand-dark: #1a4650;
+          --muted: #6b7c7b;
+          --text-primary: #1a1a1a;
+          --text-secondary: #4a5568;
+          --border: #e2e8f0;
+          --shadow: rgba(36, 93, 107, 0.08);
+        }
+        html,body{margin:0;padding:0}
+        /* allow printers to try to preserve colors/backgrounds where possible */
+        *, html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { 
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+          color: var(--text-primary); 
+          padding: 16px; 
+          background: linear-gradient(135deg, #f8fafb 0%, #e8f2f5 100%);
+          line-height: 1.6;
+        }
+        
+        /* Header Section */
+        .header{
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-end;
+          padding: 16px 0 18px;
+          border-bottom: 3px solid var(--brand);
+          margin-bottom: 24px;
+          background: linear-gradient(to right, rgba(36,93,107,0.03), transparent);
+          padding-left: 12px;
+          border-radius: 4px 4px 0 0;
+        }
+        .header-left h1{
+          margin:0;
+          font-size:24px;
+          font-weight:800;
+          color:var(--brand);
+          letter-spacing:-0.02em;
+          text-transform: uppercase;
+        }
+        .subtitle{
+          font-size:13px;
+          color:var(--text-secondary);
+          margin-top:6px;
+          font-weight:500;
+        }
+        .header-right{
+          font-size:11px;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:0.5px;
+          font-weight:600;
+          background:var(--brand-lighter);
+          padding:6px 14px;
+          border-radius:20px;
+          margin-right:12px;
+        }
+        
+        /* Card layout: use CSS columns (masonry) so items flow top-to-bottom per column
+           This ensures the 3rd card appears under the 1st regardless of the 2nd card height */
+        .cards{
+          column-count: 2;
+          column-gap: 16px;
+        }
+        .card{
+          display: inline-block;
+          width: 100%;
+          margin: 0 0 14px;
+          vertical-align: top;
+          break-inside: avoid;
+          -webkit-column-break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        @media (max-width:800px){ .cards{column-count:1} }
+
+        /* Modern Card Design */
+        .card{
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px var(--shadow), 0 1px 3px rgba(0,0,0,0.05);
+          border: 1px solid var(--border);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          box-sizing: border-box;
+        }
+        
+        /* Card Header with Brand Color */
+        .card-header{
+          background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+          padding: 16px 18px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 2px solid var(--brand-dark);
+        }
+        .card-title{
+          font-weight: 700;
+          font-size: 17px;
+          color: #ffffff;
+          letter-spacing: -0.01em;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .card-badge{
+          background: rgba(255,255,255,0.25);
+          color: #ffffff;
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        /* Card Body */
+        .card-body{
+          padding: 0;
+          background: #fff;
+        }
+        
+        /* Modern Table */
+        .card-table{
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .card-table thead th{
+          background: var(--brand-lighter);
+          padding: 10px 14px;
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--brand-dark);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid var(--brand);
+        }
+        .card-table thead th.ing-col{ 
+          text-align: left;
+        }
+        .card-table thead th.wt-col{ 
+          text-align: right; 
+          width: 110px;
+        }
+        
+        /* Table Body Rows with Hover Effect */
+        .card-table tbody tr{
+          background: #fff;
+          border-bottom: 1px solid var(--border);
+          transition: background-color 0.15s ease;
+        }
+        .card-table tbody tr:last-child{
+          border-bottom: none;
+        }
+        .card-table tbody tr:nth-of-type(even){
+          background: rgba(36,93,107,0.02);
+        }
+        .card-table tbody tr:hover{
+          background: var(--brand-lighter);
+        }
+        
+        /* Table Cells */
+        .card-table td{
+          padding: 11px 14px;
+          vertical-align: middle;
+        }
+        .ing-col{
+          word-break: break-word;
+          color: var(--text-primary);
+          font-weight: 500;
+        }
+        .wt-col{
+          width: 110px;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+          color: var(--brand);
+          font-weight: 600;
+          white-space: nowrap;
+          font-size: 13px;
+        }
+        .empty-row td{
+          text-align: center;
+          color: var(--muted);
+          padding: 24px;
+          font-style: italic;
+        }
+        
+        /* Print Styles */
+        /* Print Styles: use columns for printed pages so vertical flow matches preview */
+        @media print {
+          body{
+            background: #fff;
+            padding: 8px;
+          }
+          .header{
+            margin-bottom: 12px;
+            padding: 10px 0 12px;
+          }
+          .cards { 
+            column-count: 2 !important;
+            column-gap: 12px !important;
+          }
+          .card { 
+            display: inline-block !important; 
+            width: 100% !important; 
+            margin: 0 0 12px !important; 
+            vertical-align: top !important;
+            box-shadow: none;
+            border: 1px solid var(--border);
+            break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .card-table tbody tr:hover{
+            background: rgba(36,93,107,0.02);
+          }
+          @page{
+            size: portrait;
+            margin: 8mm;
+          }
+        }
+      </style>
+    `;
+
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
+  };
+
+  // Note: printing now uses the preview dialog (see handlePreviewPrint)
+
+  const handlePrintAll = () => {
+    handlePrintClose();
+    if (!foodColumns.length) { alert('No food columns to print'); return; }
+    const html = buildCardsHtml(foodColumns);
+    // open preview dialog
+    setPreviewHtml(html);
+    setPreviewOpen(true);
+  };
+
+  const handleOpenSelectionDialog = () => {
+    handlePrintClose();
+    // default to all selected
+    setSelectedFoodKeys(foodColumns.map(c => c.key));
+    setSelectionDialogOpen(true);
+  };
+
+  const toggleFoodKey = (key: string) => {
+    setSelectedFoodKeys(prev => prev.includes(key) ? prev.filter(k=>k!==key) : [...prev, key]);
+  };
+
+  const handlePrintSelected = () => {
+    const cols = foodColumns.filter(c => selectedFoodKeys.includes(c.key));
+    if (!cols.length) { alert('Select at least one food to print'); return; }
+    setSelectionDialogOpen(false);
+    const html = buildCardsHtml(cols);
+    setPreviewHtml(html);
+    setPreviewOpen(true);
+  };
+
+  // Preview dialog state and print helper
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  const handlePreviewPrint = () => {
+    if (!previewHtml) return;
+    try {
+      // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
+      const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
+      if (visibleIframe && visibleIframe.contentWindow) {
+        // give the browser a moment to finish painting the iframe
+        setTimeout(() => {
+          try {
+            visibleIframe.contentWindow!.focus();
+            visibleIframe.contentWindow!.print();
+          } catch (e) {
+            console.error('print from visible iframe failed', e);
+            alert('Print failed');
+          }
+          setPreviewOpen(false);
+          setPreviewHtml(null);
+        }, 200);
+        return;
+      }
+    } catch (err) {
+      console.error('error locating visible preview iframe', err);
+    }
+
+    // Fallback: create a temporary srcdoc iframe, wait for it to load, then print
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    // render but keep it visually invisible so user isn't disrupted
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.srcdoc = previewHtml;
+    const cleanup = () => { try { iframe.remove(); } catch {} setPreviewOpen(false); setPreviewHtml(null); };
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow as Window | null;
+        if (!win) throw new Error('no iframe window');
+        // slight delay to ensure fonts/images are painted
+        setTimeout(() => {
+          try { win.focus(); win.print(); } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
+          setTimeout(cleanup, 500);
+        }, 200);
+      } catch (e) {
+        console.error('onload print failed', e);
+        cleanup();
+      }
+    };
+    document.body.appendChild(iframe);
   };
 
   useEffect(() => {
@@ -336,7 +708,13 @@ const FinalIngredientSummary = () => {
         <Typography variant="h5" sx={{ color:'#245D6B', fontWeight:700 }}>Final Ingredient Summary</Typography>
         {selectedEventDetails && <Typography variant="body1" sx={{ ml:2, color:'#666', fontStyle:'italic' }}>- {selectedEventDetails.eventName} {selectedEventDetails.eventYear}</Typography>}
         <Box sx={{ ml:'auto', display:'flex', alignItems:'center', gap:1 }}>
-          <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={()=> setPrintDialogOpen(true)}>Print</Button>
+          {/* Print menu: offers card-style Print All / Print Selected and keeps the existing Print dialog */}
+          <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={handlePrintClick}>Print</Button>
+          <Menu anchorEl={printAnchorEl} open={Boolean(printAnchorEl)} onClose={handlePrintClose}>
+            <MenuItem onClick={handlePrintAll} disabled={!ingredientMatrixRows.length}>Print All (cards)</MenuItem>
+            <MenuItem onClick={handleOpenSelectionDialog} disabled={!ingredientMatrixRows.length}>Print Selected...</MenuItem>
+            <MenuItem onClick={() => { handlePrintClose(); setPrintDialogOpen(true); }} disabled={!ingredientMatrixRows.length}>Print Table (legacy)</MenuItem>
+          </Menu>
           <Button variant='outlined' startIcon={<DownloadIcon />} onClick={handleExportClick} disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B', textTransform:'none' }}>Export</Button>
           <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
             <MenuItem onClick={() => { handleExportClose(); exportToExcel(); }} disabled={!ingredientMatrixRows.length}>Export Excel</MenuItem>
@@ -455,6 +833,46 @@ const FinalIngredientSummary = () => {
             <Button onClick={()=> window.print()} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
           </Box>
           <Button onClick={()=> setPrintDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Selection dialog for printing chosen foods */}
+      <Dialog open={selectionDialogOpen} onClose={()=> setSelectionDialogOpen(false)} maxWidth='sm' fullWidth>
+        <DialogTitle>Select Foods to Print</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Select the foods you want to include in the printed cards. Each selected food will produce a separate card listing its ingredients and weights.</DialogContentText>
+          <List>
+            {foodColumns.map(col => (
+              <ListItem key={col.key} disablePadding>
+                <ListItemButton onClick={() => toggleFoodKey(col.key)}>
+                  <ListItemIcon>
+                    <Checkbox edge="start" checked={selectedFoodKeys.includes(col.key)} tabIndex={-1} disableRipple onChange={() => toggleFoodKey(col.key)} />
+                  </ListItemIcon>
+                  <ListItemText primary={col.name} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=> setSelectionDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
+          <Button onClick={handlePrintSelected} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print Selected</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Preview dialog for card-style print */}
+      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
+        <DialogTitle>Print Preview</DialogTitle>
+        <DialogContent dividers sx={{ minHeight:400 }}>
+          {previewHtml ? (
+            // use iframe with srcdoc for reliable rendering
+            <iframe title='print-preview' srcDoc={previewHtml} style={{ width:'100%', height: '70vh', border:0 }} />
+          ) : (
+            <Box sx={{ py:6, textAlign:'center' }}>No preview available</Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
+          <Button onClick={handlePreviewPrint} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
         </DialogActions>
       </Dialog>
     </Box>
