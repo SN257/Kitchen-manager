@@ -644,28 +644,34 @@ const FinalIngredientSummary = () => {
             margin-bottom: 12px;
             page-break-after: avoid;
           }
+          /* Start each category on a fresh printed page to keep groups together */
+          .category-header:not(:first-of-type){
+            page-break-before: always;
+          }
           .category-header:first-of-type{
             margin-top: 0;
           }
+          /* Use a multi-column flow for printed cards to avoid large vertical gaps when cards vary in height.
+             Each .card (or .card-fragment) is rendered as an inline-block so it flows into columns naturally. */
           .cards { 
-            display: grid !important; 
-            grid-template-columns: 1fr 1fr !important; 
-            gap: 12px !important; 
-            align-items: stretch;
+            display: block !important;
+            column-count: 2 !important;
+            column-gap: 12px !important;
             margin-bottom: 12px;
           }
           .card { 
-            display: flex !important; 
-            flex-direction: column !important; 
-            height: 100% !important; 
-            width: 100% !important; 
-            margin: 0 !important; 
+            display: inline-block !important;
+            width: 100% !important;
+            vertical-align: top;
             box-shadow: none;
             border: 1px solid var(--border);
+            margin: 0 0 12px 0 !important;
             /* allow card fragments to break across pages; individual fragments should avoid internal breaks */
-            page-break-inside: auto;
+            page-break-inside: avoid;
+            break-inside: avoid-column;
           }
-          .card-fragment{ page-break-inside: avoid; }
+          /* fragments are already split to manageable sizes; make sure they stay together */
+          .card-fragment{ page-break-inside: avoid; break-inside: avoid-column; display: inline-block; width:100%; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
