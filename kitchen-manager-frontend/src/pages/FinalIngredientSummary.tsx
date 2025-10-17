@@ -682,36 +682,35 @@ const FinalIngredientSummary = () => {
             margin-bottom: 12px;
           }
           .card { 
-            display: flex !important; 
-            flex-direction: column !important;
+            display: block !important; 
             width: 100% !important; 
             margin: 0 !important; 
             margin-bottom: 12px !important;
             box-shadow: none;
+            background: #fff;
             border: 1px solid var(--border);
             border-radius: 12px !important;
             /* Allow cards to break across pages for long content */
             height: auto !important;
+            overflow: visible;
+            /* Try to keep cards together when possible, but allow breaking if needed */
             page-break-inside: auto;
             break-inside: auto;
-            overflow: visible;
-            /* Clone borders and decorations when breaking across pages */
-            box-decoration-break: clone;
-            -webkit-box-decoration-break: clone;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
+            display: flex !important;
             padding: 10px 12px !important;
             align-items: center !important;
+            justify-content: space-between !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
             border-radius: 12px 12px 0 0 !important;
-            /* Prevent page break after card header so header + table header stay together */
-            page-break-after: avoid;
-            break-after: avoid;
-            /* Keep header with its table as a unit */
-            page-break-inside: avoid;
-            break-inside: avoid;
+            /* Keep header + first few rows together as a unit - prevent orphaned header */
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
           .card-header .card-title {
             font-size: 15px !important;
@@ -726,32 +725,38 @@ const FinalIngredientSummary = () => {
           .card-header > div > div + div { font-size: 10px !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 220px; }
           .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
           .card-body{ 
-            flex: 1 1 auto !important; 
+            display: block !important;
+            padding: 0 !important;
             overflow: visible !important;
             /* Prevent break immediately after card-body starts (keeps table header with card header) */
-            page-break-before: avoid;
-            break-before: avoid;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
           }
           .card-table {
+            width: 100%;
+            border-collapse: collapse;
             border-radius: 0 !important;
-            /* Clone table styling when it breaks across pages */
-            box-decoration-break: clone;
-            -webkit-box-decoration-break: clone;
+            margin: 0;
+            padding: 0;
           }
           /* Prevent page break after table header so it stays with at least one data row */
           .card-table thead { 
             display: table-header-group !important; 
-            page-break-after: avoid;
-            break-after: avoid;
-            /* Keep thead as an unbreakable unit with card header */
-            page-break-inside: avoid;
-            break-inside: avoid;
+            /* Keep thead with card header and first rows */
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
           /* Ensure first few rows of tbody stay with the header to avoid orphaned thead */
+          .card-table tbody {
+            display: table-row-group;
+          }
           .card-table tbody tr:first-child,
-          .card-table tbody tr:nth-child(2) {
-            page-break-before: avoid;
-            break-before: avoid;
+          .card-table tbody tr:nth-child(2),
+          .card-table tbody tr:nth-child(3) {
+            page-break-before: avoid !important;
+            break-before: avoid !important;
           }
           /* Allow rows to break across pages for very long tables */
           .card-table tbody tr {
