@@ -782,7 +782,7 @@ const FinalIngredientSummary = () => {
       </style>
     `;
 
-    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div><div class="page-number"><span id="page-num"></span></div><script>
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">${styles}</head><body>${headerHtml}<div>${cardHtml}</div><div class="page-number"><span id="page-num"></span></div><script>
       // Calculate and display page numbers
       if (window.matchMedia) {
         const updatePageNumber = () => {
@@ -857,22 +857,31 @@ const FinalIngredientSummary = () => {
 
   const handlePreviewPrint = () => {
     if (!previewHtml) return;
+    
+    // Detect if mobile/tablet device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    
     try {
       // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
       const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
       if (visibleIframe && visibleIframe.contentWindow) {
-        // give the browser a moment to finish painting the iframe
+        // give the browser a moment to finish painting the iframe - longer delay for mobile
         setTimeout(() => {
           try {
             visibleIframe.contentWindow!.focus();
             visibleIframe.contentWindow!.print();
           } catch (e) {
             console.error('print from visible iframe failed', e);
-            alert('Print failed');
+            // On mobile, show more helpful message
+            if (isMobile) {
+              alert('Please use your browser\'s share menu to print or save as PDF');
+            } else {
+              alert('Print failed. Please try again.');
+            }
           }
           setPreviewOpen(false);
           setPreviewHtml(null);
-        }, 200);
+        }, isMobile ? 500 : 200);
         return;
       }
     } catch (err) {
@@ -896,11 +905,21 @@ const FinalIngredientSummary = () => {
       try {
         const win = iframe.contentWindow as Window | null;
         if (!win) throw new Error('no iframe window');
-        // slight delay to ensure fonts/images are painted
+        // slight delay to ensure fonts/images are painted - longer for mobile
         setTimeout(() => {
-          try { win.focus(); win.print(); } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
-          setTimeout(cleanup, 500);
-        }, 200);
+          try { 
+            win.focus(); 
+            win.print(); 
+          } catch (e) { 
+            console.error('iframe print failed', e); 
+            if (isMobile) {
+              alert('Please use your browser\'s share menu to print or save as PDF');
+            } else {
+              alert('Print failed. Please try again.');
+            }
+          }
+          setTimeout(cleanup, isMobile ? 1000 : 500);
+        }, isMobile ? 500 : 200);
       } catch (e) {
         console.error('onload print failed', e);
         cleanup();
@@ -1428,19 +1447,77 @@ const FinalIngredientSummary = () => {
         </DialogActions>
       </Dialog>
       {/* Preview dialog for card-style print */}
-      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
-        <DialogTitle>Print Preview</DialogTitle>
-        <DialogContent dividers sx={{ minHeight:400 }}>
+      <Dialog 
+        open={previewOpen} 
+        onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
+        maxWidth='xl' 
+        fullWidth
+        fullScreen={window.innerWidth < 900}
+        sx={{
+          '& .MuiDialog-paper': {
+            maxHeight: { xs: '100vh', sm: '90vh' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          fontSize: { xs: 16, sm: 20 },
+          py: { xs: 1.5, sm: 2 }
+        }}>
+          Print Preview
+        </DialogTitle>
+        <DialogContent 
+          dividers 
+          sx={{ 
+            minHeight: { xs: 300, sm: 400 },
+            p: { xs: 1, sm: 2 },
+            overflow: 'hidden'
+          }}
+        >
           {previewHtml ? (
             // use iframe with srcdoc for reliable rendering
-            <iframe title='print-preview' srcDoc={previewHtml} style={{ width:'100%', height: '70vh', border:0 }} />
+            <iframe 
+              title='print-preview' 
+              srcDoc={previewHtml} 
+              style={{ 
+                width: '100%', 
+                height: window.innerWidth < 900 ? 'calc(100vh - 140px)' : '70vh',
+                border: 0,
+                backgroundColor: '#fff',
+                display: 'block'
+              }} 
+            />
           ) : (
             <Box sx={{ py:6, textAlign:'center' }}>No preview available</Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
-          <Button onClick={handlePreviewPrint} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+        <DialogActions sx={{ 
+          px: { xs: 2, sm: 3 },
+          py: { xs: 1, sm: 1.5 }
+        }}>
+          <Button 
+            onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
+            size='small' 
+            sx={{ 
+              color:'#245D6B', 
+              textTransform:'none',
+              fontSize: { xs: 13, sm: 14 }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handlePreviewPrint} 
+            variant='contained' 
+            size='small' 
+            sx={{ 
+              bgcolor:'#245D6B', 
+              textTransform:'none', 
+              '&:hover':{ bgcolor:'#1d4b56' },
+              fontSize: { xs: 13, sm: 14 }
+            }}
+          >
+            Print
+          </Button>
         </DialogActions>
       </Dialog>
       <Snackbar
