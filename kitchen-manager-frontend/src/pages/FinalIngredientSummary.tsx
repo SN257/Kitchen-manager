@@ -722,16 +722,13 @@ const FinalIngredientSummary = () => {
             right: 2mm !important;
             bottom: 2mm !important;
           }
-          /* Server-side / headless print: use CSS counters to reliably render "Page X of Y" */
-          .paged-footer{ display: none; }
-          @media print {
-            /* Hide JS preview footers when performing actual print so CSS paged footer is used */
-            .print-footer, .print-footer-page { display: none !important; }
-            .paged-footer{ display:block; position: fixed; right: 2mm; bottom: 2mm; color: #6b7c7b; font-size: 12px; }
-            /* Use CSS counters for page/pagination — supported by headless browsers like Puppeteer */
-            .paged-footer::after{ content: "Page " counter(page) " of " counter(pages); }
-            html { counter-reset: page; }
-            @page { size: A4; counter-increment: page; }
+          /* Additional page footers positioned at specific heights */
+          .print-footer-page{
+            position: absolute !important;
+            right: 2mm !important;
+            bottom: 2mm !important;
+            color: #6b7c7b !important;
+            font-size: 12px !important;
           }
         }
       </style>
@@ -740,34 +737,51 @@ const FinalIngredientSummary = () => {
   // Footer HTML and JS to compute page numbers for both preview and print
     const footerAndScript = `
       <div style="height:18px;">&nbsp;</div>
-  <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
-  <div class="paged-footer" aria-hidden="true"></div>
+      <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
       <script>
         (function(){
           try{
-            // Convert millimeters to CSS pixels (assuming 96dpi for preview measurement)
-            const mmToPx = mm => mm * (96/25.4);
-            // A4 portrait height (mm) minus @page vertical margins (8mm top + 14mm bottom as in styles)
-            const contentHeightMm = 297 - 22; // 8mm top + 14mm bottom
-            // Prefer the iframe viewport height when available (this matches preview pages)
-            const pageHeightPx = (window && window.innerHeight) ? window.innerHeight : Math.max(200, Math.round(mmToPx(contentHeightMm)));
-
-            const updateTotals = () => {
-              const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
+            // Wait for content to fully render before calculating pages
+            function calculatePages() {
+              // Use a more reliable page height calculation
+              // Standard A4 height minus margins in pixels (96 DPI)
+              const mmToPx = (mm) => mm * (96/25.4);
+              const a4HeightMm = 297;
+              const topMarginMm = 8;
+              const bottomMarginMm = 14;
+              const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
+              const pageHeightPx = Math.round(mmToPx(usableHeightMm));
+              
+              // Get actual content height
+              const contentHeight = document.body.scrollHeight;
+              const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
+              
+              // Update all page-total spans
               document.querySelectorAll('.page-total').forEach(el => el.textContent = String(total));
-              // update current page based on scroll position for the preview iframe
-              const current = Math.min(total, Math.max(1, Math.ceil((window.scrollY + 1) / pageHeightPx)));
-              document.querySelectorAll('.page-current').forEach(el => el.textContent = String(current));
-            };
+              
+              // Update current page based on scroll position (for preview)
+              const updateCurrent = () => {
+                const scrollTop = window.scrollY || window.pageYOffset || 0;
+                const current = Math.min(total, Math.max(1, Math.ceil((scrollTop + pageHeightPx/2) / pageHeightPx)));
+                document.querySelectorAll('.page-current').forEach(el => el.textContent = String(current));
+              };
+              
+              updateCurrent();
+              window.addEventListener('scroll', updateCurrent);
+              window.addEventListener('resize', () => {
+                calculatePages();
+              });
+            }
 
-            // Run once after rendering
-            setTimeout(updateTotals, 120);
-            // Update on resize/scroll to reflect preview navigation
-            window.addEventListener('resize', updateTotals);
-            window.addEventListener('scroll', updateTotals);
-
-            // Page numbers are now injected directly in handlePreviewPrint before printing
-          } catch(e) { console.error('page numbering script error', e); }
+            // Run after a short delay to ensure content is rendered
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', () => setTimeout(calculatePages, 100));
+            } else {
+              setTimeout(calculatePages, 100);
+            }
+          } catch(e) { 
+            console.error('page numbering script error', e); 
+          }
         })();
       </script>
     `;
@@ -823,21 +837,26 @@ const FinalIngredientSummary = () => {
   const handlePreviewPrint = () => {
     if (!previewHtml) return;
     try {
-      // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
+      // Try to print from the visible preview iframe
       const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
       if (visibleIframe && visibleIframe.contentWindow) {
-        // give the browser a moment to finish painting the iframe
+        // Give the browser a moment to finish painting the iframe
         setTimeout(() => {
           try {
-            // Compute page numbers and inject footers before printing
             const win = visibleIframe.contentWindow as Window;
             const doc = win.document;
+            
+            // Calculate page height more accurately
             const mmToPx = (mm: number) => mm * (96/25.4);
-            const contentHeightMm = 297 - 22; // A4 height minus margins
-            // Prefer the iframe viewport height if available for accurate counts
-            const iframeHeight = win.innerHeight || win.document.documentElement.clientHeight || 0;
-            const pageHeightPx = iframeHeight || Math.max(200, Math.round(mmToPx(contentHeightMm)));
-            const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
+            const a4HeightMm = 297;
+            const topMarginMm = 8;
+            const bottomMarginMm = 14;
+            const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
+            const pageHeightPx = Math.round(mmToPx(usableHeightMm));
+            
+            // Get the actual content height
+            const contentHeight = doc.body.scrollHeight;
+            const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
 
             // Clear existing page footers
             doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
@@ -845,7 +864,7 @@ const FinalIngredientSummary = () => {
             // Update main footer for page 1
             const mainFooter = doc.getElementById('print-footer-main');
             if (mainFooter) {
-              mainFooter.innerHTML = `Page <span class=\"page-current\">1</span> of <span class=\"page-total\">${total}</span>`;
+              mainFooter.innerHTML = `Page 1 of ${total}`;
             }
 
             // Create footers for pages 2 through total
@@ -866,17 +885,11 @@ const FinalIngredientSummary = () => {
             setTimeout(() => {
               if (visibleIframe.contentWindow) {
                 try {
-                  // Add afterprint listener to close preview dialog when print dialog closes
+                  // Add afterprint listener to clean up and close preview
                   const handleAfterPrint = () => {
-                    // Clean up page footers
                     doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
-                    if (mainFooter) {
-                      mainFooter.innerHTML = `Page <span class="page-current">1</span> of <span class="page-total">${total}</span>`;
-                    }
-                    // Close the preview dialog
                     setPreviewOpen(false);
                     setPreviewHtml(null);
-                    // Remove the event listener
                     visibleIframe.contentWindow?.removeEventListener('afterprint', handleAfterPrint);
                   };
                   
@@ -897,8 +910,7 @@ const FinalIngredientSummary = () => {
             console.error('print from visible iframe failed', e);
             alert('Print failed');
           }
-          // Don't close the preview dialog - let user close it manually after printing
-        }, 200);
+        }, 300);
         return;
       }
     } catch (err) {
@@ -913,7 +925,6 @@ const FinalIngredientSummary = () => {
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = '0';
-    // render but keep it visually invisible so user isn't disrupted
     iframe.style.opacity = '0';
     iframe.style.pointerEvents = 'none';
     iframe.srcdoc = previewHtml;
@@ -922,21 +933,23 @@ const FinalIngredientSummary = () => {
       try {
         const win = iframe.contentWindow as Window | null;
         if (!win) throw new Error('no iframe window');
-        // slight delay to ensure fonts/images are painted
+        
         setTimeout(() => {
           try {
-            // Compute and inject page footers
             const doc = win.document;
             const mmToPx = (mm: number) => mm * (96/25.4);
-            const contentHeightMm = 297 - 22;
-            // Prefer the iframe viewport height when available for more accurate page calculations
-            const iframeHeight = win.innerHeight || win.document.documentElement.clientHeight || 0;
-            const pageHeightPx = iframeHeight || Math.max(200, Math.round(mmToPx(contentHeightMm)));
-            const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
+            const a4HeightMm = 297;
+            const topMarginMm = 8;
+            const bottomMarginMm = 14;
+            const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
+            const pageHeightPx = Math.round(mmToPx(usableHeightMm));
+            
+            const contentHeight = doc.body.scrollHeight;
+            const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
 
             const mainFooter = doc.getElementById('print-footer-main');
             if (mainFooter) {
-              mainFooter.innerHTML = `Page <span class=\"page-current\">1</span> of <span class=\"page-total\">${total}</span>`;
+              mainFooter.innerHTML = `Page 1 of ${total}`;
             }
 
             for (let i = 2; i <= total; i++) {
@@ -971,7 +984,7 @@ const FinalIngredientSummary = () => {
             }, 100);
           } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
-        }, 200);
+        }, 300);
       } catch (e) {
         console.error('onload print failed', e);
         cleanup();
