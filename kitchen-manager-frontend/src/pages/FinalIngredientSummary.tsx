@@ -667,25 +667,29 @@ const FinalIngredientSummary = () => {
             margin-bottom: 12px;
             page-break-after: avoid;
           }
+          /* Ensure each category begins on a fresh printed page (except the first) */
+          .category-header { page-break-before: always; break-before: page; }
+          .category-header:first-of-type { page-break-before: auto; break-before: auto; }
           .category-header:first-of-type{
             margin-top: 0;
           }
-          /* Use single-column flow for print so pagination is predictable */
+          /* Use two-column grid in print (like on-screen) but allow breaks inside cards so long cards paginate */
           .cards { 
-            display: block !important; 
-            grid-template-columns: none !important; 
+            display: grid !important; 
+            grid-template-columns: 1fr 1fr !important; 
             gap: 12px !important; 
+            align-items: stretch;
             margin-bottom: 12px;
           }
           .card { 
-            display: block !important; 
+            display: flex !important; 
+            flex-direction: column !important;
             width: 100% !important; 
-            margin: 0 0 12px 0 !important; 
+            margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            /* allow the card content to determine height so fragments paginate naturally */
+            /* let the card height be determined by content; allow internal page breaks */
             height: auto !important;
-            /* allow breaking inside cards so large cards/fragments paginate instead of being pushed */
             page-break-inside: auto;
             break-inside: auto;
           }
