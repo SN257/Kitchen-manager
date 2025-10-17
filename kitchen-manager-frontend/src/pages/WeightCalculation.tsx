@@ -22,6 +22,9 @@ interface BoxRange {
   id: number;
   priceRange: string;
   gramPerBox: number;
+  // boxType may be stored as string or array in API; normalize rendering with boxTypeDisplay
+  boxType?: string | string[];
+  boxTypeDisplay?: string;
 }
 
 const WeightCalculation: React.FC = () => {
@@ -238,7 +241,13 @@ const WeightCalculation: React.FC = () => {
       }
     })
       .then(res => res.json())
-      .then(data => setBoxRanges(data || []));
+      .then(data => {
+        const normalized = (Array.isArray(data) ? data : []).map((b: any) => ({
+          ...b,
+          boxTypeDisplay: Array.isArray(b.boxType) ? (b.boxType.join(',') || '') : (b.boxType || ''),
+        }));
+        setBoxRanges(normalized);
+      });
     
     fetch(`${API_BASE_URL}/weight-calculation-entries/latest?eventId=${selectedAnnkutEvent}`, {
       credentials: 'include',
@@ -490,7 +499,9 @@ const WeightCalculation: React.FC = () => {
                   >
                     {box.priceRange}
                     <br />
-                    <span style={{ fontWeight: 400, fontSize: 12 }}>({box.gramPerBox}g)</span>
+                    <span style={{ fontWeight: 400, fontSize: 12 }}>
+                      ({box.boxTypeDisplay ? `${box.boxTypeDisplay} - ` : ''}{box.gramPerBox}g)
+                    </span>
                   </TableCell>
                 ))}
               </TableRow>
