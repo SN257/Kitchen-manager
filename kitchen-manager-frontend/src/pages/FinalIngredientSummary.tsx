@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, Checkbox, DialogContentText, List, ListItem, ListItemText, ListItemIcon, ListItemButton } from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, Checkbox, DialogContentText} from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useApiBaseUrl } from '../config/config';
@@ -398,6 +398,8 @@ const FinalIngredientSummary = () => {
         .card-body{
           padding: 0;
           background: #fff;
+          /* allow table headers to repeat across page breaks */
+          overflow: visible;
         }
         
         /* Modern Table */
@@ -406,6 +408,8 @@ const FinalIngredientSummary = () => {
           border-collapse: collapse;
           font-size: 13px;
         }
+        /* Ensure the table header repeats when a table is broken across pages/columns */
+        .card-table thead{ display: table-header-group; }
         .card-table thead th{
           background: var(--brand-lighter);
           padding: 10px 14px;
@@ -415,7 +419,7 @@ const FinalIngredientSummary = () => {
           text-transform: uppercase;
           letter-spacing: 0.5px;
           border-bottom: 2px solid var(--brand);
-        }
+  }
         .card-table thead th.ing-col{ 
           text-align: left;
         }
@@ -529,6 +533,9 @@ const FinalIngredientSummary = () => {
     setSelectedFoodKeys(prev => prev.includes(key) ? prev.filter(k=>k!==key) : [...prev, key]);
   };
 
+  const selectAllFoods = () => setSelectedFoodKeys(foodColumns.map(c => c.key));
+  const deselectAllFoods = () => setSelectedFoodKeys([]);
+
   const handlePrintSelected = () => {
     const cols = foodColumns.filter(c => selectedFoodKeys.includes(c.key));
     if (!cols.length) { alert('Select at least one food to print'); return; }
@@ -541,6 +548,8 @@ const FinalIngredientSummary = () => {
   // Preview dialog state and print helper
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+
 
   const handlePreviewPrint = () => {
     if (!previewHtml) return;
@@ -704,6 +713,8 @@ const FinalIngredientSummary = () => {
     return { ingredientMatrixRows: rows, foodColumns: displayCols };
   }, [finalRows, recipes]);
 
+  
+
   return (
     <Box sx={{ p:{ xs:2, sm:1 }, minHeight:'80vh' }}>
       <Box sx={{ display:'flex', alignItems:'center', mb:3 }}>
@@ -839,23 +850,63 @@ const FinalIngredientSummary = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Selection dialog for printing chosen foods */}
-      <Dialog open={selectionDialogOpen} onClose={()=> setSelectionDialogOpen(false)} maxWidth='sm' fullWidth>
-        <DialogTitle>Select Foods to Print</DialogTitle>
+      {/* Selection dialog for printing chosen foods (modern tile UI) */}
+      <Dialog
+        open={selectionDialogOpen}
+        onClose={()=> setSelectionDialogOpen(false)}
+        maxWidth='sm'
+        fullWidth
+  BackdropProps={{ sx: { backdropFilter: 'blur(6px)', backgroundColor: 'rgba(0,0,0,0.56)' } }}
+      >
+        <DialogTitle sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span>Select Recipes to Print</span>
+          <Box sx={{ display:'flex', alignItems:'center', gap:0 }}> 
+            <Typography sx={{ fontSize:13, color:'#245D6B', fontWeight:600, mr:0 }}>Select All</Typography>
+            <Checkbox
+              checked={selectedFoodKeys.length === foodColumns.length && foodColumns.length > 0}
+              onChange={(e) => { e.stopPropagation(); e.target.checked ? selectAllFoods() : deselectAllFoods(); }}
+              onClick={(e) => e.stopPropagation()}
+              sx={{ color: '#245D6B', '&.Mui-checked': { color: '#245D6B' }, ml: '6px', p:0 }}
+            />
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText>Select the foods you want to include in the printed cards. Each selected food will produce a separate card listing its ingredients and weights.</DialogContentText>
-          <List>
-            {foodColumns.map(col => (
-              <ListItem key={col.key} disablePadding>
-                <ListItemButton onClick={() => toggleFoodKey(col.key)}>
-                  <ListItemIcon>
-                    <Checkbox edge="start" checked={selectedFoodKeys.includes(col.key)} tabIndex={-1} disableRipple onChange={() => toggleFoodKey(col.key)} />
-                  </ListItemIcon>
-                  <ListItemText primary={col.name} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <DialogContentText sx={{ mb:2 }}>Choose one or more recipes. Selected recipes will be rendered as cards when printing.</DialogContentText>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 2 }}>
+            {foodColumns.map(col => {
+              const isSelected = selectedFoodKeys.includes(col.key);
+              const itemCount = ingredientMatrixRows.filter(r => r.perFood[col.key] && r.perFood[col.key] > 0).length;
+              return (
+                <Paper
+                  key={col.key}
+                  onClick={() => toggleFoodKey(col.key)}
+                  elevation={isSelected ? 6 : 1}
+                  sx={{
+                    p:1.25,
+                    display:'flex',
+                    flexDirection:'column',
+                    gap:1,
+                    cursor:'pointer',
+                    borderRadius:2,
+                    border: isSelected ? '2px solid var(--brand)' : '1px solid rgba(0,0,0,0.06)',
+                    background: isSelected ? 'linear-gradient(180deg, rgba(36,93,107,0.06), rgba(36,93,107,0.02))' : '#fff'
+                  }}
+                >
+                  <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <Typography sx={{ fontWeight:700, fontSize:14, color: isSelected ? '#163f3a' : '#133f3a' }}>{col.name}</Typography>
+                    <Checkbox
+                      checked={isSelected}
+                      onChange={(e) => { e.stopPropagation(); toggleFoodKey(col.key); }}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ p:0, color:'#245D6B', '&.Mui-checked': { color: '#245D6B' } }}
+                    />
+                  </Box>
+                  <Typography variant='body2' sx={{ color:'#4a5568' }}>{itemCount} ingredients</Typography>
+                </Paper>
+              );
+            })}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={()=> setSelectionDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
