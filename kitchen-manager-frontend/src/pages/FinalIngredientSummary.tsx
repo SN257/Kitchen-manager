@@ -632,8 +632,8 @@ const FinalIngredientSummary = () => {
           body{
             background: #fff;
             padding: 8px;
-            /* For printing rely on @page bottom margin instead of body padding to avoid overlap */
-            padding-bottom: 0 !important;
+            /* ensure printable content doesn't get overlapped by the footer */
+            padding-bottom: 20mm !important;
           }
           .header{
             margin-bottom: 12px;
@@ -644,34 +644,28 @@ const FinalIngredientSummary = () => {
             margin-bottom: 12px;
             page-break-after: avoid;
           }
-          /* Start each category on a fresh printed page to keep groups together */
-          .category-header:not(:first-of-type){
-            page-break-before: always;
-          }
           .category-header:first-of-type{
             margin-top: 0;
           }
-          /* Use a multi-column flow for printed cards to avoid large vertical gaps when cards vary in height.
-             Each .card (or .card-fragment) is rendered as an inline-block so it flows into columns naturally. */
           .cards { 
-            display: block !important;
-            column-count: 2 !important;
-            column-gap: 12px !important;
+            display: grid !important; 
+            grid-template-columns: 1fr 1fr !important; 
+            gap: 12px !important; 
+            align-items: stretch;
             margin-bottom: 12px;
           }
           .card { 
-            display: inline-block !important;
-            width: 100% !important;
-            vertical-align: top;
+            display: flex !important; 
+            flex-direction: column !important; 
+            height: 100% !important; 
+            width: 100% !important; 
+            margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            margin: 0 0 12px 0 !important;
             /* allow card fragments to break across pages; individual fragments should avoid internal breaks */
-            page-break-inside: avoid;
-            break-inside: avoid-column;
+            page-break-inside: auto;
           }
-          /* fragments are already split to manageable sizes; make sure they stay together */
-          .card-fragment{ page-break-inside: avoid; break-inside: avoid-column; display: inline-block; width:100%; }
+          .card-fragment{ page-break-inside: avoid; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
@@ -679,17 +673,25 @@ const FinalIngredientSummary = () => {
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
           @page{
-            /* Give extra bottom margin so printed content won't overlap the footer */
             size: portrait;
-            margin: 12mm 8mm 20mm 8mm; /* top right bottom left */
+            /* smaller bottom margin while keeping space for footer */
+            margin: 3mm 3mm 3mm 3mm;
+            @top-left { content: ""; }
+            @top-center { content: ""; }
+            @top-right { content: ""; }
+            @bottom-left { content: ""; }
+            @bottom-center { content: ""; }
+            @bottom-right { content: ""; }
           }
+          /* Give the body a bit of padding so content doesn't run into the footer area */
+          body { padding-bottom: 3mm !important; }
           /* In printed output, show a fixed footer with page numbers. */
           /* Use CSS counters where supported; hide the JS preview spans in print. */
           .print-footer{
             display: block !important;
             position: fixed !important;
-            right: 2px !important; /* user requested 2px from right */
-            bottom: 2px !important; /* user requested 2px from bottom */
+            right: 2mm !important;
+            bottom: 2mm !important;
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -713,7 +715,7 @@ const FinalIngredientSummary = () => {
   // The JS preview footer provides reliable feedback to users; printed output may rely on
   // CSS counters or the browser's handling of fixed elements as a fallback.
     const footerAndScript = `
-      <div style="height:48px;">&nbsp;</div>
+  <div style="height:18px;">&nbsp;</div>
       <div class="print-footer">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
       <script>
         (function(){
