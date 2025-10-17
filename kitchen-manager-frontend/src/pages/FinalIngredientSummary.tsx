@@ -1318,23 +1318,67 @@ const FinalIngredientSummary = () => {
             });
 
             // Render each category group
-            return Array.from(categoryMap.entries()).map(([category, cols]) => (
+            return Array.from(categoryMap.entries()).map(([category, cols]) => {
+              // Check if all items in this category are selected
+              const allCategorySelected = cols.every(col => selectedFoodKeys.includes(col.key));
+              const someCategorySelected = cols.some(col => selectedFoodKeys.includes(col.key));
+              
+              // Handler to toggle all items in this category
+              const toggleCategory = () => {
+                if (allCategorySelected) {
+                  // Deselect all in this category
+                  setSelectedFoodKeys(prev => prev.filter(key => !cols.find(c => c.key === key)));
+                } else {
+                  // Select all in this category
+                  const categoryKeys = cols.map(c => c.key);
+                  setSelectedFoodKeys(prev => {
+                    const newKeys = new Set([...prev, ...categoryKeys]);
+                    return Array.from(newKeys);
+                  });
+                }
+              };
+              
+              return (
               <Box key={category} sx={{ mb: 3 }}>
-                {/* Category Header */}
-                <Typography 
+                {/* Category Header with Checkbox */}
+                <Box 
                   sx={{ 
-                    fontSize: 16, 
-                    fontWeight: 700, 
-                    color: '#245D6B',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
                     mb: 1.5,
                     pb: 0.5,
                     borderBottom: '2px solid #245D6B',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
                   }}
                 >
-                  {category}
-                </Typography>
+                  <Typography 
+                    sx={{ 
+                      fontSize: 16, 
+                      fontWeight: 700, 
+                      color: '#245D6B',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}
+                  >
+                    {category}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: 12, color: '#245D6B', fontWeight: 600 }}>
+                      Select All
+                    </Typography>
+                    <Checkbox
+                      checked={allCategorySelected}
+                      indeterminate={someCategorySelected && !allCategorySelected}
+                      onChange={toggleCategory}
+                      sx={{ 
+                        p: 0, 
+                        color: '#245D6B', 
+                        '&.Mui-checked': { color: '#245D6B' },
+                        '&.MuiCheckbox-indeterminate': { color: '#245D6B' }
+                      }}
+                    />
+                  </Box>
+                </Box>
 
                 {/* Food Items Grid */}
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 2 }}>
@@ -1374,7 +1418,8 @@ const FinalIngredientSummary = () => {
                   })}
                 </Box>
               </Box>
-            ));
+              );
+            });
           })()}
         </DialogContent>
         <DialogActions>
