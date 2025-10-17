@@ -408,9 +408,8 @@ const FinalIngredientSummary = () => {
           border-collapse: collapse;
           font-size: 13px;
         }
-      /* By default don't force repeating the card table header across printed page breaks
-        (we prefer the card header to appear only once at the top of the card). */
-      .card-table thead{ display: table-row-group; }
+        /* Ensure the table header repeats when a table is broken across pages/columns */
+        .card-table thead{ display: table-header-group; }
         .card-table thead th{
           background: var(--brand-lighter);
           padding: 10px 14px;
@@ -478,13 +477,6 @@ const FinalIngredientSummary = () => {
             background: #fff;
             padding: 8px;
           }
-          /* Prefer not to split individual cards across pages. If a card is taller than
-             a page it will still be split, but the table header inside the card will not
-             be repeated on the continuation page. */
-          .card { page-break-inside: avoid; break-inside: avoid; }
-          .card-body { page-break-inside: avoid; break-inside: avoid; }
-          /* Ensure thead does not behave as a repeating header in print */
-          .card-table thead{ display: table-row-group !important; }
           .header{
             margin-bottom: 12px;
             padding: 10px 0 12px;
@@ -508,6 +500,8 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
+          /* Do not repeat card table headers when a card is split across pages - show header only once per card */
+          .card-table thead { display: table-row-group !important; }
           @page{
             size: portrait;
             margin: 8mm;
