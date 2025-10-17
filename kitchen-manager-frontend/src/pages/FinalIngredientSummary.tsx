@@ -651,27 +651,9 @@ const FinalIngredientSummary = () => {
         /* Print Styles */
         /* Print Styles: use columns for printed pages so vertical flow matches preview */
         @media print {
-          html, body {
-            height: auto !important;
-            overflow: visible !important;
-          }
           body{
             background: #fff;
             padding: 8px;
-            padding-bottom: 20mm !important; /* Extra padding at bottom to prevent cut-off */
-          }
-          .print-wrapper {
-            width: 100%;
-            height: auto !important;
-            overflow: visible !important;
-            min-height: 100%;
-            padding-bottom: 30mm; /* Ensure space for last cards */
-            orphans: 3;
-            widows: 3;
-          }
-          * {
-            orphans: 3 !important;
-            widows: 3 !important;
           }
           .page-number {
             display: block;
@@ -691,55 +673,29 @@ const FinalIngredientSummary = () => {
           .category-header:first-of-type{
             margin-top: 0;
           }
-          /* Use single-column grid for all print to avoid cut-off cards */
+          /* Use two-column grid in print (like on-screen) but allow breaks inside cards so long cards paginate */
           .cards { 
-            display: block !important; 
-            width: 100% !important;
+            display: grid !important; 
+            grid-template-columns: 1fr 1fr !important; 
+            gap: 12px !important; 
+            align-items: stretch;
             margin-bottom: 12px;
-            min-height: auto !important;
-            overflow: visible !important;
-          }
-          .card {
-            margin-bottom: 16px !important;
-          }
-          /* Two columns only for landscape orientation on large screens */
-          @media print and (min-width: 1024px) and (orientation: landscape) {
-            .cards { 
-              display: grid !important;
-              grid-template-columns: 1fr 1fr !important; 
-              gap: 12px !important; 
-            }
-            .card {
-              margin-bottom: 12px !important;
-            }
           }
           .card { 
             display: block !important; 
             width: 100% !important; 
             margin: 0 !important; 
+            margin-bottom: 12px !important;
             box-shadow: none;
             background: #fff;
             border: 1px solid var(--border);
             border-radius: 12px !important;
-            /* Keep cards together - prevent breaking */
+            /* Allow cards to break across pages for long content */
             height: auto !important;
             overflow: visible;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            /* If card doesn't fit, move to next page */
-            page-break-before: auto;
-            break-before: auto;
-            page-break-after: auto;
-            break-after: auto;
-            /* Ensure visibility */
-            position: relative;
-            z-index: 1;
-          }
-          /* Force last card to have extra space */
-          .card:last-child {
-            margin-bottom: 20mm !important;
-            page-break-after: always;
-            break-after: always;
+            /* Try to keep cards together when possible, but allow breaking if needed */
+            page-break-inside: auto;
+            break-inside: auto;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -810,30 +766,23 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
-          /* Default page setup - auto size adapts to device */
           @page{
-            size: auto;
-            /* top right bottom left - smaller margins for mobile/tablet */
-            margin: 8mm;
-          }
-          /* Desktop/larger screens in landscape - use optimized layout */
-          @media print and (min-width: 1024px) and (orientation: landscape) {
-            @page{
-              size: landscape;
-              margin: 8mm 6mm 15mm 8mm;
-              @bottom-right {
-                content: "Page " counter(page) " of " counter(pages);
-                font-size: 11px;
-                color: #6b7c7b;
-                font-weight: 600;
-              }
+            size: portrait;
+            /* top right bottom left -> reduce right margin, increase bottom margin */
+            margin: 8mm 6mm 15mm 8mm;
+            @bottom-right {
+              /* show as: Page 1 of 7 */
+              content: "Page " counter(page) " of " counter(pages);
+              font-size: 11px;
+              color: #6b7c7b;
+              font-weight: 600;
             }
           }
         }
       </style>
     `;
 
-    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">${styles}</head><body><div class="print-wrapper">${headerHtml}<div>${cardHtml}</div></div><div class="page-number"><span id="page-num"></span></div><script>
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div><div class="page-number"><span id="page-num"></span></div><script>
       // Calculate and display page numbers
       if (window.matchMedia) {
         const updatePageNumber = () => {
@@ -868,7 +817,6 @@ const FinalIngredientSummary = () => {
     if (!foodColumns.length) { alert('No food columns to print'); return; }
     const html = buildCardsHtml(foodColumns);
     // open preview dialog
-    setIframeLoading(true);
     setPreviewHtml(html);
     setPreviewOpen(true);
   };
@@ -896,7 +844,6 @@ const FinalIngredientSummary = () => {
     }
     setSelectionDialogOpen(false);
     const html = buildCardsHtml(cols);
-    setIframeLoading(true);
     setPreviewHtml(html);
     setPreviewOpen(true);
   };
@@ -904,89 +851,62 @@ const FinalIngredientSummary = () => {
   // Preview dialog state and print helper
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
-  const [iframeLoading, setIframeLoading] = useState(true);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'error'|'info'|'success'|'warning' }>({ open:false, message:'', severity:'info' });
-
-  // Create blob URL when HTML changes (better mobile support than srcdoc)
-  useEffect(() => {
-    if (previewHtml) {
-      const blob = new Blob([previewHtml], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      setPreviewBlobUrl(url);
-      return () => {
-        URL.revokeObjectURL(url);
-        setPreviewBlobUrl(null);
-      };
-    }
-  }, [previewHtml]);
 
 
 
   const handlePreviewPrint = () => {
     if (!previewHtml) return;
-    
-    // Detect if mobile/tablet device
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-    
-    // Create a new window with the HTML content for printing (works better than iframe printing)
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Pop-up blocked. Please allow pop-ups for this site and try again.');
-      return;
-    }
-
     try {
-      // Write the HTML content directly to the new window
-      printWindow.document.open();
-      printWindow.document.write(previewHtml);
-      printWindow.document.close();
-
-      // Wait for content to load, then print
-      const waitForLoad = () => {
-        // Check if document is ready
-        if (printWindow.document.readyState === 'complete') {
-          setTimeout(() => {
-            try {
-              printWindow.focus();
-              printWindow.print();
-              
-              // Close the print window after printing (or if user cancels)
-              // Give extra time on mobile devices
-              setTimeout(() => {
-                try {
-                  printWindow.close();
-                } catch (e) {
-                  console.log('Could not auto-close print window', e);
-                }
-              }, isMobile ? 2000 : 1000);
-            } catch (e) {
-              console.error('Print failed', e);
-              if (isMobile) {
-                alert('Please use your browser\'s share menu to print or save as PDF');
-              } else {
-                alert('Print failed. Please try again.');
-              }
-              printWindow.close();
-            }
-          }, isMobile ? 1000 : 500);
-        } else {
-          // Still loading, check again
-          setTimeout(waitForLoad, 100);
-        }
-      };
-
-      // Start checking for load
-      waitForLoad();
-      
-      // Close the preview dialog
-      setPreviewOpen(false);
-      setPreviewHtml(null);
+      // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
+      const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
+      if (visibleIframe && visibleIframe.contentWindow) {
+        // give the browser a moment to finish painting the iframe
+        setTimeout(() => {
+          try {
+            visibleIframe.contentWindow!.focus();
+            visibleIframe.contentWindow!.print();
+          } catch (e) {
+            console.error('print from visible iframe failed', e);
+            alert('Print failed');
+          }
+          setPreviewOpen(false);
+          setPreviewHtml(null);
+        }, 200);
+        return;
+      }
     } catch (err) {
-      console.error('Error opening print window', err);
-      alert('Failed to open print window. Please check your browser settings.');
-      printWindow.close();
+      console.error('error locating visible preview iframe', err);
     }
+
+    // Fallback: create a temporary srcdoc iframe, wait for it to load, then print
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    // render but keep it visually invisible so user isn't disrupted
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.srcdoc = previewHtml;
+    const cleanup = () => { try { iframe.remove(); } catch {} setPreviewOpen(false); setPreviewHtml(null); };
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow as Window | null;
+        if (!win) throw new Error('no iframe window');
+        // slight delay to ensure fonts/images are painted
+        setTimeout(() => {
+          try { win.focus(); win.print(); } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
+          setTimeout(cleanup, 500);
+        }, 200);
+      } catch (e) {
+        console.error('onload print failed', e);
+        cleanup();
+      }
+    };
+    document.body.appendChild(iframe);
   };
 
   useEffect(() => {
@@ -1508,108 +1428,19 @@ const FinalIngredientSummary = () => {
         </DialogActions>
       </Dialog>
       {/* Preview dialog for card-style print */}
-      <Dialog 
-        open={previewOpen} 
-        onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
-        maxWidth='xl' 
-        fullWidth
-        fullScreen={window.innerWidth < 900}
-        sx={{
-          '& .MuiDialog-paper': {
-            maxHeight: { xs: '100vh', sm: '90vh' }
-          }
-        }}
-      >
-        <DialogTitle sx={{ 
-          fontSize: { xs: 16, sm: 20 },
-          py: { xs: 1.5, sm: 2 }
-        }}>
-          Print Preview
-        </DialogTitle>
-        <DialogContent 
-          dividers 
-          sx={{ 
-            minHeight: { xs: 300, sm: 400 },
-            p: { xs: 1, sm: 2 },
-            overflow: 'hidden'
-          }}
-        >
-          {previewBlobUrl ? (
-            <Box sx={{ position: 'relative', width: '100%', height: window.innerWidth < 900 ? 'calc(100vh - 140px)' : '70vh' }}>
-              {/* Loading indicator */}
-              {iframeLoading && (
-                <Box sx={{ 
-                  position: 'absolute', 
-                  top: '50%', 
-                  left: '50%', 
-                  transform: 'translate(-50%, -50%)',
-                  textAlign: 'center',
-                  zIndex: 1
-                }}>
-                  <Typography sx={{ color: '#245D6B', fontSize: 14, mb: 1 }}>Loading preview...</Typography>
-                </Box>
-              )}
-              {/* Use blob URL for better mobile compatibility (srcdoc doesn't work well on mobile) */}
-              <iframe 
-                title='print-preview' 
-                src={previewBlobUrl}
-                onLoad={() => setIframeLoading(false)}
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  border: 0,
-                  backgroundColor: '#fff',
-                  display: 'block',
-                  opacity: iframeLoading ? 0 : 1,
-                  transition: 'opacity 0.3s'
-                }} 
-              />
-            </Box>
-          ) : previewHtml ? (
-            // Fallback to srcdoc if blob URL isn't ready yet
-            <iframe 
-              title='print-preview' 
-              srcDoc={previewHtml} 
-              style={{ 
-                width: '100%', 
-                height: window.innerWidth < 900 ? 'calc(100vh - 140px)' : '70vh',
-                border: 0,
-                backgroundColor: '#fff',
-                display: 'block'
-              }} 
-            />
+      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
+        <DialogTitle>Print Preview</DialogTitle>
+        <DialogContent dividers sx={{ minHeight:400 }}>
+          {previewHtml ? (
+            // use iframe with srcdoc for reliable rendering
+            <iframe title='print-preview' srcDoc={previewHtml} style={{ width:'100%', height: '70vh', border:0 }} />
           ) : (
             <Box sx={{ py:6, textAlign:'center' }}>No preview available</Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ 
-          px: { xs: 2, sm: 3 },
-          py: { xs: 1, sm: 1.5 }
-        }}>
-          <Button 
-            onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
-            size='small' 
-            sx={{ 
-              color:'#245D6B', 
-              textTransform:'none',
-              fontSize: { xs: 13, sm: 14 }
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handlePreviewPrint} 
-            variant='contained' 
-            size='small' 
-            sx={{ 
-              bgcolor:'#245D6B', 
-              textTransform:'none', 
-              '&:hover':{ bgcolor:'#1d4b56' },
-              fontSize: { xs: 13, sm: 14 }
-            }}
-          >
-            Print
-          </Button>
+        <DialogActions>
+          <Button onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
+          <Button onClick={handlePreviewPrint} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
         </DialogActions>
       </Dialog>
       <Snackbar
