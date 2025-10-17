@@ -737,7 +737,8 @@ const FinalIngredientSummary = () => {
             const mmToPx = mm => mm * (96/25.4);
             // A4 portrait height (mm) minus @page vertical margins (8mm top + 14mm bottom as in styles)
             const contentHeightMm = 297 - 22; // 8mm top + 14mm bottom
-            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+            // Prefer the iframe viewport height when available (this matches preview pages)
+            const pageHeightPx = (window && window.innerHeight) ? window.innerHeight : Math.max(200, Math.round(mmToPx(contentHeightMm)));
 
             const updateTotals = () => {
               const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
@@ -821,7 +822,9 @@ const FinalIngredientSummary = () => {
             const doc = win.document;
             const mmToPx = (mm: number) => mm * (96/25.4);
             const contentHeightMm = 297 - 22; // A4 height minus margins
-            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+            // Prefer the iframe viewport height if available for accurate counts
+            const iframeHeight = win.innerHeight || win.document.documentElement.clientHeight || 0;
+            const pageHeightPx = iframeHeight || Math.max(200, Math.round(mmToPx(contentHeightMm)));
             const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
 
             // Clear existing page footers
@@ -914,7 +917,9 @@ const FinalIngredientSummary = () => {
             const doc = win.document;
             const mmToPx = (mm: number) => mm * (96/25.4);
             const contentHeightMm = 297 - 22;
-            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+            // Prefer the iframe viewport height when available for more accurate page calculations
+            const iframeHeight = win.innerHeight || win.document.documentElement.clientHeight || 0;
+            const pageHeightPx = iframeHeight || Math.max(200, Math.round(mmToPx(contentHeightMm)));
             const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
 
             const mainFooter = doc.getElementById('print-footer-main');
