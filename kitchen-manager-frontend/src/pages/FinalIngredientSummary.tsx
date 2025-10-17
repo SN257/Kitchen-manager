@@ -849,23 +849,40 @@ const FinalIngredientSummary = () => {
 
             // Small delay to ensure footers are rendered before print
             setTimeout(() => {
-              visibleIframe.contentWindow!.focus();
-              visibleIframe.contentWindow!.print();
-              
-              // Clean up after print dialog closes (delayed cleanup)
-              setTimeout(() => {
-                doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
-                if (mainFooter) {
-                  mainFooter.innerHTML = `Page <span class="page-current">1</span> of <span class="page-total">${total}</span>`;
+              if (visibleIframe.contentWindow) {
+                try {
+                  // Add afterprint listener to close preview dialog when print dialog closes
+                  const handleAfterPrint = () => {
+                    // Clean up page footers
+                    doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
+                    if (mainFooter) {
+                      mainFooter.innerHTML = `Page <span class="page-current">1</span> of <span class="page-total">${total}</span>`;
+                    }
+                    // Close the preview dialog
+                    setPreviewOpen(false);
+                    setPreviewHtml(null);
+                    // Remove the event listener
+                    visibleIframe.contentWindow?.removeEventListener('afterprint', handleAfterPrint);
+                  };
+                  
+                  visibleIframe.contentWindow.addEventListener('afterprint', handleAfterPrint);
+                  visibleIframe.contentWindow.focus();
+                  visibleIframe.contentWindow.print();
+                } catch (focusErr) {
+                  console.warn('Focus/print failed, trying without focus', focusErr);
+                  try {
+                    visibleIframe.contentWindow.print();
+                  } catch (printErr) {
+                    console.error('Print failed', printErr);
+                  }
                 }
-              }, 1000);
+              }
             }, 100);
           } catch (e) {
             console.error('print from visible iframe failed', e);
             alert('Print failed');
           }
-          setPreviewOpen(false);
-          setPreviewHtml(null);
+          // Don't close the preview dialog - let user close it manually after printing
         }, 200);
         return;
       }
@@ -919,8 +936,21 @@ const FinalIngredientSummary = () => {
             }
 
             setTimeout(() => {
-              win.focus(); 
-              win.print();
+              try {
+                if (win) {
+                  win.focus();
+                  win.print();
+                }
+              } catch (err) {
+                console.warn('Focus failed, trying print without focus', err);
+                if (win) {
+                  try {
+                    win.print();
+                  } catch (printErr) {
+                    console.error('Print failed', printErr);
+                  }
+                }
+              }
             }, 100);
           } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
@@ -1405,7 +1435,14 @@ const FinalIngredientSummary = () => {
         </DialogActions>
       </Dialog>
       {/* Preview dialog for card-style print */}
-      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
+      <Dialog 
+        open={previewOpen} 
+        onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
+        maxWidth='xl' 
+        fullWidth
+        disableEnforceFocus
+        disableRestoreFocus
+      >
         <DialogTitle>Print Preview</DialogTitle>
         <DialogContent dividers sx={{ minHeight:400 }}>
           {previewHtml ? (
