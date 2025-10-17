@@ -335,25 +335,24 @@ const FinalIngredientSummary = () => {
           margin-right:12px;
         }
         
-        /* Card layout: use CSS columns (masonry) so items flow top-to-bottom per column
-           This ensures the 3rd card appears under the 1st regardless of the 2nd card height */
+        /* Card Grid: two-column grid where cards in the same row have equal height.
+           Each card uses flex-column so its body can grow while table rows stay natural height. */
         .cards{
-          column-count: 2;
-          column-gap: 16px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          align-items: stretch;
         }
-        /* JS masonry fallback containers (used when script runs) */
-        .masonry{display:flex;gap:16px}
-        .masonry-col{flex:1;display:flex;flex-direction:column;gap:14px}
         .card{
-          display: inline-block;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
           width: 100%;
-          margin: 0 0 14px;
-          vertical-align: top;
-          break-inside: avoid;
-          -webkit-column-break-inside: avoid;
-          page-break-inside: avoid;
+          margin: 0;
+          box-sizing: border-box;
         }
-        @media (max-width:800px){ .cards{column-count:1} }
+        .card-body{ flex: 1 1 auto; }
+        @media (max-width:800px){ .cards{grid-template-columns:1fr} }
 
         /* Modern Card Design */
         .card{
@@ -479,20 +478,21 @@ const FinalIngredientSummary = () => {
             padding: 10px 0 12px;
           }
           .cards { 
-            column-count: 2 !important;
-            column-gap: 12px !important;
+            display: grid !important; 
+            grid-template-columns: 1fr 1fr !important; 
+            gap: 12px !important; 
+            align-items: stretch; 
           }
           .card { 
-            display: inline-block !important; 
+            display: flex !important; 
+            flex-direction: column !important; 
+            height: 100% !important; 
             width: 100% !important; 
-            margin: 0 0 12px !important; 
-            vertical-align: top !important;
+            margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            break-inside: avoid !important;
-            -webkit-column-break-inside: avoid !important;
-            page-break-inside: avoid !important;
           }
+          .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
@@ -502,36 +502,6 @@ const FinalIngredientSummary = () => {
           }
         }
       </style>
-      <script>
-        // Pack cards into two columns to better fill vertical gaps (masonry-like)
-        function packColumns(){
-          try{
-            const container = document.querySelector('.cards');
-            if(!container) return;
-            if(window.matchMedia && window.matchMedia('(max-width:800px)').matches) return;
-            const cards = Array.from(container.querySelectorAll('.card'));
-            if(cards.length === 0) return;
-            const col1 = document.createElement('div'); col1.className='masonry-col';
-            const col2 = document.createElement('div'); col2.className='masonry-col';
-            const cols = [col1, col2];
-            // Greedy packing: append each card to the currently shorter column
-            cards.forEach(card => {
-              // measure current heights
-              const h0 = cols[0].scrollHeight || 0;
-              const h1 = cols[1].scrollHeight || 0;
-              const idx = h0 <= h1 ? 0 : 1;
-              cols[idx].appendChild(card);
-            });
-            const mason = document.createElement('div'); mason.className='masonry';
-            mason.appendChild(col1); mason.appendChild(col2);
-            container.parentNode.replaceChild(mason, container);
-          }catch(e){ console.error('packColumns failed', e); }
-        }
-        document.addEventListener('DOMContentLoaded', ()=> setTimeout(packColumns, 50));
-        window.addEventListener('load', ()=> setTimeout(packColumns, 50));
-        // Also re-pack before printing
-        window.addEventListener('beforeprint', ()=> packColumns());
-      </script>
     `;
 
     return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
