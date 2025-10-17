@@ -208,58 +208,18 @@ const FinalIngredientSummary = () => {
       
       // Capture with html2canvas
       const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#fff' });
-
-      // Create PDF in portrait orientation (A4)
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pageWidthPt = pdf.internal.pageSize.getWidth();
-      const pageHeightPt = pdf.internal.pageSize.getHeight();
-      const marginPt = 20; // small margin
-
-      // Convert full canvas to image data
       const imgData = canvas.toDataURL('image/png');
+      
+      // Create PDF
+  // Create PDF in portrait orientation to match printed pages
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
       const imgProps = (pdf as any).getImageProperties(imgData);
-
-      // We will fit image width to pageWidth - 2*margin
-      const imgWidthPt = pageWidthPt - marginPt * 2;
-  // imgHeightPt intentionally unused — we compute slice heights per canvas slice
-
-      // Scale factor: how many pts per canvas px
-      const ptsPerPx = imgWidthPt / imgProps.width;
-
-      // Determine slice height in canvas px that fits one PDF page (account for top/bottom margins)
-      const availablePageHeightPt = pageHeightPt - marginPt * 2 - 20; // extra space for page number
-      const sliceHeightPx = Math.floor(availablePageHeightPt / ptsPerPx);
-
-      const totalSlices = Math.max(1, Math.ceil(canvas.height / sliceHeightPx));
-
-      // Draw each slice onto the PDF as a separate page and stamp page numbers
-      for (let i = 0; i < totalSlices; i++) {
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = canvas.width;
-        tmpCanvas.height = Math.min(sliceHeightPx, canvas.height - i * sliceHeightPx);
-        const ctx = tmpCanvas.getContext('2d');
-        if (!ctx) throw new Error('Failed to get canvas context');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
-        ctx.drawImage(canvas, 0, i * sliceHeightPx, tmpCanvas.width, tmpCanvas.height, 0, 0, tmpCanvas.width, tmpCanvas.height);
-        const sliceData = tmpCanvas.toDataURL('image/png');
-
-        // Calculate height in pt for this slice
-        const sliceHeightPt = tmpCanvas.height * ptsPerPx;
-
-        if (i > 0) pdf.addPage();
-        pdf.addImage(sliceData, 'PNG', marginPt, marginPt, imgWidthPt, sliceHeightPt);
-
-        // Add page number at bottom center
-        const pageNumText = `Page ${i + 1} of ${totalSlices}`;
-        pdf.setFontSize(10);
-        pdf.setTextColor('#6b7c7b');
-        const textWidth = (pdf as any).getTextWidth ? (pdf as any).getTextWidth(pageNumText) : (pdf as any).getStringUnitWidth(pageNumText) * 10;
-        const x = (pageWidthPt - textWidth) / 2;
-        const y = pageHeightPt - marginPt + 6;
-        pdf.text(pageNumText, x, y);
-      }
-
+      const imgWidth = pageWidth - 40;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      
+      // Add image to PDF
+      pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight);
       pdf.save(`FinalIngredientSummary_${new Date().toISOString().slice(0,10)}.pdf`);
       
       // Cleanup
@@ -411,6 +371,9 @@ const FinalIngredientSummary = () => {
           background: linear-gradient(135deg, #f8fafb 0%, #e8f2f5 100%);
           line-height: 1.6;
         }
+        
+        /* Page number container */
+        
         
         /* Header Section */
         .header{
@@ -650,9 +613,6 @@ const FinalIngredientSummary = () => {
           border-top: 1px dashed var(--border);
           margin-top: 8px;
         }
-
-        /* Footer for preview showing current page / total pages */
-        /* custom print footer removed to allow browser default headers/footers */
         
         /* Print Styles */
         /* Print Styles: use columns for printed pages so vertical flow matches preview */
@@ -660,8 +620,9 @@ const FinalIngredientSummary = () => {
           body{
             background: #fff;
             padding: 8px;
-            /* ensure printable content doesn't get overlapped by the footer */
-            padding-bottom: 20mm !important;
+          }
+          .page-number {
+            display: block;
           }
           .header{
             margin-bottom: 12px;
@@ -698,116 +659,48 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
-          /* Allow the two-column grid of cards to break across pages.
-             This ensures rows like [5,6] can split so part of card 5/6
-             can appear on the previous page and the remainder continues
-             on the next page. Individual card fragments should not be
-             split internally. */
-          .cards{
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 12px !important;
-            align-items: start;
-            /* allow the grid to be broken across pages */
-            page-break-inside: auto;
-            break-inside: auto;
-            -webkit-column-break-inside: auto;
-          }
-          /* ensure each fragment stays whole (no internal breaks) */
-          .cards > .card-fragment{ page-break-inside: avoid; break-inside: avoid; }
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
           @page{
             size: portrait;
-            /* smaller bottom margin while keeping space for footer */
-            margin: 3mm;
-          }
-          /* Give the body a bit of padding so content doesn't run into the footer area */
-          body { padding-bottom: 3mm !important; }
-          /* In printed output, show footers with page numbers */
-          /* Allow browser to render default headers/footers (page numbers) */
-          /* No custom footer positioning — allow browser-native headers/footers */
-            /* In-document fallback footer (print-only). Some browsers support CSS counters
-               and will render "Page X of Y" here even when browser headers are disabled. */
-            .print-footer-inpage{ display:none; }
-            @media print {
-              /* In-document footer that shows "Page X of Y".
-                 We use counter(page) for the current page (widely supported)
-                 and inject the total pages via JS into the .page-total span.
-                 Position: fixed elements are repeated on each printed page,
-                 so each page will show "Page N of TOTAL". */
-              /* Compact footer: single no-wrap span to avoid variable gaps between pieces */
-              .print-footer-inpage{ display:block; position: fixed; right: 6mm; bottom: 4mm; color: #6b7c7b; font-size: 12px; z-index: 9999; }
-              .print-footer-inpage .page-full{ white-space: nowrap; display: inline-block; padding: 2px 6px; background: rgba(255,255,255,0.9); border-radius: 4px; }
-              .print-footer-inpage .page-full .page-num,
-              .print-footer-inpage .page-full .page-total{ font-weight:700; color: #245D6B; margin: 0 4px; }
-              /* Ensure page counters are available in some engines */
-              html { counter-reset: page; }
-              @page { size: portrait; margin: 3mm; }
+            margin: 8mm;
+            @bottom-right {
+              content: counter(page) " / " counter(pages);
+              font-size: 11px;
+              color: #6b7c7b;
+              font-weight: 600;
             }
+          }
         }
       </style>
     `;
 
-  // Footer HTML and JS to compute page numbers for both preview and print.
-  // Strategy:
-  // - Insert a fixed-position footer with a span for counter(page) (current page) and a .page-total span
-  // - Use JS to measure the page height in pixels by creating a hidden element with height: 297mm (A4)
-  //   and compute total pages = ceil(document.body.scrollHeight / pageHeightPx).
-  // - Update all .page-total elements so each printed page shows "Page X of Y".
-  const footerAndScript = `
-    <script>
-      (function(){
-        function mmToPx(mm){
-          // create element 1mm high to measure px/mm ratio
-          var el = document.createElement('div');
-          el.style.height = '1mm';
-          el.style.position = 'absolute';
-          el.style.visibility = 'hidden';
-          document.body.appendChild(el);
-          var px = el.getBoundingClientRect().height || 0;
-          document.body.removeChild(el);
-          return px * mm;
-        }
-
-        function computePages(){
-          try{
-            // Default to A4 portrait height 297mm unless page size is known
-            var pageHeightPx = mmToPx(297) || (1122); // fallback px
-            var total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
-
-            // compute current page by measuring scrollTop + small offset
-            var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-            var current = Math.min(total, Math.max(1, Math.floor((scrollTop + 1) / pageHeightPx) + 1));
-
-            // Update page-total and page-num
-            var totals = document.querySelectorAll('.print-footer-inpage .page-total');
-            var nums = document.querySelectorAll('.print-footer-inpage .page-num');
-            totals.forEach(function(t){ t.textContent = String(total); });
-            nums.forEach(function(n){ n.textContent = String(current); });
-          }catch(e){ console.warn('computePages failed', e); }
-        }
-
-        // recompute at useful times
-        document.addEventListener('DOMContentLoaded', function(){ setTimeout(computePages, 50); });
-        window.addEventListener('load', function(){ setTimeout(computePages, 120); });
-        window.addEventListener('resize', function(){ setTimeout(computePages, 120); });
-        window.addEventListener('scroll', function(){ setTimeout(computePages, 40); }, { passive:true });
-        // matchMedia print
-        if (window.matchMedia) {
-          try{ window.matchMedia('print').addListener(function(){ setTimeout(computePages, 60); }); }catch(e){}
-        }
-
-        // initial
-        setTimeout(computePages, 120);
-      })();
-    </script>
-  `;
-
-  // Add an in-page print footer as a fallback for browsers that support repeated fixed footers on each page
-  const inPageFooter = `<div class="print-footer-inpage" aria-hidden="true"><span class="page-full">Page <span class="page-num">1</span> of <span class="page-total">1</span></span></div>`;
-
-  return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div>${inPageFooter}${footerAndScript}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div><div class="page-number"><span id="page-num"></span></div><script>
+      // Calculate and display page numbers
+      if (window.matchMedia) {
+        const updatePageNumber = () => {
+          const pageHeight = window.innerHeight;
+          const scrollY = window.scrollY || window.pageYOffset;
+          const currentPage = Math.floor(scrollY / pageHeight) + 1;
+          const totalPages = Math.ceil(document.body.scrollHeight / pageHeight);
+          const pageNumEl = document.getElementById('page-num');
+          if (pageNumEl) {
+            pageNumEl.textContent = currentPage + ' / ' + totalPages;
+          }
+        };
+        
+        // For print preview
+        window.addEventListener('scroll', updatePageNumber);
+        window.addEventListener('resize', updatePageNumber);
+        updatePageNumber();
+        
+        // For actual printing - use CSS counter instead
+        window.addEventListener('beforeprint', () => {
+          const pageNumEl = document.getElementById('page-num');
+          if (pageNumEl) pageNumEl.style.display = 'none';
+        });
+      }
+    </script></body></html>`;
   };
 
   // Note: printing now uses the preview dialog (see handlePreviewPrint)
@@ -853,133 +746,26 @@ const FinalIngredientSummary = () => {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'error'|'info'|'success'|'warning' }>({ open:false, message:'', severity:'info' });
 
-  // When the Print Table dialog is opened, install a global print footer and JS
-  // so printed Table output shows the same "Page X of Y" UI as the iframe preview.
-  useEffect(() => {
-    if (!printDialogOpen) return undefined;
-
-    const styleId = 'kms-global-print-footer-style';
-    const footerId = 'kms-global-print-footer';
-
-    // Inject style if missing
-    if (!document.getElementById(styleId)) {
-      const styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      styleEl.innerHTML = `
-        .global-print-footer{ display:block; position: fixed; right: 6mm; bottom: 4mm; color: #6b7c7b; font-size: 12px; z-index: 9999; }
-        .global-print-footer .page-full{ white-space: nowrap; display: inline-block; padding: 2px 6px; background: rgba(255,255,255,0.9); border-radius: 4px; }
-        .global-print-footer .page-full .page-num,
-        .global-print-footer .page-full .page-total{ font-weight:700; color: #245D6B; margin: 0 4px; }
-        @media print {
-          /* ensure print footer appears in printed pages where supported */
-          .global-print-footer{ display:block !important; }
-        }
-      `;
-      document.head.appendChild(styleEl);
-    }
-
-    // Create footer element
-    let footer = document.getElementById(footerId) as HTMLElement | null;
-    if (!footer) {
-      footer = document.createElement('div');
-      footer.id = footerId;
-      footer.className = 'global-print-footer';
-      footer.setAttribute('aria-hidden', 'true');
-      footer.innerHTML = '<span class="page-full">Page <span class="page-num">1</span> of <span class="page-total">1</span></span>';
-      document.body.appendChild(footer);
-    }
-
-    // mm -> px helper
-    const mmToPx = (mm: number) => {
-      const el = document.createElement('div');
-      el.style.height = '1mm';
-      el.style.position = 'absolute';
-      el.style.visibility = 'hidden';
-      document.body.appendChild(el);
-      const px = el.getBoundingClientRect().height || 0;
-      document.body.removeChild(el);
-      return px * mm;
-    };
-
-    // compute current & total pages and update footer
-    const computePages = () => {
-      try {
-        const pageHeightPx = mmToPx(297) || 1122;
-        const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
-        const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-        const current = Math.min(total, Math.max(1, Math.floor((scrollTop + 1) / pageHeightPx) + 1));
-        const numEl = footer!.querySelector('.page-num');
-        const totEl = footer!.querySelector('.page-total');
-        if (numEl) numEl.textContent = String(current);
-        if (totEl) totEl.textContent = String(total);
-      } catch (e) { console.warn('computePages global failed', e); }
-    };
-
-    // listeners
-    const onLoad = () => setTimeout(computePages, 80);
-    const onResize = () => setTimeout(computePages, 120);
-    const onScroll = () => setTimeout(computePages, 40);
-    window.addEventListener('load', onLoad);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    try { window.matchMedia('print').addListener(() => setTimeout(computePages, 60)); } catch (e) {}
-    // initial
-    setTimeout(computePages, 120);
-
-    return () => {
-      try { window.removeEventListener('load', onLoad); } catch {}
-      try { window.removeEventListener('resize', onResize); } catch {}
-      try { window.removeEventListener('scroll', onScroll); } catch {}
-      try { window.matchMedia('print').removeListener(() => setTimeout(computePages, 60)); } catch {}
-      // remove injected footer and style
-      try { const f = document.getElementById(footerId); if (f) f.remove(); } catch {}
-      try { const s = document.getElementById(styleId); if (s) s.remove(); } catch {}
-    };
-  }, [printDialogOpen]);
-
 
 
   const handlePreviewPrint = () => {
     if (!previewHtml) return;
     try {
-      // Try to print from the visible preview iframe
+      // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
       const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
       if (visibleIframe && visibleIframe.contentWindow) {
-        // Give the browser a moment to finish painting the iframe
+        // give the browser a moment to finish painting the iframe
         setTimeout(() => {
           try {
-            // Calculate page height more accurately (not needed when relying on browser headers)
-            // We no longer inject custom footers — let the browser render default headers/footers (page numbers)
-
-            // Small delay to ensure footers are rendered before print
-            setTimeout(() => {
-              if (visibleIframe.contentWindow) {
-                try {
-                  // Add afterprint listener to clean up and close preview
-                  const handleAfterPrint = () => {
-                    setPreviewOpen(false);
-                    setPreviewHtml(null);
-                    visibleIframe.contentWindow?.removeEventListener('afterprint', handleAfterPrint);
-                  };
-                  
-                  visibleIframe.contentWindow.addEventListener('afterprint', handleAfterPrint);
-                  visibleIframe.contentWindow.focus();
-                  visibleIframe.contentWindow.print();
-                } catch (focusErr) {
-                  console.warn('Focus/print failed, trying without focus', focusErr);
-                  try {
-                    visibleIframe.contentWindow.print();
-                  } catch (printErr) {
-                    console.error('Print failed', printErr);
-                  }
-                }
-              }
-            }, 100);
+            visibleIframe.contentWindow!.focus();
+            visibleIframe.contentWindow!.print();
           } catch (e) {
             console.error('print from visible iframe failed', e);
             alert('Print failed');
           }
-        }, 300);
+          setPreviewOpen(false);
+          setPreviewHtml(null);
+        }, 200);
         return;
       }
     } catch (err) {
@@ -994,6 +780,7 @@ const FinalIngredientSummary = () => {
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = '0';
+    // render but keep it visually invisible so user isn't disrupted
     iframe.style.opacity = '0';
     iframe.style.pointerEvents = 'none';
     iframe.srcdoc = previewHtml;
@@ -1002,34 +789,11 @@ const FinalIngredientSummary = () => {
       try {
         const win = iframe.contentWindow as Window | null;
         if (!win) throw new Error('no iframe window');
-        
+        // slight delay to ensure fonts/images are painted
         setTimeout(() => {
-          try {
-            // const doc = win.document; // not needed when relying on browser headers
-            // No footer injection here; rely on browser headers and native print dialog
-
-            // No injected footers here either — rely on browser print headers/footers
-
-            setTimeout(() => {
-              try {
-                if (win) {
-                  win.focus();
-                  win.print();
-                }
-              } catch (err) {
-                console.warn('Focus failed, trying print without focus', err);
-                if (win) {
-                  try {
-                    win.print();
-                  } catch (printErr) {
-                    console.error('Print failed', printErr);
-                  }
-                }
-              }
-            }, 100);
-          } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
+          try { win.focus(); win.print(); } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
-        }, 300);
+        }, 200);
       } catch (e) {
         console.error('onload print failed', e);
         cleanup();
@@ -1510,14 +1274,7 @@ const FinalIngredientSummary = () => {
         </DialogActions>
       </Dialog>
       {/* Preview dialog for card-style print */}
-      <Dialog 
-        open={previewOpen} 
-        onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} 
-        maxWidth='xl' 
-        fullWidth
-        disableEnforceFocus
-        disableRestoreFocus
-      >
+      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
         <DialogTitle>Print Preview</DialogTitle>
         <DialogContent dividers sx={{ minHeight:400 }}>
           {previewHtml ? (
