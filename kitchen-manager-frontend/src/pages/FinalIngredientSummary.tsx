@@ -312,10 +312,10 @@ const FinalIngredientSummary = () => {
         .header-left h1{
           margin:0;
           font-size:24px;
-          font-weight:800;
+          font-weight:600;
           color:var(--brand);
           letter-spacing:-0.02em;
-          text-transform: uppercase;
+          text-transform: none;
         }
         .subtitle{
           font-size:13px;

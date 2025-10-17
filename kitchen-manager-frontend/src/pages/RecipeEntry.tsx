@@ -5,6 +5,7 @@ import {
   Paper,
   TextField,
   MenuItem,
+  Menu,
   Button,
   List,
   ListItem,
@@ -22,7 +23,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
   Snackbar,
+  Checkbox,
 } from '@mui/material';
 import ShareIcon from '@mui/icons-material/Share';
 import FastfoodIcon from '@mui/icons-material/Fastfood';
@@ -91,7 +94,7 @@ const RecipeEntry: React.FC = () => {
       },
     })
       .then(async (res) => {
-        try {
+          try {
           const data = await res.json();
           setRecipes(Array.isArray(data) ? data : []);
         } catch {
@@ -385,6 +388,290 @@ const RecipeEntry: React.FC = () => {
 
   const selectedVangi = vangiList.find(v => v.id.toString() === vangiId);
 
+  // Preview/print state for card-style print
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  // Print menu + selection state
+  const [printMenuAnchorEl, setPrintMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const printMenuOpen = Boolean(printMenuAnchorEl);
+  const [selectDialogOpen, setSelectDialogOpen] = useState(false);
+  const [selectedRecipeIds, setSelectedRecipeIds] = useState<string[]>([]);
+
+  const buildRecipeCardsHtml = (recipesToRender: any[]) => {
+    const headerHtml = `
+      <div class="header">
+        <div class="header-left">
+          <h1>Recipes</h1>
+          <div class="subtitle">${new Date().toLocaleDateString()} &middot; Powered by Kitchen Manager</div>
+        </div>
+        <div class="header-right">Summary</div>
+      </div>
+    `;
+
+    const cardHtml = recipesToRender.map(r => {
+      const rows = (r.ingredients || []).map((ing: any) => `<tr><td class="ing-col">${ing.ingredientName}</td><td class="wt-col">${ing.kg} KG</td></tr>`).join('');
+      const itemCount = (r.ingredients || []).length;
+      return `
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">${r.vangiName}</div>
+            <div class="card-badge">${itemCount} items</div>
+          </div>
+          <div class="card-body">
+            <table class="card-table">
+              <thead><tr><th class="ing-col">Ingredient</th><th class="wt-col">Weight</th></tr></thead>
+              <tbody>${rows || `<tr class="empty-row"><td class="ing-col" colspan="2">No ingredients</td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const styles = `
+      <style>
+        :root { 
+          --brand: #245D6B; 
+          --brand-light: #2d7089;
+          --brand-lighter: #e8f2f5;
+          --brand-dark: #1a4650;
+          --muted: #6b7c7b;
+          --text-primary: #1a1a1a;
+          --text-secondary: #4a5568;
+          --border: #e2e8f0;
+          --shadow: rgba(36, 93, 107, 0.08);
+        }
+        html,body{margin:0;padding:0}
+        /* allow printers to try to preserve colors/backgrounds where possible */
+        *, html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { 
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+          color: var(--text-primary); 
+          padding: 16px; 
+          background: linear-gradient(135deg, #f8fafb 0%, #e8f2f5 100%);
+          line-height: 1.6;
+        }
+        .header{
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-end;
+          padding: 16px 0 18px;
+          border-bottom: 3px solid var(--brand);
+          margin-bottom: 24px;
+          background: linear-gradient(to right, rgba(36,93,107,0.03), transparent);
+          padding-left: 12px;
+          border-radius: 4px 4px 0 0;
+        }
+        .header-left h1{
+          margin:0;
+          font-size:24px;
+          font-weight:600;
+          color:var(--brand);
+          letter-spacing:-0.02em;
+          text-transform: none;
+        }
+        .subtitle{
+          font-size:13px;
+          color:var(--text-secondary);
+          margin-top:6px;
+          font-weight:500;
+        }
+        .header-right{
+          font-size:11px;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:0.5px;
+          font-weight:600;
+          background:var(--brand-lighter);
+          padding:6px 14px;
+          border-radius:20px;
+          margin-right:12px;
+        }
+        .cards{
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          align-items: stretch;
+        }
+        .card{
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          width: 100%;
+          margin: 0;
+          box-sizing: border-box;
+        }
+        .card-body{ flex: 1 1 auto; }
+        @media (max-width:800px){ .cards{grid-template-columns:1fr} }
+        .card{
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px var(--shadow), 0 1px 3px rgba(0,0,0,0.05);
+          border: 1px solid var(--border);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          box-sizing: border-box;
+        }
+        .card-header{
+          background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+          padding: 16px 18px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 2px solid var(--brand-dark);
+        }
+        .card-title{
+          font-weight: 700;
+          font-size: 17px;
+          color: #ffffff;
+          letter-spacing: -0.01em;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .card-badge{
+          background: rgba(255,255,255,0.25);
+          color: #ffffff;
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255,255,255,0.3);
+        }
+        .card-body{
+          padding: 0;
+          background: #fff;
+          overflow: visible;
+        }
+        .card-table{
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .card-table thead{ display: table-header-group; }
+        .card-table thead th{
+          background: var(--brand-lighter);
+          padding: 10px 14px;
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--brand-dark);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid var(--brand);
+        }
+        .card-table thead th.ing-col{ text-align: left; }
+        .card-table thead th.wt-col{ text-align: right; width: 110px; }
+        .card-table tbody tr{ background: #fff; border-bottom: 1px solid var(--border); transition: background-color 0.15s ease; }
+        .card-table tbody tr:last-child{ border-bottom: none; }
+        .card-table tbody tr:nth-of-type(even){ background: rgba(36,93,107,0.02); }
+        .card-table tbody tr:hover{ background: var(--brand-lighter); }
+        .card-table td{ padding: 11px 14px; vertical-align: middle; }
+        .ing-col{ word-break: break-word; color: var(--text-primary); font-weight: 500; }
+        .wt-col{ width: 110px; text-align: right; font-variant-numeric: tabular-nums; color: var(--brand); font-weight: 600; white-space: nowrap; font-size: 13px; }
+        .empty-row td{ text-align: center; color: var(--text-secondary); padding: 24px; font-style: italic; }
+        @media print {
+          body{ background: #fff; padding: 8px; }
+          .header{ margin-bottom: 12px; padding: 10px 0 12px; }
+          .cards { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 12px !important; align-items: stretch; }
+          .card { display: flex !important; flex-direction: column !important; height: 100% !important; width: 100% !important; margin: 0 !important; box-shadow: none; border: 1px solid var(--border); }
+          .card-body{ flex: 1 1 auto !important; }
+          .card-table tbody tr:hover{ background: rgba(36,93,107,0.02); }
+          .card-table thead { display: table-row-group !important; }
+          @page{ size: portrait; margin: 8mm; }
+        }
+      </style>
+    `;
+
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
+  };
+
+  // Print menu handlers
+  const handleOpenPrintMenu = (e: React.MouseEvent<HTMLElement>) => setPrintMenuAnchorEl(e.currentTarget);
+  const handleClosePrintMenu = () => setPrintMenuAnchorEl(null);
+  const handlePrintAll = () => {
+    handleClosePrintMenu();
+    const html = buildRecipeCardsHtml(filteredRecipes);
+    setPreviewHtml(html);
+    setPreviewOpen(true);
+  };
+  const handleOpenSelectDialog = () => {
+    handleClosePrintMenu();
+    // default to all selected
+    setSelectedRecipeIds(filteredRecipes.map(r => r.id.toString()));
+    setSelectDialogOpen(true);
+  };
+  const toggleRecipeSelection = (id: string | number) => {
+    const key = id.toString();
+    setSelectedRecipeIds(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) setSelectedRecipeIds(filteredRecipes.map(r => r.id.toString()));
+    else setSelectedRecipeIds([]);
+  };
+  const handlePrintSelected = () => {
+    if (selectedRecipeIds.length === 0) {
+      setSnackbar({ open: true, message: 'Please select at least one recipe to print.', severity: 'error' });
+      return;
+    }
+    const recipesToPrint = filteredRecipes.filter(r => selectedRecipeIds.includes(r.id.toString()));
+    const html = buildRecipeCardsHtml(recipesToPrint);
+    setSelectDialogOpen(false);
+    setPreviewHtml(html);
+    setPreviewOpen(true);
+  };
+
+  const handlePreviewPrint = () => {
+    if (!previewHtml) return;
+    try {
+      const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
+      if (visibleIframe && visibleIframe.contentWindow) {
+        setTimeout(() => { try { visibleIframe.contentWindow!.focus(); visibleIframe.contentWindow!.print(); } catch (e) { console.error(e); alert('Print failed'); } setPreviewOpen(false); setPreviewHtml(null); }, 200);
+        return;
+      }
+    } catch (e) { console.error(e); }
+
+  const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed'; iframe.style.left='0'; iframe.style.top='0'; iframe.style.width='100%'; iframe.style.height='100%'; iframe.style.border='0'; iframe.style.opacity='0'; iframe.style.pointerEvents='none';
+    iframe.srcdoc = previewHtml;
+  iframe.title = 'print-preview-temp';
+    const cleanup = () => { try { iframe.remove(); } catch {} setPreviewOpen(false); setPreviewHtml(null); };
+    iframe.onload = () => { try { const win = iframe.contentWindow as Window | null; if (!win) throw new Error('no window'); setTimeout(() => { try { win.focus(); win.print(); } catch (e) { console.error(e); alert('Print failed'); } setTimeout(cleanup, 500); }, 200); } catch (e) { console.error(e); cleanup(); } };
+    document.body.appendChild(iframe);
+  };
+
+  // Print the currently viewed recipe with a proper title header
+  const printSingleRecipe = (recipe: any | null) => {
+    if (!recipe) return;
+    const rows = (recipe.ingredients || []).map((ing: any) => `<tr><td class="ing-col">${ing.ingredientName}</td><td class="wt-col">${ing.kg} KG</td></tr>`).join('') || `<tr class="empty-row"><td class="ing-col" colspan="2">No ingredients</td></tr>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+      :root{ --brand: #245D6B; --muted:#6b7c7b; --border:#e2e8f0 }
+      html,body{margin:0;padding:0}
+      body{ font-family: Inter, Arial, sans-serif; color:#111; padding:16px }
+      .header{ display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; border-bottom:2px solid var(--brand); margin-bottom:18px }
+      .header-left h1{ margin:0; font-size:22px; color:var(--brand); font-weight:700; text-transform: none }
+      .subtitle{ font-size:13px; color:var(--muted); margin-top:6px }
+      .card{ background:#fff; border:1px solid var(--border); border-radius:8px; overflow:hidden }
+      table{ width:100%; border-collapse:collapse; font-size:14px }
+      thead th{ text-align:left; padding:10px; background:#f1f7f8; border-bottom:1px solid var(--border); font-weight:700 }
+      td{ padding:10px; border-bottom:1px solid var(--border) }
+      .wt-col{ text-align:right; color:var(--brand); font-weight:600 }
+      .empty-row td{ text-align:center; padding:24px; color:var(--muted); font-style:italic }
+      @media print{ @page{ size: portrait; margin:8mm } body{ padding:8px } }
+    </style></head><body>
+      <div class="header"><div class="header-left"><h1>${recipe.vangiName}</h1><div class="subtitle">${new Date().toLocaleDateString()} &middot; Powered by Kitchen Manager</div></div></div>
+      <div class="card"><table><thead><tr><th>Ingredient</th><th style="text-align:right">Quantity</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </body></html>`;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed'; iframe.style.left='0'; iframe.style.top='0'; iframe.style.width='100%'; iframe.style.height='100%'; iframe.style.border='0'; iframe.style.opacity='0'; iframe.style.pointerEvents='none';
+      iframe.srcdoc = html;
+      const cleanup = () => { try { iframe.remove(); } catch {} };
+      iframe.onload = () => { try { const win = iframe.contentWindow as Window | null; if (!win) throw new Error('no iframe window'); setTimeout(() => { try { win.focus(); win.print(); } catch (e) { console.error('print failed', e); alert('Print failed'); } setTimeout(cleanup, 300); }, 200); } catch (e) { console.error(e); cleanup(); } };
+      document.body.appendChild(iframe);
+    } catch (e) { console.error('printSingleRecipe failed', e); alert('Print failed'); }
+  };
+
   return (
     <Box sx={{ p: { xs: 2, sm: 1 }, minHeight: '80vh' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -551,6 +838,24 @@ const RecipeEntry: React.FC = () => {
             '& .MuiInputBase-input': { color: '#245D6B' },
           }}
         />
+        <Button
+          variant="outlined"
+          sx={{ borderColor: '#245D6B', color: '#245D6B', textTransform: 'none' }}
+          onClick={handleOpenPrintMenu}
+          disabled={filteredRecipes.length === 0}
+        >
+          Print
+        </Button>
+        <Menu
+          anchorEl={printMenuAnchorEl}
+          open={printMenuOpen}
+          onClose={handleClosePrintMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={handlePrintAll}>Print All</MenuItem>
+          <MenuItem onClick={handleOpenSelectDialog}>Print Selected</MenuItem>
+        </Menu>
       </Box>
       <TableContainer component={Paper} sx={{ mt: 4, borderRadius: 2, boxShadow: '0 2px 12px rgba(36,93,107,0.06)' }}>
         <Table>
@@ -816,7 +1121,7 @@ const RecipeEntry: React.FC = () => {
           }}
         >
           <Button
-            onClick={() => window.print()}
+            onClick={() => printSingleRecipe(viewRecipe)}
             variant="outlined"
             sx={{
               borderColor: '#245D6B',
@@ -1097,6 +1402,83 @@ const RecipeEntry: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      {/* Select Recipes dialog for Print Selected */}
+      <Dialog
+        open={selectDialogOpen}
+        onClose={() => setSelectDialogOpen(false)}
+        maxWidth='sm'
+        fullWidth
+        BackdropProps={{ sx: { backdropFilter: 'blur(6px)', backgroundColor: 'rgba(0,0,0,0.56)' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Select Recipes to Print</span>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <Typography sx={{ fontSize: 13, color: '#245D6B', fontWeight: 600, mr: 0 }}>Select All</Typography>
+            <Checkbox
+              checked={selectedRecipeIds.length === filteredRecipes.length && filteredRecipes.length > 0}
+              onChange={(_, checked) => handleSelectAll(checked)}
+              onClick={(e) => e.stopPropagation()}
+              sx={{ color: '#245D6B', '&.Mui-checked': { color: '#245D6B' }, ml: '6px', p: 0 }}
+            />
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>Choose one or more recipes. Selected recipes will be rendered as cards when printing.</DialogContentText>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 2 }}>
+            {filteredRecipes.map((r) => {
+              const isSelected = selectedRecipeIds.includes(r.id.toString());
+              const itemCount = (r.ingredients || []).length;
+              return (
+                <Paper
+                  key={r.id}
+                  onClick={() => toggleRecipeSelection(r.id)}
+                  elevation={isSelected ? 6 : 1}
+                  sx={{
+                    p: 1.25,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    border: isSelected ? '2px solid var(--brand)' : '1px solid rgba(0,0,0,0.06)',
+                    background: isSelected ? 'linear-gradient(180deg, rgba(36,93,107,0.06), rgba(36,93,107,0.02))' : '#fff'
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14, color: isSelected ? '#163f3a' : '#133f3a' }}>{r.vangiName}</Typography>
+                    <Checkbox
+                      checked={isSelected}
+                      onChange={(e) => { e.stopPropagation(); toggleRecipeSelection(r.id); }}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ p: 0, color: '#245D6B', '&.Mui-checked': { color: '#245D6B' } }}
+                    />
+                  </Box>
+                  <Typography variant='body2' sx={{ color: '#4a5568' }}>{itemCount} ingredients</Typography>
+                </Paper>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectDialogOpen(false)} size='small' sx={{ color: '#245D6B', textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={handlePrintSelected} variant='contained' size='small' sx={{ bgcolor: '#245D6B', textTransform: 'none', '&:hover': { bgcolor: '#1d4b56' } }}>Print Selected</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={previewOpen} onClose={() => { setPreviewOpen(false); setPreviewHtml(null); }} maxWidth='xl' fullWidth>
+        <DialogTitle>Print Preview</DialogTitle>
+        <DialogContent dividers sx={{ minHeight:400 }}>
+          {previewHtml ? (
+            <iframe title='print-preview' srcDoc={previewHtml} style={{ width:'100%', height:'70vh', border:0 }} />
+          ) : (
+            <Box sx={{ py:6, textAlign:'center' }}>No preview available</Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setPreviewOpen(false); setPreviewHtml(null); }} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
+          <Button onClick={handlePreviewPrint} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
