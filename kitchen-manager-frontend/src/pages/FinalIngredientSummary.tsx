@@ -714,9 +714,9 @@ const FinalIngredientSummary = () => {
           {/* Print menu: offers card-style Print All / Print Selected and keeps the existing Print dialog */}
           <Button variant="outlined" disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B' }} onClick={handlePrintClick}>Print</Button>
           <Menu anchorEl={printAnchorEl} open={Boolean(printAnchorEl)} onClose={handlePrintClose}>
-            <MenuItem onClick={handlePrintAll} disabled={!ingredientMatrixRows.length}>Print All (cards)</MenuItem>
-            <MenuItem onClick={handleOpenSelectionDialog} disabled={!ingredientMatrixRows.length}>Print Selected...</MenuItem>
-            <MenuItem onClick={() => { handlePrintClose(); setPrintDialogOpen(true); }} disabled={!ingredientMatrixRows.length}>Print Table (legacy)</MenuItem>
+            <MenuItem onClick={handlePrintAll} disabled={!ingredientMatrixRows.length}>Print All Recipes</MenuItem>
+            <MenuItem onClick={handleOpenSelectionDialog} disabled={!ingredientMatrixRows.length}>Print Selected Recipe</MenuItem>
+            <MenuItem onClick={() => { handlePrintClose(); setPrintDialogOpen(true); }} disabled={!ingredientMatrixRows.length}>Print Table</MenuItem>
           </Menu>
           <Button variant='outlined' startIcon={<DownloadIcon />} onClick={handleExportClick} disabled={!selectedAnnkutEvent || !ingredientMatrixRows.length} sx={{ borderColor:'#245D6B', color:'#245D6B', textTransform:'none' }}>Export</Button>
           <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}>
