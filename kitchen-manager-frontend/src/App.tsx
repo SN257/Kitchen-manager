@@ -22,6 +22,7 @@ import SectionMaster from './pages/SectionMaster';
 import Profile from './pages/Profile';
 import VasanMaster from './pages/VasanMaster';
 import VasanNosCalculation from './pages/VasanNosCalculation';
+import VasanUsageSummary from './pages/VasanUsageSummary';
 import SectionIngredientSummary from './pages/SectionIngredientSummary';
 import SectionNosSummary from './pages/SectionNosSummary';
 import VasanFillPlan from './pages/VasanFillPlan';
@@ -65,6 +66,7 @@ function App() {
           <Route path="section-annkut/section-ingredient-summary" element={<SectionIngredientSummary />} />
           <Route path="section-annkut/section-nos-summary" element={<SectionNosSummary />} />
           <Route path="section-annkut/vasan-fill-plan" element={<VasanFillPlan />} />
+          <Route path="section-annkut/vasan-usage-summary" element={<VasanUsageSummary />} />
           <Route path="section-annkut/layout-planner" element={<SectionLayoutPlanner />} />
           {/* Legacy path redirect */}
           <Route path="section-master" element={<Navigate to="/dashboard/section-annkut/section-master" replace />} />

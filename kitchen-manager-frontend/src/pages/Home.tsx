@@ -154,6 +154,7 @@ const Dashboard: React.FC = () => {
       '/dashboard/section-annkut/section-master',
       '/dashboard/section-annkut/vasan-master',
       '/dashboard/section-annkut/vasan-nos-calculation',
+  '/dashboard/section-annkut/vasan-usage-summary',
       '/dashboard/section-annkut/section-ingredient-summary',
       '/dashboard/section-annkut/section-nos-summary',
       '/dashboard/section-annkut/vasan-fill-plan',
@@ -466,6 +467,16 @@ const Dashboard: React.FC = () => {
                     <CalculateIcon fontSize="small" sx={{ fontSize: 20 }} />
                   </ListItemIcon>
                   <ListItemText primary="Vasan Nos Calculation" />
+                </ListItemButton>
+                <ListItemButton
+                  selected={isActive("/dashboard/section-annkut/vasan-usage-summary")}
+                  sx={{ pl: 8, ...sidebarItemSx }}
+                  onClick={() => navigate("/dashboard/section-annkut/vasan-usage-summary")}
+                >
+                  <ListItemIcon sx={{ color: "#fff", minWidth: 30 }}>
+                    <SummarizeIcon fontSize="small" sx={{ fontSize: 20 }} />
+                  </ListItemIcon>
+                  <ListItemText primary="Vasan Usage Summary" />
                 </ListItemButton>
                 <ListItemButton
                   selected={isActive("/dashboard/section-annkut/section-nos-summary")}
