@@ -676,10 +676,16 @@ const FinalIngredientSummary = () => {
           /* Use two-column grid in print (like on-screen) but allow breaks inside cards so long cards paginate */
           .cards { 
             display: grid !important; 
-            grid-template-columns: 1fr 1fr !important; 
+            grid-template-columns: 1fr !important; 
             gap: 12px !important; 
             align-items: stretch;
             margin-bottom: 12px;
+          }
+          /* Two columns only on larger screens (desktop printers) */
+          @media print and (min-width: 768px) {
+            .cards { 
+              grid-template-columns: 1fr 1fr !important; 
+            }
           }
           .card { 
             display: block !important; 
@@ -766,16 +772,23 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
+          /* Default page setup - auto size adapts to device */
           @page{
-            size: portrait;
-            /* top right bottom left -> reduce right margin, increase bottom margin */
-            margin: 8mm 6mm 15mm 8mm;
-            @bottom-right {
-              /* show as: Page 1 of 7 */
-              content: "Page " counter(page) " of " counter(pages);
-              font-size: 11px;
-              color: #6b7c7b;
-              font-weight: 600;
+            size: auto;
+            /* top right bottom left */
+            margin: 10mm 8mm 12mm 8mm;
+          }
+          /* Desktop/larger screens - use portrait with specific margins */
+          @media print and (min-width: 768px) {
+            @page{
+              size: portrait;
+              margin: 8mm 6mm 15mm 8mm;
+              @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 11px;
+                color: #6b7c7b;
+                font-weight: 600;
+              }
             }
           }
         }
