@@ -612,19 +612,7 @@ const FinalIngredientSummary = () => {
         }
 
         /* Footer for preview showing current page / total pages */
-        .print-footer{
-          position: fixed;
-          right: 18px;
-          bottom: 18px;
-          background: rgba(255,255,255,0.95);
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-          font-size: 12px;
-          color: var(--muted);
-          z-index: 9999;
-        }
+        /* custom print footer removed to allow browser default headers/footers */
         
         /* Print Styles */
         /* Print Styles: use columns for printed pages so vertical flow matches preview */
@@ -692,101 +680,94 @@ const FinalIngredientSummary = () => {
           @page{
             size: portrait;
             /* smaller bottom margin while keeping space for footer */
-            margin: 3mm 3mm 3mm 3mm;
-            @top-left { content: ""; }
-            @top-center { content: ""; }
-            @top-right { content: ""; }
-            @bottom-left { content: ""; }
-            @bottom-center { content: ""; }
-            @bottom-right { content: ""; }
+            margin: 3mm;
           }
           /* Give the body a bit of padding so content doesn't run into the footer area */
           body { padding-bottom: 3mm !important; }
           /* In printed output, show footers with page numbers */
-          .print-footer{
-            display: block !important;
-            position: fixed !important;
-            right: 2mm !important;
-            bottom: 2mm !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            color: #6b7c7b !important;
-            font-size: 12px !important;
-            z-index: 9999 !important;
-          }
-          /* Additional page footers positioned at specific heights */
-          .print-footer-page{
-            position: absolute !important;
-            right: 2mm !important;
-            bottom: 2mm !important;
-          }
-          /* Additional page footers positioned at specific heights */
-          .print-footer-page{
-            position: absolute !important;
-            right: 2mm !important;
-            bottom: 2mm !important;
-            color: #6b7c7b !important;
-            font-size: 12px !important;
-          }
+          /* Allow browser to render default headers/footers (page numbers) */
+          /* No custom footer positioning — allow browser-native headers/footers */
+            /* In-document fallback footer (print-only). Some browsers support CSS counters
+               and will render "Page X of Y" here even when browser headers are disabled. */
+            .print-footer-inpage{ display:none; }
+            @media print {
+              /* In-document footer that shows "Page X of Y".
+                 We use counter(page) for the current page (widely supported)
+                 and inject the total pages via JS into the .page-total span.
+                 Position: fixed elements are repeated on each printed page,
+                 so each page will show "Page N of TOTAL". */
+              /* Compact footer: single no-wrap span to avoid variable gaps between pieces */
+              .print-footer-inpage{ display:block; position: fixed; right: 6mm; bottom: 4mm; color: #6b7c7b; font-size: 12px; z-index: 9999; }
+              .print-footer-inpage .page-full{ white-space: nowrap; display: inline-block; padding: 2px 6px; background: rgba(255,255,255,0.9); border-radius: 4px; }
+              .print-footer-inpage .page-full .page-num,
+              .print-footer-inpage .page-full .page-total{ font-weight:700; color: #245D6B; margin: 0 4px; }
+              /* Ensure page counters are available in some engines */
+              html { counter-reset: page; }
+              @page { size: portrait; margin: 3mm; }
+            }
         }
       </style>
     `;
 
-  // Footer HTML and JS to compute page numbers for both preview and print
-    const footerAndScript = `
-      <div style="height:18px;">&nbsp;</div>
-      <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
-      <script>
-        (function(){
+  // Footer HTML and JS to compute page numbers for both preview and print.
+  // Strategy:
+  // - Insert a fixed-position footer with a span for counter(page) (current page) and a .page-total span
+  // - Use JS to measure the page height in pixels by creating a hidden element with height: 297mm (A4)
+  //   and compute total pages = ceil(document.body.scrollHeight / pageHeightPx).
+  // - Update all .page-total elements so each printed page shows "Page X of Y".
+  const footerAndScript = `
+    <script>
+      (function(){
+        function mmToPx(mm){
+          // create element 1mm high to measure px/mm ratio
+          var el = document.createElement('div');
+          el.style.height = '1mm';
+          el.style.position = 'absolute';
+          el.style.visibility = 'hidden';
+          document.body.appendChild(el);
+          var px = el.getBoundingClientRect().height || 0;
+          document.body.removeChild(el);
+          return px * mm;
+        }
+
+        function computePages(){
           try{
-            // Wait for content to fully render before calculating pages
-            function calculatePages() {
-              // Use a more reliable page height calculation
-              // Standard A4 height minus margins in pixels (96 DPI)
-              const mmToPx = (mm) => mm * (96/25.4);
-              const a4HeightMm = 297;
-              const topMarginMm = 8;
-              const bottomMarginMm = 14;
-              const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
-              const pageHeightPx = Math.round(mmToPx(usableHeightMm));
-              
-              // Get actual content height
-              const contentHeight = document.body.scrollHeight;
-              const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
-              
-              // Update all page-total spans
-              document.querySelectorAll('.page-total').forEach(el => el.textContent = String(total));
-              
-              // Update current page based on scroll position (for preview)
-              const updateCurrent = () => {
-                const scrollTop = window.scrollY || window.pageYOffset || 0;
-                const current = Math.min(total, Math.max(1, Math.ceil((scrollTop + pageHeightPx/2) / pageHeightPx)));
-                document.querySelectorAll('.page-current').forEach(el => el.textContent = String(current));
-              };
-              
-              updateCurrent();
-              window.addEventListener('scroll', updateCurrent);
-              window.addEventListener('resize', () => {
-                calculatePages();
-              });
-            }
+            // Default to A4 portrait height 297mm unless page size is known
+            var pageHeightPx = mmToPx(297) || (1122); // fallback px
+            var total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
 
-            // Run after a short delay to ensure content is rendered
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', () => setTimeout(calculatePages, 100));
-            } else {
-              setTimeout(calculatePages, 100);
-            }
-          } catch(e) { 
-            console.error('page numbering script error', e); 
-          }
-        })();
-      </script>
-    `;
+            // compute current page by measuring scrollTop + small offset
+            var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+            var current = Math.min(total, Math.max(1, Math.floor((scrollTop + 1) / pageHeightPx) + 1));
 
-    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div>${footerAndScript}</body></html>`;
+            // Update page-total and page-num
+            var totals = document.querySelectorAll('.print-footer-inpage .page-total');
+            var nums = document.querySelectorAll('.print-footer-inpage .page-num');
+            totals.forEach(function(t){ t.textContent = String(total); });
+            nums.forEach(function(n){ n.textContent = String(current); });
+          }catch(e){ console.warn('computePages failed', e); }
+        }
+
+        // recompute at useful times
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(computePages, 50); });
+        window.addEventListener('load', function(){ setTimeout(computePages, 120); });
+        window.addEventListener('resize', function(){ setTimeout(computePages, 120); });
+        window.addEventListener('scroll', function(){ setTimeout(computePages, 40); }, { passive:true });
+        // matchMedia print
+        if (window.matchMedia) {
+          try{ window.matchMedia('print').addListener(function(){ setTimeout(computePages, 60); }); }catch(e){}
+        }
+
+        // initial
+        setTimeout(computePages, 120);
+      })();
+    </script>
+  `;
+
+  // Add an in-page print footer as a fallback for browsers that support repeated fixed footers on each page
+  const inPageFooter = `<div class="print-footer-inpage" aria-hidden="true"><span class="page-full">Page <span class="page-num">1</span> of <span class="page-total">1</span></span></div>`;
+
+  return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div>${inPageFooter}${footerAndScript}</body></html>`;
   };
 
   // Note: printing now uses the preview dialog (see handlePreviewPrint)
@@ -843,43 +824,8 @@ const FinalIngredientSummary = () => {
         // Give the browser a moment to finish painting the iframe
         setTimeout(() => {
           try {
-            const win = visibleIframe.contentWindow as Window;
-            const doc = win.document;
-            
-            // Calculate page height more accurately
-            const mmToPx = (mm: number) => mm * (96/25.4);
-            const a4HeightMm = 297;
-            const topMarginMm = 8;
-            const bottomMarginMm = 14;
-            const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
-            const pageHeightPx = Math.round(mmToPx(usableHeightMm));
-            
-            // Get the actual content height
-            const contentHeight = doc.body.scrollHeight;
-            const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
-
-            // Clear existing page footers
-            doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
-            
-            // Update main footer for page 1
-            const mainFooter = doc.getElementById('print-footer-main');
-            if (mainFooter) {
-              mainFooter.innerHTML = `Page 1 of ${total}`;
-            }
-
-            // Create footers for pages 2 through total
-            for (let i = 2; i <= total; i++) {
-              const footer = doc.createElement('div');
-              footer.className = 'print-footer print-footer-page';
-              footer.textContent = `Page ${i} of ${total}`;
-              footer.style.position = 'absolute';
-              footer.style.right = '2mm';
-              footer.style.bottom = '2mm';
-              footer.style.marginTop = `${(i - 1) * pageHeightPx}px`;
-              footer.style.color = '#6b7c7b';
-              footer.style.fontSize = '12px';
-              doc.body.appendChild(footer);
-            }
+            // Calculate page height more accurately (not needed when relying on browser headers)
+            // We no longer inject custom footers — let the browser render default headers/footers (page numbers)
 
             // Small delay to ensure footers are rendered before print
             setTimeout(() => {
@@ -887,7 +833,6 @@ const FinalIngredientSummary = () => {
                 try {
                   // Add afterprint listener to clean up and close preview
                   const handleAfterPrint = () => {
-                    doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
                     setPreviewOpen(false);
                     setPreviewHtml(null);
                     visibleIframe.contentWindow?.removeEventListener('afterprint', handleAfterPrint);
@@ -936,34 +881,10 @@ const FinalIngredientSummary = () => {
         
         setTimeout(() => {
           try {
-            const doc = win.document;
-            const mmToPx = (mm: number) => mm * (96/25.4);
-            const a4HeightMm = 297;
-            const topMarginMm = 8;
-            const bottomMarginMm = 14;
-            const usableHeightMm = a4HeightMm - topMarginMm - bottomMarginMm;
-            const pageHeightPx = Math.round(mmToPx(usableHeightMm));
-            
-            const contentHeight = doc.body.scrollHeight;
-            const total = Math.max(1, Math.ceil(contentHeight / pageHeightPx));
+            // const doc = win.document; // not needed when relying on browser headers
+            // No footer injection here; rely on browser headers and native print dialog
 
-            const mainFooter = doc.getElementById('print-footer-main');
-            if (mainFooter) {
-              mainFooter.innerHTML = `Page 1 of ${total}`;
-            }
-
-            for (let i = 2; i <= total; i++) {
-              const footer = doc.createElement('div');
-              footer.className = 'print-footer print-footer-page';
-              footer.textContent = `Page ${i} of ${total}`;
-              footer.style.position = 'absolute';
-              footer.style.right = '2mm';
-              footer.style.bottom = '2mm';
-              footer.style.marginTop = `${(i - 1) * pageHeightPx}px`;
-              footer.style.color = '#6b7c7b';
-              footer.style.fontSize = '12px';
-              doc.body.appendChild(footer);
-            }
+            // No injected footers here either — rely on browser print headers/footers
 
             setTimeout(() => {
               try {
