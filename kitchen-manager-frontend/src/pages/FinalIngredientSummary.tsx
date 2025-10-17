@@ -670,6 +670,23 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
+          /* Allow the two-column grid of cards to break across pages.
+             This ensures rows like [5,6] can split so part of card 5/6
+             can appear on the previous page and the remainder continues
+             on the next page. Individual card fragments should not be
+             split internally. */
+          .cards{
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 12px !important;
+            align-items: start;
+            /* allow the grid to be broken across pages */
+            page-break-inside: auto;
+            break-inside: auto;
+            -webkit-column-break-inside: auto;
+          }
+          /* ensure each fragment stays whole (no internal breaks) */
+          .cards > .card-fragment{ page-break-inside: avoid; break-inside: avoid; }
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
           @page{
