@@ -403,6 +403,7 @@ const RecipeEntry: React.FC = () => {
         <div class="header-left">
           <h1>Recipes</h1>
           <div class="subtitle">${new Date().toLocaleDateString()} &middot; Powered by Kitchen Manager</div>
+          <div class="note">Note: Recipe quantities are shown per 1 Kg of flour.</div>
         </div>
         <div class="header-right">Summary</div>
       </div>
@@ -475,6 +476,7 @@ const RecipeEntry: React.FC = () => {
           margin-top:6px;
           font-weight:500;
         }
+        .note{ font-size:12px; color:var(--text-secondary); margin-top:6px; font-style:italic }
         .header-right{
           font-size:11px;
           color:var(--muted);
