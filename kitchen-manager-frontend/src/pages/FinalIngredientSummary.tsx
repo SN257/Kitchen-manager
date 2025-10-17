@@ -632,8 +632,8 @@ const FinalIngredientSummary = () => {
           body{
             background: #fff;
             padding: 8px;
-            /* ensure printable content doesn't get overlapped by the footer */
-            padding-bottom: 20mm !important;
+            /* For printing rely on @page bottom margin instead of body padding to avoid overlap */
+            padding-bottom: 0 !important;
           }
           .header{
             margin-bottom: 12px;
@@ -679,17 +679,17 @@ const FinalIngredientSummary = () => {
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
           @page{
+            /* Give extra bottom margin so printed content won't overlap the footer */
             size: portrait;
-            margin: 8mm;
+            margin: 12mm 8mm 20mm 8mm; /* top right bottom left */
           }
           /* In printed output, show a fixed footer with page numbers. */
           /* Use CSS counters where supported; hide the JS preview spans in print. */
           .print-footer{
             display: block !important;
             position: fixed !important;
-            right: 8mm !important;
-            /* place footer into the page margin area */
-            bottom: 4mm !important;
+            right: 2px !important; /* user requested 2px from right */
+            bottom: 2px !important; /* user requested 2px from bottom */
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
