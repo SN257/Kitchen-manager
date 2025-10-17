@@ -341,6 +341,9 @@ const FinalIngredientSummary = () => {
           column-count: 2;
           column-gap: 16px;
         }
+        /* JS masonry fallback containers (used when script runs) */
+        .masonry{display:flex;gap:16px}
+        .masonry-col{flex:1;display:flex;flex-direction:column;gap:14px}
         .card{
           display: inline-block;
           width: 100%;
@@ -499,49 +502,39 @@ const FinalIngredientSummary = () => {
           }
         }
       </style>
-    `;
-
-    // Use a masonry script that will distribute cards into two columns by height
-    const script = `
       <script>
-        (function(){
-          try {
-            const root = document.getElementById('cards-root');
-            const cards = root ? Array.from(root.querySelectorAll('.card')) : [];
-            const colCount = 2;
-            const masonry = document.getElementById('masonry');
-            if (!masonry) return;
-            // create columns
-            const cols = [];
-            for (let i = 0; i < colCount; i++) {
-              const c = document.createElement('div');
-              c.className = 'col';
-              masonry.appendChild(c);
-              cols.push(c);
-            }
-            // distribute cards greedily by current column height
+        // Pack cards into two columns to better fill vertical gaps (masonry-like)
+        function packColumns(){
+          try{
+            const container = document.querySelector('.cards');
+            if(!container) return;
+            if(window.matchMedia && window.matchMedia('(max-width:800px)').matches) return;
+            const cards = Array.from(container.querySelectorAll('.card'));
+            if(cards.length === 0) return;
+            const col1 = document.createElement('div'); col1.className='masonry-col';
+            const col2 = document.createElement('div'); col2.className='masonry-col';
+            const cols = [col1, col2];
+            // Greedy packing: append each card to the currently shorter column
             cards.forEach(card => {
-              // find shortest column
-              let minIdx = 0;
-              let minH = cols[0].scrollHeight;
-              for (let i = 1; i < cols.length; i++) {
-                if (cols[i].scrollHeight < minH) { minH = cols[i].scrollHeight; minIdx = i; }
-              }
-              cols[minIdx].appendChild(card);
+              // measure current heights
+              const h0 = cols[0].scrollHeight || 0;
+              const h1 = cols[1].scrollHeight || 0;
+              const idx = h0 <= h1 ? 0 : 1;
+              cols[idx].appendChild(card);
             });
-            // remove original container if present
-            if (root && root.parentNode) root.parentNode.removeChild(root);
-          } catch (e) { console.error('masonry layout failed', e); }
-        })();
-      <\/script>
+            const mason = document.createElement('div'); mason.className='masonry';
+            mason.appendChild(col1); mason.appendChild(col2);
+            container.parentNode.replaceChild(mason, container);
+          }catch(e){ console.error('packColumns failed', e); }
+        }
+        document.addEventListener('DOMContentLoaded', ()=> setTimeout(packColumns, 50));
+        window.addEventListener('load', ()=> setTimeout(packColumns, 50));
+        // Also re-pack before printing
+        window.addEventListener('beforeprint', ()=> packColumns());
+      </script>
     `;
 
-    // Render cards inside a temporary root that script will redistribute into #masonry
-    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}
-      <div id="masonry" class="masonry" aria-hidden="false"></div>
-      <div id="cards-root" style="display:none">${cardHtml}</div>
-      ${script}
-      </body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
   };
 
   // Note: printing now uses the preview dialog (see handlePreviewPrint)
