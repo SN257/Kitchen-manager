@@ -817,6 +817,7 @@ const FinalIngredientSummary = () => {
     if (!foodColumns.length) { alert('No food columns to print'); return; }
     const html = buildCardsHtml(foodColumns);
     // open preview dialog
+    setIframeLoading(true);
     setPreviewHtml(html);
     setPreviewOpen(true);
   };
@@ -844,6 +845,7 @@ const FinalIngredientSummary = () => {
     }
     setSelectionDialogOpen(false);
     const html = buildCardsHtml(cols);
+    setIframeLoading(true);
     setPreviewHtml(html);
     setPreviewOpen(true);
   };
@@ -851,7 +853,22 @@ const FinalIngredientSummary = () => {
   // Preview dialog state and print helper
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(true);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'error'|'info'|'success'|'warning' }>({ open:false, message:'', severity:'info' });
+
+  // Create blob URL when HTML changes (better mobile support than srcdoc)
+  useEffect(() => {
+    if (previewHtml) {
+      const blob = new Blob([previewHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      setPreviewBlobUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+        setPreviewBlobUrl(null);
+      };
+    }
+  }, [previewHtml]);
 
 
 
@@ -865,9 +882,21 @@ const FinalIngredientSummary = () => {
       // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
       const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
       if (visibleIframe && visibleIframe.contentWindow) {
-        // give the browser a moment to finish painting the iframe - longer delay for mobile
+        // Wait longer for mobile devices to ensure iframe is fully loaded
         setTimeout(() => {
           try {
+            // Check if iframe document is loaded
+            const iframeDoc = visibleIframe.contentDocument || visibleIframe.contentWindow!.document;
+            if (!iframeDoc || !iframeDoc.body || iframeDoc.body.children.length === 0) {
+              console.error('iframe not fully loaded');
+              if (isMobile) {
+                alert('Content is still loading. Please wait a moment and try again.');
+              } else {
+                alert('Print failed. Please try again.');
+              }
+              return;
+            }
+            
             visibleIframe.contentWindow!.focus();
             visibleIframe.contentWindow!.print();
           } catch (e) {
@@ -881,7 +910,7 @@ const FinalIngredientSummary = () => {
           }
           setPreviewOpen(false);
           setPreviewHtml(null);
-        }, isMobile ? 500 : 200);
+        }, isMobile ? 1000 : 300);
         return;
       }
     } catch (err) {
@@ -1473,8 +1502,39 @@ const FinalIngredientSummary = () => {
             overflow: 'hidden'
           }}
         >
-          {previewHtml ? (
-            // use iframe with srcdoc for reliable rendering
+          {previewBlobUrl ? (
+            <Box sx={{ position: 'relative', width: '100%', height: window.innerWidth < 900 ? 'calc(100vh - 140px)' : '70vh' }}>
+              {/* Loading indicator */}
+              {iframeLoading && (
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: '50%', 
+                  left: '50%', 
+                  transform: 'translate(-50%, -50%)',
+                  textAlign: 'center',
+                  zIndex: 1
+                }}>
+                  <Typography sx={{ color: '#245D6B', fontSize: 14, mb: 1 }}>Loading preview...</Typography>
+                </Box>
+              )}
+              {/* Use blob URL for better mobile compatibility (srcdoc doesn't work well on mobile) */}
+              <iframe 
+                title='print-preview' 
+                src={previewBlobUrl}
+                onLoad={() => setIframeLoading(false)}
+                style={{ 
+                  width: '100%', 
+                  height: '100%',
+                  border: 0,
+                  backgroundColor: '#fff',
+                  display: 'block',
+                  opacity: iframeLoading ? 0 : 1,
+                  transition: 'opacity 0.3s'
+                }} 
+              />
+            </Box>
+          ) : previewHtml ? (
+            // Fallback to srcdoc if blob URL isn't ready yet
             <iframe 
               title='print-preview' 
               srcDoc={previewHtml} 
