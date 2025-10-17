@@ -231,7 +231,7 @@ const FinalIngredientSummary = () => {
   };
 
   // Build printable card HTML for given columns (cards per food)
-  const buildCardsHtml = (cols: { key:string; name:string }[]) => {
+  const buildCardsHtml = (cols: { key:string; name:string; category?:string }[]) => {
     const headerHtml = `
       <div class="header">
         <div class="header-left">
@@ -242,36 +242,110 @@ const FinalIngredientSummary = () => {
       </div>
     `;
 
-    const cardHtml = cols.map(col => {
-      // build rows for this food from ingredientMatrixRows
-      const rows = ingredientMatrixRows
-        .map(r => ({ ingredientName: r.ingredientName, val: r.perFood[col.key] }))
-        .filter(x => x.val && x.val > 0)
-        .map(x => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">${x.ingredientName}</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${x.val.toFixed(3)} kg</td></tr>`) 
-        .join('');
-  // compute total weight for this food (removed - not displayed in card)
+    // Group cols by category for printing
+    const categoryGroups: { category: string; cols: typeof cols }[] = [];
+    cols.forEach(col => {
+      const cat = col.category || 'Uncategorized';
+      const group = categoryGroups.find(g => g.category === cat);
+      if (group) group.cols.push(col);
+      else categoryGroups.push({ category: cat, cols: [col] });
+    });
 
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">${col.name}</div>
-            <div class="card-badge">${rows ? ingredientMatrixRows.filter(r => r.perFood[col.key] && r.perFood[col.key] > 0).length : 0} items</div>
-          </div>
-          <div class="card-body">
-            <table class="card-table">
-              <thead>
-                <tr>
-                  <th class="ing-col">Ingredient</th>
-                  <th class="wt-col">Weight</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows || `<tr class="empty-row"><td class="ing-col" colspan="2">No ingredients</td></tr>`}
-              </tbody>
-            </table>
-          </div>
+    const cardHtml = categoryGroups.map(group => {
+      const categoryHeaderHtml = `
+        <div class="category-header">
+          <div class="category-title">${group.category}</div>
+          <div class="category-count">${group.cols.length} recipe${group.cols.length > 1 ? 's' : ''}</div>
         </div>
       `;
+      
+      const cardsInCategory = group.cols.map(col => {
+        // build rows for this food from ingredientMatrixRows (data rows)
+        const dataRows = ingredientMatrixRows
+          .map(r => ({ ingredientName: r.ingredientName, val: r.perFood[col.key] }))
+          .filter(x => x.val && x.val > 0);
+
+        // If there are no ingredients, render a single empty fragment
+        if (!dataRows.length) {
+          return `
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">${col.name}</div>
+                <div class="card-badge">0 items</div>
+              </div>
+              <div class="card-body">
+                <table class="card-table">
+                  <colgroup>
+                    <col style="width:36px" />
+                    <col />
+                    <col style="width:110px" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="num-col">#</th>
+                      <th class="ing-col">Ingredient</th>
+                      <th class="wt-col">Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="empty-row"><td class="ing-col" colspan="3">No ingredients</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }
+
+        // Conservative estimate of rows that fit in a printed card fragment
+        // This depends on font-size, paddings and page size; 18 is a safe starting point
+        const rowsPerFragment = 18;
+        const fragments: string[] = [];
+        const totalFragments = Math.max(1, Math.ceil(dataRows.length / rowsPerFragment));
+
+        for (let f = 0; f < totalFragments; f++) {
+          const slice = dataRows.slice(f * rowsPerFragment, (f + 1) * rowsPerFragment);
+          const rowsHtml = slice.map((x, idx) => {
+            const globalIndex = f * rowsPerFragment + idx + 1;
+            return `<tr><td class="num-col">${globalIndex}</td><td class="ing-col">${x.ingredientName}</td><td class="wt-col">${x.val.toFixed(3)} kg</td></tr>`;
+          }).join('');
+
+          const continuedLabel = totalFragments > 1 && f > 0 ? '<span class="continued-badge">(continued)</span>' : '';
+          const footerContinued = totalFragments > 1 && f < totalFragments - 1 ? '<div class="continue-footer">Continued on next page...</div>' : '';
+
+          fragments.push(`
+            <div class="card card-fragment">
+              <div class="card-header">
+                <div class="card-title">${col.name} ${continuedLabel}</div>
+                <div class="card-badge">${dataRows.length} items</div>
+              </div>
+              <div class="card-body">
+                <table class="card-table">
+                  <colgroup>
+                    <col style="width:36px" />
+                    <col />
+                    <col style="width:110px" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="num-col">#</th>
+                      <th class="ing-col">Ingredient</th>
+                      <th class="wt-col">Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+              ${footerContinued}
+            </div>
+          `);
+        }
+
+        return fragments.join('');
+      }).join('');
+
+      return categoryHeaderHtml + `<div class="cards">${cardsInCategory}</div>`;
     }).join('');
 
     const styles = `
@@ -336,6 +410,39 @@ const FinalIngredientSummary = () => {
           margin-right:12px;
         }
         
+        /* Category Header for grouped sections */
+        .category-header{
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: linear-gradient(135deg, rgba(36,93,107,0.08) 0%, rgba(36,93,107,0.04) 100%);
+          border-left: 4px solid var(--brand);
+          padding: 12px 18px;
+          margin-top: 24px;
+          margin-bottom: 16px;
+          border-radius: 6px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .category-header:first-of-type{
+          margin-top: 0;
+        }
+        .category-title{
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--brand);
+          letter-spacing: -0.01em;
+        }
+        .category-count{
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--muted);
+          background: rgba(255,255,255,0.8);
+          padding: 4px 10px;
+          border-radius: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
         /* Card Grid: two-column grid where cards in the same row have equal height.
            Each card uses flex-column so its body can grow while table rows stay natural height. */
         .cards{
@@ -343,6 +450,7 @@ const FinalIngredientSummary = () => {
           grid-template-columns: 1fr 1fr;
           gap: 16px;
           align-items: stretch;
+          margin-bottom: 16px;
         }
         .card{
           display: flex;
@@ -413,20 +521,29 @@ const FinalIngredientSummary = () => {
         .card-table thead{ display: table-header-group; }
         .card-table thead th{
           background: var(--brand-lighter);
-          padding: 10px 14px;
+          padding: 10px 12px;
           font-weight: 600;
           font-size: 12px;
           color: var(--brand-dark);
           text-transform: uppercase;
           letter-spacing: 0.5px;
           border-bottom: 2px solid var(--brand);
-  }
+          box-sizing: border-box;
+        }
         .card-table thead th.ing-col{ 
           text-align: left;
         }
         .card-table thead th.wt-col{ 
           text-align: right; 
           width: 110px;
+        }
+
+        /* Number column */
+        .num-col{
+          width: 36px;
+          text-align: center;
+          font-weight: 700;
+          color: var(--brand-dark);
         }
         
         /* Table Body Rows with Hover Effect */
@@ -447,13 +564,15 @@ const FinalIngredientSummary = () => {
         
         /* Table Cells */
         .card-table td{
-          padding: 11px 14px;
+          padding: 10px 12px;
           vertical-align: middle;
+          box-sizing: border-box;
         }
         .ing-col{
           word-break: break-word;
           color: var(--text-primary);
           font-weight: 500;
+          text-align: left;
         }
         .wt-col{
           width: 110px;
@@ -470,6 +589,42 @@ const FinalIngredientSummary = () => {
           padding: 24px;
           font-style: italic;
         }
+
+        /* Continuation indicators when a card is split across pages */
+        .continued-badge{
+          display:inline-block;
+          font-size:12px;
+          color: rgba(255,255,255,0.9);
+          background: rgba(0,0,0,0.12);
+          padding: 2px 8px;
+          border-radius: 10px;
+          margin-left: 8px;
+          font-weight:600;
+          vertical-align: middle;
+        }
+        .continue-footer{
+          font-size:12px;
+          color: var(--muted);
+          padding: 8px 14px;
+          text-align: right;
+          border-top: 1px dashed var(--border);
+          margin-top: 8px;
+        }
+
+        /* Footer for preview showing current page / total pages */
+        .print-footer{
+          position: fixed;
+          right: 18px;
+          bottom: 12px;
+          background: rgba(255,255,255,0.95);
+          padding: 6px 10px;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+          font-size: 12px;
+          color: var(--muted);
+          z-index: 9999;
+        }
         
         /* Print Styles */
         /* Print Styles: use columns for printed pages so vertical flow matches preview */
@@ -482,11 +637,20 @@ const FinalIngredientSummary = () => {
             margin-bottom: 12px;
             padding: 10px 0 12px;
           }
+          .category-header{
+            margin-top: 16px;
+            margin-bottom: 12px;
+            page-break-after: avoid;
+          }
+          .category-header:first-of-type{
+            margin-top: 0;
+          }
           .cards { 
             display: grid !important; 
             grid-template-columns: 1fr 1fr !important; 
             gap: 12px !important; 
-            align-items: stretch; 
+            align-items: stretch;
+            margin-bottom: 12px;
           }
           .card { 
             display: flex !important; 
@@ -496,22 +660,79 @@ const FinalIngredientSummary = () => {
             margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
+            /* allow card fragments to break across pages; individual fragments should avoid internal breaks */
+            page-break-inside: auto;
           }
+          .card-fragment{ page-break-inside: avoid; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
-          /* Do not repeat card table headers when a card is split across pages - show header only once per card */
-          .card-table thead { display: table-row-group !important; }
+          /* Ensure table headers behave as header group so columns align with data when printing */
+          .card-table thead { display: table-header-group !important; }
           @page{
             size: portrait;
             margin: 8mm;
           }
+          /* In printed output, show a fixed footer with page numbers. */
+          /* Use CSS counters where supported; hide the JS preview spans in print. */
+          .print-footer{
+            display: block !important;
+            position: fixed !important;
+            right: 8mm !important;
+            bottom: 8mm !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            color: var(--muted) !important;
+            font-size: 12px !important;
+            z-index: 9999 !important;
+          }
+          /* Hide the JS-updated spans when printing; CSS will supply counters if supported */
+          .print-footer .page-current, .print-footer .page-total{ display:none !important; }
+          /* Try to place page numbering using a pseudo-element and CSS counters (support varies) */
+          /* If the footer was populated with explicit text by JS, don't also render the CSS counter */
+          .print-footer.print-text:after{ content: none !important; }
+          .print-footer:after{ content: "Page " counter(page) " of " counter(pages); }
         }
       </style>
     `;
 
-    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
+  // Footer HTML and JS to compute page numbers for preview; print CSS will use counters where supported.
+  // Note: CSS paged-media counters and fixed-position printing support vary by browser/printer.
+  // The JS preview footer provides reliable feedback to users; printed output may rely on
+  // CSS counters or the browser's handling of fixed elements as a fallback.
+    const footerAndScript = `
+      <div class="print-footer">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
+      <script>
+        (function(){
+          try{
+            // Convert millimeters to CSS pixels (assuming 96dpi for preview measurement)
+            const mmToPx = mm => mm * (96/25.4);
+            // A4 portrait height (mm) minus @page vertical margins (8mm top + 8mm bottom as in styles)
+            const contentHeightMm = 297 - 16;
+            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+
+            const updateTotals = () => {
+              const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
+              document.querySelectorAll('.page-total').forEach(el => el.textContent = String(total));
+              // update current page based on scroll position for the preview iframe
+              const current = Math.min(total, Math.max(1, Math.ceil((window.scrollY + 1) / pageHeightPx)));
+              document.querySelectorAll('.page-current').forEach(el => el.textContent = String(current));
+            };
+
+            // Run once after rendering
+            setTimeout(updateTotals, 120);
+            // Update on resize/scroll to reflect preview navigation
+            window.addEventListener('resize', updateTotals);
+            window.addEventListener('scroll', updateTotals);
+          } catch(e) { console.error('page numbering script error', e); }
+        })();
+      </script>
+    `;
+
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div>${cardHtml}</div>${footerAndScript}</body></html>`;
   };
 
   // Note: printing now uses the preview dialog (see handlePreviewPrint)
@@ -568,6 +789,23 @@ const FinalIngredientSummary = () => {
         // give the browser a moment to finish painting the iframe
         setTimeout(() => {
           try {
+            // Attempt to compute page counts inside the iframe and write explicit footer text
+            try {
+              const win = visibleIframe.contentWindow as Window;
+              const doc = win.document;
+              const mmToPx = (mm: number) => mm * (96/25.4);
+              const contentHeightMm = 297 - 16;
+              const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+              const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
+              // write explicit footer text nodes so printers without CSS counters still receive numbers
+              const foot = doc.querySelector('.print-footer') as HTMLElement | null;
+              if (foot) {
+                foot.style.display = 'block';
+                foot.classList.add('print-text');
+                foot.textContent = `Page 1 of ${total}`;
+              }
+            } catch (e) { console.warn('failed to compute page counts in iframe', e); }
+
             visibleIframe.contentWindow!.focus();
             visibleIframe.contentWindow!.print();
           } catch (e) {
@@ -602,7 +840,23 @@ const FinalIngredientSummary = () => {
         if (!win) throw new Error('no iframe window');
         // slight delay to ensure fonts/images are painted
         setTimeout(() => {
-          try { win.focus(); win.print(); } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
+          try {
+            // attempt same page count write as done for visible iframe
+            try {
+              const doc = win.document;
+              const mmToPx = (mm: number) => mm * (96/25.4);
+              const contentHeightMm = 297 - 16;
+              const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+              const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
+              const foot = doc.querySelector('.print-footer') as HTMLElement | null;
+              if (foot) {
+                foot.style.display = 'block';
+                foot.classList.add('print-text');
+                foot.textContent = `Page 1 of ${total}`;
+              }
+            } catch (e) { console.warn('failed to compute page counts in iframe', e); }
+            win.focus(); win.print();
+          } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
         }, 200);
       } catch (e) {
@@ -749,7 +1003,7 @@ const FinalIngredientSummary = () => {
       else grouped.push({ category: c.category || 'Uncategorized', cols: [c] });
     });
 
-    return { ingredientMatrixRows: rows, foodColumns: displayCols, groupedColumns: grouped };
+    return { ingredientMatrixRows: rows, foodColumns: displayColsWithCategory, groupedColumns: grouped };
   }, [finalRows, recipes, foodItems]);
 
   // Compute a reasonable minimum table width so many food columns force horizontal scroll
@@ -1011,40 +1265,73 @@ const FinalIngredientSummary = () => {
         <DialogContent>
           <DialogContentText sx={{ mb:2 }}>Choose one or more recipes. Selected recipes will be rendered as cards when printing.</DialogContentText>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 2 }}>
-            {foodColumns.map(col => {
-              const isSelected = selectedFoodKeys.includes(col.key);
-              const itemCount = ingredientMatrixRows.filter(r => r.perFood[col.key] && r.perFood[col.key] > 0).length;
-              return (
-                <Paper
-                  key={col.key}
-                  onClick={() => toggleFoodKey(col.key)}
-                  elevation={isSelected ? 6 : 1}
-                  sx={{
-                    p:1.25,
-                    display:'flex',
-                    flexDirection:'column',
-                    gap:1,
-                    cursor:'pointer',
-                    borderRadius:2,
-                    border: isSelected ? '2px solid var(--brand)' : '1px solid rgba(0,0,0,0.06)',
-                    background: isSelected ? 'linear-gradient(180deg, rgba(36,93,107,0.06), rgba(36,93,107,0.02))' : '#fff'
+          {/* Group foods by category */}
+          {(() => {
+            // Create a map of category to foods
+            const categoryMap = new Map<string, typeof foodColumns>();
+            foodColumns.forEach(col => {
+              const cat = col.category || 'Other';
+              if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+              categoryMap.get(cat)!.push(col);
+            });
+
+            // Render each category group
+            return Array.from(categoryMap.entries()).map(([category, cols]) => (
+              <Box key={category} sx={{ mb: 3 }}>
+                {/* Category Header */}
+                <Typography 
+                  sx={{ 
+                    fontSize: 16, 
+                    fontWeight: 700, 
+                    color: '#245D6B',
+                    mb: 1.5,
+                    pb: 0.5,
+                    borderBottom: '2px solid #245D6B',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
                   }}
                 >
-                  <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <Typography sx={{ fontWeight:700, fontSize:14, color: isSelected ? '#163f3a' : '#133f3a' }}>{col.name}</Typography>
-                    <Checkbox
-                      checked={isSelected}
-                      onChange={(e) => { e.stopPropagation(); toggleFoodKey(col.key); }}
-                      onClick={(e) => e.stopPropagation()}
-                      sx={{ p:0, color:'#245D6B', '&.Mui-checked': { color: '#245D6B' } }}
-                    />
-                  </Box>
-                  <Typography variant='body2' sx={{ color:'#4a5568' }}>{itemCount} ingredients</Typography>
-                </Paper>
-              );
-            })}
-          </Box>
+                  {category}
+                </Typography>
+
+                {/* Food Items Grid */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 2 }}>
+                  {cols.map(col => {
+                    const isSelected = selectedFoodKeys.includes(col.key);
+                    const itemCount = ingredientMatrixRows.filter(r => r.perFood[col.key] && r.perFood[col.key] > 0).length;
+                    return (
+                      <Paper
+                        key={col.key}
+                        onClick={() => toggleFoodKey(col.key)}
+                        elevation={isSelected ? 6 : 1}
+                        sx={{
+                          p:1.25,
+                          display:'flex',
+                          flexDirection:'column',
+                          gap:1,
+                          cursor:'pointer',
+                          borderRadius:2,
+                          border: isSelected ? '2px solid var(--brand)' : '1px solid rgba(0,0,0,0.06)',
+                          background: isSelected ? 'linear-gradient(180deg, rgba(36,93,107,0.06), rgba(36,93,107,0.02))' : '#fff'
+                        }}
+                      >
+                        <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                          <Typography sx={{ fontWeight:700, fontSize:14, color: isSelected ? '#163f3a' : '#133f3a' }}>{col.name}</Typography>
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={(e) => { e.stopPropagation(); toggleFoodKey(col.key); }}
+                            onClick={(e) => e.stopPropagation()}
+                            sx={{ p:0, color:'#245D6B', '&.Mui-checked': { color: '#245D6B' } }}
+                          />
+                        </Box>
+                        <Typography variant='body2' sx={{ color:'#4a5568' }}>{itemCount} ingredients</Typography>
+                      </Paper>
+                    );
+                  })}
+                </Box>
+              </Box>
+            ));
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={()=> setSelectionDialogOpen(false)} size='small' sx={{ color:'#245D6B', textTransform:'none' }}>Cancel</Button>
