@@ -501,7 +501,47 @@ const FinalIngredientSummary = () => {
       </style>
     `;
 
-    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}<div class="cards">${cardHtml}</div></body></html>`;
+    // Use a masonry script that will distribute cards into two columns by height
+    const script = `
+      <script>
+        (function(){
+          try {
+            const root = document.getElementById('cards-root');
+            const cards = root ? Array.from(root.querySelectorAll('.card')) : [];
+            const colCount = 2;
+            const masonry = document.getElementById('masonry');
+            if (!masonry) return;
+            // create columns
+            const cols = [];
+            for (let i = 0; i < colCount; i++) {
+              const c = document.createElement('div');
+              c.className = 'col';
+              masonry.appendChild(c);
+              cols.push(c);
+            }
+            // distribute cards greedily by current column height
+            cards.forEach(card => {
+              // find shortest column
+              let minIdx = 0;
+              let minH = cols[0].scrollHeight;
+              for (let i = 1; i < cols.length; i++) {
+                if (cols[i].scrollHeight < minH) { minH = cols[i].scrollHeight; minIdx = i; }
+              }
+              cols[minIdx].appendChild(card);
+            });
+            // remove original container if present
+            if (root && root.parentNode) root.parentNode.removeChild(root);
+          } catch (e) { console.error('masonry layout failed', e); }
+        })();
+      <\/script>
+    `;
+
+    // Render cards inside a temporary root that script will redistribute into #masonry
+    return `<!doctype html><html><head><meta charset="utf-8">${styles}</head><body>${headerHtml}
+      <div id="masonry" class="masonry" aria-hidden="false"></div>
+      <div id="cards-root" style="display:none">${cardHtml}</div>
+      ${script}
+      </body></html>`;
   };
 
   // Note: printing now uses the preview dialog (see handlePreviewPrint)
