@@ -373,7 +373,18 @@ const FinalIngredientSummary = () => {
         }
         
         /* Page number container */
-        
+        .page-number {
+          position: fixed;
+          bottom: 1mm; /* increased bottom margin for preview overlay */
+          right: 6mm;   /* reduced right margin so overlay sits closer to edge */
+          font-size: 11px;
+          color: var(--muted);
+          font-weight: 600;
+          
+          padding: 6px 12px;
+          
+          z-index: 1000;
+        }
         
         /* Header Section */
         .header{
@@ -663,9 +674,11 @@ const FinalIngredientSummary = () => {
           .card-table thead { display: table-header-group !important; }
           @page{
             size: portrait;
-            margin: 8mm;
+            /* top right bottom left -> reduce right margin, increase bottom margin */
+            margin: 8mm 6mm 15mm 8mm;
             @bottom-right {
-              content: counter(page) " / " counter(pages);
+              /* show as: Page 1 of 7 */
+              content: "Page " counter(page) " of " counter(pages);
               font-size: 11px;
               color: #6b7c7b;
               font-weight: 600;
@@ -685,7 +698,7 @@ const FinalIngredientSummary = () => {
           const totalPages = Math.ceil(document.body.scrollHeight / pageHeight);
           const pageNumEl = document.getElementById('page-num');
           if (pageNumEl) {
-            pageNumEl.textContent = currentPage + ' / ' + totalPages;
+            pageNumEl.textContent = 'Page ' + currentPage + ' of ' + totalPages;
           }
         };
         
