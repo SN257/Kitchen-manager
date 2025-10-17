@@ -651,9 +651,27 @@ const FinalIngredientSummary = () => {
         /* Print Styles */
         /* Print Styles: use columns for printed pages so vertical flow matches preview */
         @media print {
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+          }
           body{
             background: #fff;
             padding: 8px;
+            padding-bottom: 20mm !important; /* Extra padding at bottom to prevent cut-off */
+          }
+          .print-wrapper {
+            width: 100%;
+            height: auto !important;
+            overflow: visible !important;
+            min-height: 100%;
+            padding-bottom: 30mm; /* Ensure space for last cards */
+            orphans: 3;
+            widows: 3;
+          }
+          * {
+            orphans: 3 !important;
+            widows: 3 !important;
           }
           .page-number {
             display: block;
@@ -678,6 +696,8 @@ const FinalIngredientSummary = () => {
             display: block !important; 
             width: 100% !important;
             margin-bottom: 12px;
+            min-height: auto !important;
+            overflow: visible !important;
           }
           .card {
             margin-bottom: 16px !important;
@@ -701,14 +721,25 @@ const FinalIngredientSummary = () => {
             background: #fff;
             border: 1px solid var(--border);
             border-radius: 12px !important;
-            /* Allow cards to break across pages for long content, but try to keep together */
+            /* Keep cards together - prevent breaking */
             height: auto !important;
             overflow: visible;
-            page-break-inside: avoid;
-            break-inside: avoid;
-            /* Ensure card doesn't get cut off at page bottom */
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            /* If card doesn't fit, move to next page */
+            page-break-before: auto;
+            break-before: auto;
             page-break-after: auto;
             break-after: auto;
+            /* Ensure visibility */
+            position: relative;
+            z-index: 1;
+          }
+          /* Force last card to have extra space */
+          .card:last-child {
+            margin-bottom: 20mm !important;
+            page-break-after: always;
+            break-after: always;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -802,7 +833,7 @@ const FinalIngredientSummary = () => {
       </style>
     `;
 
-    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">${styles}</head><body>${headerHtml}<div>${cardHtml}</div><div class="page-number"><span id="page-num"></span></div><script>
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">${styles}</head><body><div class="print-wrapper">${headerHtml}<div>${cardHtml}</div></div><div class="page-number"><span id="page-num"></span></div><script>
       // Calculate and display page numbers
       if (window.matchMedia) {
         const updatePageNumber = () => {
