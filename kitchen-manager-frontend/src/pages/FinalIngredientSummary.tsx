@@ -703,8 +703,6 @@ const FinalIngredientSummary = () => {
           /* Hide the JS-updated spans when printing; CSS will supply counters if supported */
           .print-footer .page-current, .print-footer .page-total{ display:none !important; }
           /* Try to place page numbering using a pseudo-element and CSS counters (support varies) */
-          /* If the footer was populated with explicit text by JS, don't also render the CSS counter */
-          .print-footer.print-text:after{ content: none !important; }
           .print-footer:after{ content: "Page " counter(page) " of " counter(pages); }
         }
       </style>
@@ -802,21 +800,8 @@ const FinalIngredientSummary = () => {
         setTimeout(() => {
           try {
             // Attempt to compute page counts inside the iframe and write explicit footer text
-            try {
-              const win = visibleIframe.contentWindow as Window;
-              const doc = win.document;
-              const mmToPx = (mm: number) => mm * (96/25.4);
-              const contentHeightMm = 297 - 16;
-              const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
-              const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
-              // write explicit footer text nodes so printers without CSS counters still receive numbers
-              const foot = doc.querySelector('.print-footer') as HTMLElement | null;
-              if (foot) {
-                foot.style.display = 'block';
-                foot.classList.add('print-text');
-                foot.textContent = `Page 1 of ${total}`;
-              }
-            } catch (e) { console.warn('failed to compute page counts in iframe', e); }
+            // For printing, rely on CSS counters; preview already shows dynamic spans.
+            // No additional footer mutation needed beyond ensuring iframe is focused.
 
             visibleIframe.contentWindow!.focus();
             visibleIframe.contentWindow!.print();
@@ -854,19 +839,7 @@ const FinalIngredientSummary = () => {
         setTimeout(() => {
           try {
             // attempt same page count write as done for visible iframe
-            try {
-              const doc = win.document;
-              const mmToPx = (mm: number) => mm * (96/25.4);
-              const contentHeightMm = 297 - 16;
-              const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
-              const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
-              const foot = doc.querySelector('.print-footer') as HTMLElement | null;
-              if (foot) {
-                foot.style.display = 'block';
-                foot.classList.add('print-text');
-                foot.textContent = `Page 1 of ${total}`;
-              }
-            } catch (e) { console.warn('failed to compute page counts in iframe', e); }
+            // rely on CSS counters for printed page numbering (no additional DOM mutation)
             win.focus(); win.print();
           } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
