@@ -699,6 +699,19 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
+            /* Prevent breaking between card header and table - keep them together */
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          /* Ensure card body (table) doesn't break away from header */
+          .card-body {
+            page-break-before: avoid;
+            break-before: avoid;
+          }
+          /* Prevent table header from being orphaned from data rows */
+          .card-table thead {
+            page-break-after: avoid;
+            break-after: avoid;
           }
           .card-header .card-title {
             font-size: 15px !important;
