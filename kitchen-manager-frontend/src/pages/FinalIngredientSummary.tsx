@@ -553,8 +553,6 @@ const FinalIngredientSummary = () => {
           width: 100%;
           border-collapse: collapse;
           font-size: 13px;
-          /* Remove borders to avoid partial borders showing when page breaks */
-          border: none;
         }
         /* Ensure the table header repeats when a table is broken across pages/columns */
         .card-table thead{ display: table-header-group; }
@@ -567,10 +565,6 @@ const FinalIngredientSummary = () => {
           text-transform: uppercase;
           letter-spacing: 0.5px;
           border-bottom: 2px solid var(--brand);
-          /* Remove side/top borders to avoid partial borders */
-          border-top: none;
-          border-left: none;
-          border-right: none;
           box-sizing: border-box;
         }
         .card-table thead th.ing-col{ 
@@ -593,10 +587,6 @@ const FinalIngredientSummary = () => {
         .card-table tbody tr{
           background: #fff;
           border-bottom: 1px solid var(--border);
-          /* Remove side borders to avoid partial borders at page breaks */
-          border-left: none;
-          border-right: none;
-          border-top: none;
           transition: background-color 0.15s ease;
         }
         .card-table tbody tr:last-child{
@@ -614,8 +604,6 @@ const FinalIngredientSummary = () => {
           padding: 10px 12px;
           vertical-align: middle;
           box-sizing: border-box;
-          /* Remove cell borders to avoid partial borders */
-          border: none;
         }
         .ing-col{
           word-break: break-word;
@@ -704,14 +692,6 @@ const FinalIngredientSummary = () => {
             height: auto !important;
             page-break-inside: auto;
             break-inside: auto;
-            /* Use border-box to contain internal borders properly */
-            box-sizing: border-box !important;
-            overflow: hidden;
-          }
-          /* Remove card borders during breaks to avoid partial borders */
-          .card-body {
-            /* Add top border on card-body to act as table container border */
-            border-top: 1px solid var(--border);
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -719,17 +699,7 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
-            /* Avoid leaving the header orphaned at the bottom of a printed page */
-            page-break-after: avoid;
-            break-after: avoid;
           }
-          /* Remove card borders during breaks to avoid partial borders */
-          .card-body {
-            /* Add top border on card-body to act as table container border */
-            border-top: 1px solid var(--border);
-          }
-          /* Keep the card body with the header so header + table top move together */
-          .card-body { page-break-before: avoid; break-before: avoid; }
           .card-header .card-title {
             font-size: 15px !important;
             line-height: 1.1 !important;
@@ -748,10 +718,6 @@ const FinalIngredientSummary = () => {
           }
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
-          /* avoid breaking within thead so header isn't orphaned */
-          .card-table thead { page-break-inside: avoid; break-inside: avoid; }
-          /* Also avoid breaking immediately before table body so thead stays with the first rows */
-          .card-table tbody { page-break-before: avoid; break-before: avoid; }
           @page{
             size: portrait;
             /* top right bottom left -> reduce right margin, increase bottom margin */
