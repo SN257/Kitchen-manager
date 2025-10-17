@@ -673,35 +673,42 @@ const FinalIngredientSummary = () => {
           .category-header:first-of-type{
             margin-top: 0;
           }
-          /* Use two-column grid in print (like on-screen) but allow breaks inside cards so long cards paginate */
+          /* Use single-column grid for all print to avoid cut-off cards */
           .cards { 
-            display: grid !important; 
-            grid-template-columns: 1fr !important; 
-            gap: 12px !important; 
-            align-items: stretch;
+            display: block !important; 
+            width: 100% !important;
             margin-bottom: 12px;
           }
-          /* Two columns only on larger screens (desktop printers) */
-          @media print and (min-width: 768px) {
+          .card {
+            margin-bottom: 16px !important;
+          }
+          /* Two columns only for landscape orientation on large screens */
+          @media print and (min-width: 1024px) and (orientation: landscape) {
             .cards { 
+              display: grid !important;
               grid-template-columns: 1fr 1fr !important; 
+              gap: 12px !important; 
+            }
+            .card {
+              margin-bottom: 12px !important;
             }
           }
           .card { 
             display: block !important; 
             width: 100% !important; 
             margin: 0 !important; 
-            margin-bottom: 12px !important;
             box-shadow: none;
             background: #fff;
             border: 1px solid var(--border);
             border-radius: 12px !important;
-            /* Allow cards to break across pages for long content */
+            /* Allow cards to break across pages for long content, but try to keep together */
             height: auto !important;
             overflow: visible;
-            /* Try to keep cards together when possible, but allow breaking if needed */
-            page-break-inside: auto;
-            break-inside: auto;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            /* Ensure card doesn't get cut off at page bottom */
+            page-break-after: auto;
+            break-after: auto;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -775,13 +782,13 @@ const FinalIngredientSummary = () => {
           /* Default page setup - auto size adapts to device */
           @page{
             size: auto;
-            /* top right bottom left */
-            margin: 10mm 8mm 12mm 8mm;
+            /* top right bottom left - smaller margins for mobile/tablet */
+            margin: 8mm;
           }
-          /* Desktop/larger screens - use portrait with specific margins */
-          @media print and (min-width: 768px) {
+          /* Desktop/larger screens in landscape - use optimized layout */
+          @media print and (min-width: 1024px) and (orientation: landscape) {
             @page{
-              size: portrait;
+              size: landscape;
               margin: 8mm 6mm 15mm 8mm;
               @bottom-right {
                 content: "Page " counter(page) " of " counter(pages);
