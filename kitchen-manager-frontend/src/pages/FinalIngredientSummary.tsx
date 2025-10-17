@@ -615,7 +615,7 @@ const FinalIngredientSummary = () => {
         .print-footer{
           position: fixed;
           right: 18px;
-          bottom: 12px;
+          bottom: 18px;
           background: rgba(255,255,255,0.95);
           padding: 6px 10px;
           border-radius: 6px;
@@ -632,6 +632,8 @@ const FinalIngredientSummary = () => {
           body{
             background: #fff;
             padding: 8px;
+            /* ensure printable content doesn't get overlapped by the footer */
+            padding-bottom: 20mm !important;
           }
           .header{
             margin-bottom: 12px;
@@ -680,7 +682,8 @@ const FinalIngredientSummary = () => {
             display: block !important;
             position: fixed !important;
             right: 8mm !important;
-            bottom: 8mm !important;
+            /* place footer into the page margin area */
+            bottom: 4mm !important;
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -704,6 +707,7 @@ const FinalIngredientSummary = () => {
   // The JS preview footer provides reliable feedback to users; printed output may rely on
   // CSS counters or the browser's handling of fixed elements as a fallback.
     const footerAndScript = `
+      <div style="height:48px;">&nbsp;</div>
       <div class="print-footer">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
       <script>
         (function(){
