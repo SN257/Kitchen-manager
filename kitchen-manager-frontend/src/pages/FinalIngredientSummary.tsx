@@ -208,18 +208,58 @@ const FinalIngredientSummary = () => {
       
       // Capture with html2canvas
       const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false, backgroundColor: '#fff' });
+
+      // Create PDF in portrait orientation (A4)
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidthPt = pdf.internal.pageSize.getWidth();
+      const pageHeightPt = pdf.internal.pageSize.getHeight();
+      const marginPt = 20; // small margin
+
+      // Convert full canvas to image data
       const imgData = canvas.toDataURL('image/png');
-      
-      // Create PDF
-  // Create PDF in portrait orientation to match printed pages
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
       const imgProps = (pdf as any).getImageProperties(imgData);
-      const imgWidth = pageWidth - 40;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-      
-      // Add image to PDF
-      pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight);
+
+      // We will fit image width to pageWidth - 2*margin
+      const imgWidthPt = pageWidthPt - marginPt * 2;
+  // imgHeightPt intentionally unused — we compute slice heights per canvas slice
+
+      // Scale factor: how many pts per canvas px
+      const ptsPerPx = imgWidthPt / imgProps.width;
+
+      // Determine slice height in canvas px that fits one PDF page (account for top/bottom margins)
+      const availablePageHeightPt = pageHeightPt - marginPt * 2 - 20; // extra space for page number
+      const sliceHeightPx = Math.floor(availablePageHeightPt / ptsPerPx);
+
+      const totalSlices = Math.max(1, Math.ceil(canvas.height / sliceHeightPx));
+
+      // Draw each slice onto the PDF as a separate page and stamp page numbers
+      for (let i = 0; i < totalSlices; i++) {
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = canvas.width;
+        tmpCanvas.height = Math.min(sliceHeightPx, canvas.height - i * sliceHeightPx);
+        const ctx = tmpCanvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to get canvas context');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
+        ctx.drawImage(canvas, 0, i * sliceHeightPx, tmpCanvas.width, tmpCanvas.height, 0, 0, tmpCanvas.width, tmpCanvas.height);
+        const sliceData = tmpCanvas.toDataURL('image/png');
+
+        // Calculate height in pt for this slice
+        const sliceHeightPt = tmpCanvas.height * ptsPerPx;
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(sliceData, 'PNG', marginPt, marginPt, imgWidthPt, sliceHeightPt);
+
+        // Add page number at bottom center
+        const pageNumText = `Page ${i + 1} of ${totalSlices}`;
+        pdf.setFontSize(10);
+        pdf.setTextColor('#6b7c7b');
+        const textWidth = (pdf as any).getTextWidth ? (pdf as any).getTextWidth(pageNumText) : (pdf as any).getStringUnitWidth(pageNumText) * 10;
+        const x = (pageWidthPt - textWidth) / 2;
+        const y = pageHeightPt - marginPt + 6;
+        pdf.text(pageNumText, x, y);
+      }
+
       pdf.save(`FinalIngredientSummary_${new Date().toISOString().slice(0,10)}.pdf`);
       
       // Cleanup
@@ -812,6 +852,90 @@ const FinalIngredientSummary = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'error'|'info'|'success'|'warning' }>({ open:false, message:'', severity:'info' });
+
+  // When the Print Table dialog is opened, install a global print footer and JS
+  // so printed Table output shows the same "Page X of Y" UI as the iframe preview.
+  useEffect(() => {
+    if (!printDialogOpen) return undefined;
+
+    const styleId = 'kms-global-print-footer-style';
+    const footerId = 'kms-global-print-footer';
+
+    // Inject style if missing
+    if (!document.getElementById(styleId)) {
+      const styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      styleEl.innerHTML = `
+        .global-print-footer{ display:block; position: fixed; right: 6mm; bottom: 4mm; color: #6b7c7b; font-size: 12px; z-index: 9999; }
+        .global-print-footer .page-full{ white-space: nowrap; display: inline-block; padding: 2px 6px; background: rgba(255,255,255,0.9); border-radius: 4px; }
+        .global-print-footer .page-full .page-num,
+        .global-print-footer .page-full .page-total{ font-weight:700; color: #245D6B; margin: 0 4px; }
+        @media print {
+          /* ensure print footer appears in printed pages where supported */
+          .global-print-footer{ display:block !important; }
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+
+    // Create footer element
+    let footer = document.getElementById(footerId) as HTMLElement | null;
+    if (!footer) {
+      footer = document.createElement('div');
+      footer.id = footerId;
+      footer.className = 'global-print-footer';
+      footer.setAttribute('aria-hidden', 'true');
+      footer.innerHTML = '<span class="page-full">Page <span class="page-num">1</span> of <span class="page-total">1</span></span>';
+      document.body.appendChild(footer);
+    }
+
+    // mm -> px helper
+    const mmToPx = (mm: number) => {
+      const el = document.createElement('div');
+      el.style.height = '1mm';
+      el.style.position = 'absolute';
+      el.style.visibility = 'hidden';
+      document.body.appendChild(el);
+      const px = el.getBoundingClientRect().height || 0;
+      document.body.removeChild(el);
+      return px * mm;
+    };
+
+    // compute current & total pages and update footer
+    const computePages = () => {
+      try {
+        const pageHeightPx = mmToPx(297) || 1122;
+        const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
+        const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+        const current = Math.min(total, Math.max(1, Math.floor((scrollTop + 1) / pageHeightPx) + 1));
+        const numEl = footer!.querySelector('.page-num');
+        const totEl = footer!.querySelector('.page-total');
+        if (numEl) numEl.textContent = String(current);
+        if (totEl) totEl.textContent = String(total);
+      } catch (e) { console.warn('computePages global failed', e); }
+    };
+
+    // listeners
+    const onLoad = () => setTimeout(computePages, 80);
+    const onResize = () => setTimeout(computePages, 120);
+    const onScroll = () => setTimeout(computePages, 40);
+    window.addEventListener('load', onLoad);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    try { window.matchMedia('print').addListener(() => setTimeout(computePages, 60)); } catch (e) {}
+    // initial
+    setTimeout(computePages, 120);
+
+    return () => {
+      try { window.removeEventListener('load', onLoad); } catch {}
+      try { window.removeEventListener('resize', onResize); } catch {}
+      try { window.removeEventListener('scroll', onScroll); } catch {}
+      try { window.matchMedia('print').removeListener(() => setTimeout(computePages, 60)); } catch {}
+      // remove injected footer and style
+      try { const f = document.getElementById(footerId); if (f) f.remove(); } catch {}
+      try { const s = document.getElementById(styleId); if (s) s.remove(); } catch {}
+    };
+  }, [printDialogOpen]);
 
 
 
