@@ -692,6 +692,8 @@ const FinalIngredientSummary = () => {
             height: auto !important;
             page-break-inside: auto;
             break-inside: auto;
+            /* Prevent orphaned header: if the card header + table header can't fit on current page, move entire card to next page */
+            overflow: visible;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -702,6 +704,9 @@ const FinalIngredientSummary = () => {
             /* Prevent page break after card header so header + table header stay together */
             page-break-after: avoid;
             break-after: avoid;
+            /* Keep header with its table as a unit */
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .card-header .card-title {
             font-size: 15px !important;
@@ -726,6 +731,15 @@ const FinalIngredientSummary = () => {
             display: table-header-group !important; 
             page-break-after: avoid;
             break-after: avoid;
+            /* Keep thead as an unbreakable unit with card header */
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          /* Ensure first few rows of tbody stay with the header to avoid orphaned thead */
+          .card-table tbody tr:first-child,
+          .card-table tbody tr:nth-child(2) {
+            page-break-before: avoid;
+            break-before: avoid;
           }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
