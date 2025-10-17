@@ -702,8 +702,7 @@ const FinalIngredientSummary = () => {
           }
           /* Give the body a bit of padding so content doesn't run into the footer area */
           body { padding-bottom: 3mm !important; }
-          /* In printed output, show a fixed footer with page numbers. */
-          /* Use CSS counters where supported; hide the JS preview spans in print. */
+          /* In printed output, show footers with page numbers */
           .print-footer{
             display: block !important;
             position: fixed !important;
@@ -713,32 +712,31 @@ const FinalIngredientSummary = () => {
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
-            color: var(--muted) !important;
+            color: #6b7c7b !important;
             font-size: 12px !important;
             z-index: 9999 !important;
           }
-          /* Hide the JS-updated spans when printing; CSS will supply counters if supported */
-          .print-footer .page-current, .print-footer .page-total{ display:none !important; }
-          /* Try to place page numbering using a pseudo-element and CSS counters (support varies) */
-          .print-footer:after{ content: "Page " counter(page) " of " counter(pages); }
+          /* Additional page footers positioned at specific heights */
+          .print-footer-page{
+            position: absolute !important;
+            right: 2mm !important;
+            bottom: 2mm !important;
+          }
         }
       </style>
     `;
 
-  // Footer HTML and JS to compute page numbers for preview; print CSS will use counters where supported.
-  // Note: CSS paged-media counters and fixed-position printing support vary by browser/printer.
-  // The JS preview footer provides reliable feedback to users; printed output may rely on
-  // CSS counters or the browser's handling of fixed elements as a fallback.
+  // Footer HTML and JS to compute page numbers for both preview and print
     const footerAndScript = `
-  <div style="height:18px;">&nbsp;</div>
-      <div class="print-footer">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
+      <div style="height:18px;">&nbsp;</div>
+      <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
       <script>
         (function(){
           try{
             // Convert millimeters to CSS pixels (assuming 96dpi for preview measurement)
             const mmToPx = mm => mm * (96/25.4);
-            // A4 portrait height (mm) minus @page vertical margins (8mm top + 8mm bottom as in styles)
-            const contentHeightMm = 297 - 16;
+            // A4 portrait height (mm) minus @page vertical margins (8mm top + 14mm bottom as in styles)
+            const contentHeightMm = 297 - 22; // 8mm top + 14mm bottom
             const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
 
             const updateTotals = () => {
@@ -754,6 +752,41 @@ const FinalIngredientSummary = () => {
             // Update on resize/scroll to reflect preview navigation
             window.addEventListener('resize', updateTotals);
             window.addEventListener('scroll', updateTotals);
+
+            // For printing: create per-page footers with correct page numbers
+            window.addEventListener('beforeprint', function() {
+              try {
+                const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
+                const mainFooter = document.getElementById('print-footer-main');
+                if (mainFooter) {
+                  // Clear dynamic spans and set text directly for first page
+                  mainFooter.textContent = 'Page 1 of ' + total;
+                }
+                
+                // Create additional footers for subsequent pages
+                for (let i = 2; i <= total; i++) {
+                  const footer = document.createElement('div');
+                  footer.className = 'print-footer print-footer-page';
+                  footer.textContent = 'Page ' + i + ' of ' + total;
+                  footer.style.marginTop = ((i - 1) * pageHeightPx) + 'px';
+                  document.body.appendChild(footer);
+                }
+              } catch(e) { console.error('beforeprint page numbering failed', e); }
+            });
+
+            // Clean up extra footers after printing
+            window.addEventListener('afterprint', function() {
+              try {
+                document.querySelectorAll('.print-footer-page').forEach(el => el.remove());
+                // Restore main footer with dynamic spans
+                const mainFooter = document.getElementById('print-footer-main');
+                if (mainFooter) {
+                  const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
+                  mainFooter.innerHTML = 'Page <span class="page-current">1</span> of <span class="page-total">' + total + '</span>';
+                  updateTotals();
+                }
+              } catch(e) { console.error('afterprint cleanup failed', e); }
+            });
           } catch(e) { console.error('page numbering script error', e); }
         })();
       </script>
