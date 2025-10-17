@@ -573,12 +573,15 @@ const RecipeEntry: React.FC = () => {
         .empty-row td{ text-align: center; color: var(--text-secondary); padding: 24px; font-style: italic; }
         @media print {
           body{ background: #fff; padding: 8px; }
-          .header{ margin-bottom: 12px; padding: 10px 0 12px; }
+          /* ensure header sits above cards to avoid any overlap artifacts when printing to PDF */
+          .header{ margin-bottom: 12px; padding: 10px 0 12px; position: relative; z-index: 10; }
           .cards { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 12px !important; align-items: stretch; }
-          .card { display: flex !important; flex-direction: column !important; height: 100% !important; width: 100% !important; margin: 0 !important; box-shadow: none; border: 1px solid var(--border); }
+          .card { display: flex !important; flex-direction: column !important; height: 100% !important; width: 100% !important; margin: 0 !important; box-shadow: none; border: 1px solid var(--border); position: relative; z-index: 1; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{ background: rgba(36,93,107,0.02); }
           .card-table thead { display: table-row-group !important; }
+          /* Make badges print-safe: use solid background and darker text to avoid translucent layering artifacts in PDF renderers */
+          .card-badge{ background: #ffffff !important; color: var(--brand-dark) !important; border: 1px solid var(--border) !important; backdrop-filter: none !important; box-shadow: none !important; }
           @page{ size: portrait; margin: 8mm; }
         }
       </style>

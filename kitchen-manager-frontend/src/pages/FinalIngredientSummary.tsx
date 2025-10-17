@@ -18,6 +18,7 @@ const FinalIngredientSummary = () => {
   const API_BASE_URL = useApiBaseUrl();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [finalRows, setFinalRows] = useState<FinalNosRow[]>([]);
+  const [foodItems, setFoodItems] = useState<{ id: number; vangiName: string; category: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   // Print menu & selection dialog states
@@ -619,9 +620,11 @@ const FinalIngredientSummary = () => {
     setLoading(true);
     Promise.all([
       fetch(`${API_BASE_URL}/recipe`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json(): []),
-      fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json(): null)
-    ]).then(([recipesData, finalData]) => {
+      fetch(`${API_BASE_URL}/final-nos-summary/latest?eventId=${selectedAnnkutEvent}`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json(): null),
+      fetch(`${API_BASE_URL}/food-item`, { credentials:'include', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` } }).then(r=> r.ok? r.json(): [])
+    ]).then(([recipesData, finalData, foodItemsData]) => {
       setRecipes(Array.isArray(recipesData)? recipesData: []);
+      setFoodItems(Array.isArray(foodItemsData) ? foodItemsData : []);
       if (finalData && Array.isArray(finalData.rows)) {
         const rows: FinalNosRow[] = finalData.rows.map((r:any) => ({
           foodName: String(r.foodName || ''),
@@ -634,7 +637,7 @@ const FinalIngredientSummary = () => {
     }).finally(()=> setLoading(false));
   }, [API_BASE_URL, selectedAnnkutEvent]);
 
-  const { ingredientMatrixRows, foodColumns } = useMemo(() => {
+  const { ingredientMatrixRows, foodColumns, groupedColumns } = useMemo(() => {
     const normalize = (s:string) => String(s||'').trim().toLowerCase();
     const baseName = (s:string) => String(s||'').split('(')[0].trim();
     const recipeMap = new Map(recipes.map(r => [normalize(r.vangiName), r]));
@@ -657,6 +660,8 @@ const FinalIngredientSummary = () => {
     });
     const cols = Array.from(byFood.values()).filter(c => (c.finalFlour || 0) > 0)
       .sort((a,b)=> a.name.localeCompare(b.name));
+
+    // We'll attach category information from foodItems (if available) after displayCols is determined
 
     // If there are multiple Magaj subtypes (names starting with 'મગજ'), aggregate them into a single 'મગજ' column
     const baseNameFn = (s: string) => String(s||'').split('(')[0].trim();
@@ -686,7 +691,7 @@ const FinalIngredientSummary = () => {
       }
     }
 
-    // Collect all ingredient names used by any recipe for the selected foods
+  // Collect all ingredient names used by any recipe for the selected foods
     const ingSet = new Set<string>();
     cols.forEach(c => c.ingredients.forEach(i => ingSet.add(i.ingredientName)));
     const ingNames = Array.from(ingSet).sort((a,b)=> a.localeCompare(b));
@@ -717,8 +722,35 @@ const FinalIngredientSummary = () => {
       return { id: idx+1, ingredientName: ingName, perFood, totalKg: total };
     }).filter(r => r.totalKg > 0);
 
-    return { ingredientMatrixRows: rows, foodColumns: displayCols };
-  }, [finalRows, recipes]);
+    // Attach category info to the actual displayCols so headers align with rendered columns
+    const foodItemMap = new Map((foodItems || []).map((f:any) => [normalize(f.vangiName), f]));
+    const displayColsWithCategory = displayCols.map((c:any) => {
+      if (c.key === magajAggregateKey) {
+        // aggregated magaj column - try to derive category from first magajCols entry
+        const first = magajCols[0];
+        let cat = 'Uncategorized';
+        if (first) {
+          const item = foodItemMap.get(normalize(first.name)) || foodItemMap.get(normalize(baseName(first.name)));
+          cat = item ? (item.category || 'Uncategorized') : 'Uncategorized';
+        }
+        return { ...c, category: cat };
+      }
+      const n = normalize(c.name);
+      let item = foodItemMap.get(n);
+      if (!item) item = foodItemMap.get(normalize(baseName(c.name)));
+      const category = item ? (item.category || 'Uncategorized') : 'Uncategorized';
+      return { ...c, category };
+    });
+
+    const grouped: { category: string; cols: typeof displayColsWithCategory }[] = [];
+    displayColsWithCategory.forEach((c:any) => {
+      const g = grouped.find(x => x.category === c.category);
+      if (g) g.cols.push(c);
+      else grouped.push({ category: c.category || 'Uncategorized', cols: [c] });
+    });
+
+    return { ingredientMatrixRows: rows, foodColumns: displayCols, groupedColumns: grouped };
+  }, [finalRows, recipes, foodItems]);
 
   
 
@@ -761,15 +793,57 @@ const FinalIngredientSummary = () => {
               '&::-webkit-scrollbar-track': { background:'rgba(0,0,0,0.08)' }
             }}
           >
-            <Table className='ingredient-print-table' sx={{ width:'100%' }} stickyHeader>
-              <TableHead>
+            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 } }}>
+              <TableHead sx={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 3,
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  border: '1px solid #245D6B',
+                  borderBottom: 0,
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderBottom: '1px solid #245D6B',
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                '& th': {
+                  border: '0 !important',
+                  backgroundClip: 'padding-box',
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6)'
+                },
+                '& tr:first-of-type th': {
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(255,255,255,0.7)'
+                },
+                '& .MuiTableCell-head': { borderBottom: '0 !important' }
+              }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:4, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:4, minWidth:120, maxWidth:180, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
-                  {foodColumns.map(col => (
-                    <TableCell key={col.key} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', whiteSpace:'nowrap', textAlign:'center', top:0 }}>{col.name}</TableCell>
+                  <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:5, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
+                  <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:5, minWidth:120, maxWidth:180, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
+                  {groupedColumns && groupedColumns.map(group => (
+                    <TableCell key={`g-${group.category}`} colSpan={group.cols.length} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', textAlign:'center' }}>{group.category}</TableCell>
                   ))}
-                  <TableCell sx={{ fontWeight:700, background:'#245D6B', color:'#fff', textAlign:'center', whiteSpace:'nowrap' }}>Total Weight</TableCell>
+                  <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', textAlign:'center', whiteSpace:'nowrap' }}>Total Weight</TableCell>
+                </TableRow>
+                <TableRow>
+                  {groupedColumns && groupedColumns.map(group => (
+                    group.cols.map(col => (
+                      <TableCell key={`c-${col.key}`} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', whiteSpace:'nowrap', textAlign:'center' }}>{col.name}</TableCell>
+                    ))
+                  ))}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -819,15 +893,57 @@ const FinalIngredientSummary = () => {
             </Typography>
           </Box>
           <TableContainer sx={{ width:'100%', boxShadow:'none', '@media print': { width:'100%', overflow:'visible' } }}>
-            <Table className='ingredient-print-table' stickyHeader sx={{ border:'1px solid #245D6B', fontSize:13, tableLayout:'auto', '@media print': { tableLayout:'fixed', width:'100%', fontSize:13 } }}>
-              <TableHead>
+            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', fontSize:13, '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 }, '@media print': { tableLayout:'fixed', width:'100%', fontSize:13 } }}>
+              <TableHead sx={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 3,
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  border: '1px solid #245D6B',
+                  borderBottom: 0,
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  borderBottom: '1px solid #245D6B',
+                  pointerEvents: 'none',
+                  zIndex: 4
+                },
+                '& th': {
+                  border: '0 !important',
+                  backgroundClip: 'padding-box',
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6)'
+                },
+                '& tr:first-of-type th': {
+                  boxShadow: 'inset -1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(255,255,255,0.7)'
+                },
+                '& .MuiTableCell-head': { borderBottom: '0 !important' }
+              }}>
                 <TableRow>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:4, minWidth:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:4, minWidth:140, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'140px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
-                  {foodColumns.map(col => (
-                    <TableCell key={col.key} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>{col.name}</TableCell>
+                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:5, minWidth:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
+                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:5, minWidth:140, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'140px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
+                  {groupedColumns && groupedColumns.map(group => (
+                    <TableCell key={`gprint-${group.category}`} colSpan={group.cols.length} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', textAlign:'center', '@media print': { whiteSpace:'normal' } }}>{group.category}</TableCell>
                   ))}
-                  <TableCell sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>Total Weight</TableCell>
+                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>Total Weight</TableCell>
+                </TableRow>
+                <TableRow>
+                  {groupedColumns && groupedColumns.map(group => (
+                    group.cols.map(col => (
+                      <TableCell key={`cprint-${col.key}`} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', whiteSpace:'nowrap', textAlign:'center', top:0, '@media print': { whiteSpace:'normal' } }}>{col.name}</TableCell>
+                    ))
+                  ))}
                 </TableRow>
               </TableHead>
               <TableBody>
