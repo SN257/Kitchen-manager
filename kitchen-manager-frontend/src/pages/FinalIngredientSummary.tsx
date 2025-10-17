@@ -267,11 +267,20 @@ const FinalIngredientSummary = () => {
 
         // If there are no ingredients, render a single empty fragment
         if (!dataRows.length) {
+          const totalItems = 0;
+          const totalWeight = 0;
+          const totalFlour = Number((col as any).finalFlour) || 0;
           return `
             <div class="card">
               <div class="card-header">
-                <div class="card-title">${col.name}</div>
-                <div class="card-badge">0 items</div>
+                <div>
+                  <div class="card-title">${col.name}</div>
+                  <div style="margin-top:6px; font-size:12px; color: rgba(255,255,255,0.9);">${totalItems} ingredients</div>
+                </div>
+                <div class="card-meta">
+                  <span class="chip">Flour: ${totalFlour.toFixed(1)} kg</span>
+                  <span class="chip">Weight: ${totalWeight.toFixed(1)} kg</span>
+                </div>
               </div>
               <div class="card-body">
                 <table class="card-table">
@@ -312,11 +321,22 @@ const FinalIngredientSummary = () => {
           const continuedLabel = totalFragments > 1 && f > 0 ? '<span class="continued-badge">(continued)</span>' : '';
           const footerContinued = totalFragments > 1 && f < totalFragments - 1 ? '<div class="continue-footer">Continued on next page...</div>' : '';
 
+          // compute totals for this food column
+          const totalItems = dataRows.length;
+          const totalWeight = dataRows.reduce((s, x) => s + (Number(x.val) || 0), 0);
+          const totalFlour = Number((col as any).finalFlour) || 0;
+
           fragments.push(`
             <div class="card card-fragment">
               <div class="card-header">
-                <div class="card-title">${col.name} ${continuedLabel}</div>
-                <div class="card-badge">${dataRows.length} items</div>
+                <div>
+                  <div class="card-title">${col.name} ${continuedLabel}</div>
+                  <div style="margin-top:6px; font-size:12px; color: rgba(255,255,255,0.9);">${totalItems} ingredients</div>
+                </div>
+                <div class="card-meta">
+                  <span class="chip">Flour: ${totalFlour.toFixed(1)} kg</span>
+                  <span class="chip">Weight: ${totalWeight.toFixed(1)} kg</span>
+                </div>
               </div>
               <div class="card-body">
                 <table class="card-table">
@@ -497,6 +517,9 @@ const FinalIngredientSummary = () => {
           align-items: center;
           border-bottom: 2px solid var(--brand-dark);
         }
+        /* small info chips shown beside food names */
+        .card-meta{ display:flex; gap:8px; align-items:center; }
+        .chip{ display:inline-block; background: rgba(255,255,255,0.15); color:#fff; padding:4px 8px; border-radius:12px; font-size:12px; font-weight:600; border: 1px solid rgba(255,255,255,0.12); }
         .card-title{
           font-weight: 700;
           font-size: 17px;
@@ -647,25 +670,44 @@ const FinalIngredientSummary = () => {
           .category-header:first-of-type{
             margin-top: 0;
           }
+          /* Use single-column flow for print so pagination is predictable */
           .cards { 
-            display: grid !important; 
-            grid-template-columns: 1fr 1fr !important; 
+            display: block !important; 
+            grid-template-columns: none !important; 
             gap: 12px !important; 
-            align-items: stretch;
             margin-bottom: 12px;
           }
           .card { 
-            display: flex !important; 
-            flex-direction: column !important; 
-            height: 100% !important; 
+            display: block !important; 
             width: 100% !important; 
-            margin: 0 !important; 
+            margin: 0 0 12px 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            /* allow card fragments to break across pages; individual fragments should avoid internal breaks */
+            /* allow the card content to determine height so fragments paginate naturally */
+            height: auto !important;
+            /* allow breaking inside cards so large cards/fragments paginate instead of being pushed */
             page-break-inside: auto;
+            break-inside: auto;
           }
-          .card-fragment{ page-break-inside: avoid; }
+          /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
+          .card-header {
+            padding: 10px 12px !important;
+            align-items: center !important;
+            min-height: 44px !important; /* fixed header height for print */
+            box-sizing: border-box !important;
+          }
+          .card-header .card-title {
+            font-size: 15px !important;
+            line-height: 1.1 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+          .card-meta { gap: 6px !important; align-items: center !important; }
+          .chip { padding: 3px 6px !important; font-size: 11px !important; border-radius: 10px !important; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          /* subtitle under title (eg: 'X ingredients') keep small and truncated in print */
+          .card-header > div > div + div { font-size: 10px !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 220px; }
+          .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
@@ -1264,7 +1306,9 @@ const FinalIngredientSummary = () => {
                         }}
                       >
                         <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                          <Typography sx={{ fontWeight:700, fontSize:14, color: isSelected ? '#163f3a' : '#133f3a' }}>{col.name}</Typography>
+                          <Box>
+                            <Typography sx={{ fontWeight:700, fontSize:14, color: isSelected ? '#163f3a' : '#133f3a' }}>{col.name}</Typography>
+                          </Box>
                           <Checkbox
                             checked={isSelected}
                             onChange={(e) => { e.stopPropagation(); toggleFoodKey(col.key); }}
