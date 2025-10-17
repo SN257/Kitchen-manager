@@ -722,6 +722,17 @@ const FinalIngredientSummary = () => {
             right: 2mm !important;
             bottom: 2mm !important;
           }
+          /* Server-side / headless print: use CSS counters to reliably render "Page X of Y" */
+          .paged-footer{ display: none; }
+          @media print {
+            /* Hide JS preview footers when performing actual print so CSS paged footer is used */
+            .print-footer, .print-footer-page { display: none !important; }
+            .paged-footer{ display:block; position: fixed; right: 2mm; bottom: 2mm; color: #6b7c7b; font-size: 12px; }
+            /* Use CSS counters for page/pagination — supported by headless browsers like Puppeteer */
+            .paged-footer::after{ content: "Page " counter(page) " of " counter(pages); }
+            html { counter-reset: page; }
+            @page { size: A4; counter-increment: page; }
+          }
         }
       </style>
     `;
@@ -729,7 +740,8 @@ const FinalIngredientSummary = () => {
   // Footer HTML and JS to compute page numbers for both preview and print
     const footerAndScript = `
       <div style="height:18px;">&nbsp;</div>
-      <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
+  <div class="print-footer" id="print-footer-main">Page <span class="page-current">1</span> of <span class="page-total">1</span></div>
+  <div class="paged-footer" aria-hidden="true"></div>
       <script>
         (function(){
           try{
@@ -833,7 +845,7 @@ const FinalIngredientSummary = () => {
             // Update main footer for page 1
             const mainFooter = doc.getElementById('print-footer-main');
             if (mainFooter) {
-              mainFooter.textContent = `Page 1 of ${total}`;
+              mainFooter.innerHTML = `Page <span class=\"page-current\">1</span> of <span class=\"page-total\">${total}</span>`;
             }
 
             // Create footers for pages 2 through total
@@ -924,7 +936,7 @@ const FinalIngredientSummary = () => {
 
             const mainFooter = doc.getElementById('print-footer-main');
             if (mainFooter) {
-              mainFooter.textContent = `Page 1 of ${total}`;
+              mainFooter.innerHTML = `Page <span class=\"page-current\">1</span> of <span class=\"page-total\">${total}</span>`;
             }
 
             for (let i = 2; i <= total; i++) {
