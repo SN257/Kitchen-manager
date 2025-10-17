@@ -686,15 +686,16 @@ const FinalIngredientSummary = () => {
             flex-direction: column !important;
             width: 100% !important; 
             margin: 0 !important; 
+            margin-bottom: 12px !important;
             box-shadow: none;
             border: 1px solid var(--border);
             border-radius: 12px !important;
-            /* Prevent cards from breaking across pages to maintain borders and border-radius */
+            /* Allow cards to break across pages for long content */
             height: auto !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            overflow: hidden !important;
-            /* Ensure the entire card moves to next page if it doesn't fit */
+            page-break-inside: auto;
+            break-inside: auto;
+            overflow: visible;
+            /* Clone borders and decorations when breaking across pages */
             box-decoration-break: clone;
             -webkit-box-decoration-break: clone;
           }
@@ -726,11 +727,16 @@ const FinalIngredientSummary = () => {
           .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
           .card-body{ 
             flex: 1 1 auto !important; 
-            border-radius: 0 0 12px 12px !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             /* Prevent break immediately after card-body starts (keeps table header with card header) */
             page-break-before: avoid;
             break-before: avoid;
+          }
+          .card-table {
+            border-radius: 0 !important;
+            /* Clone table styling when it breaks across pages */
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
           }
           /* Prevent page break after table header so it stays with at least one data row */
           .card-table thead { 
@@ -746,6 +752,11 @@ const FinalIngredientSummary = () => {
           .card-table tbody tr:nth-child(2) {
             page-break-before: avoid;
             break-before: avoid;
+          }
+          /* Allow rows to break across pages for very long tables */
+          .card-table tbody tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
