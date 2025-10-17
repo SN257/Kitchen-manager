@@ -688,12 +688,15 @@ const FinalIngredientSummary = () => {
             margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            /* let the card height be determined by content; allow internal page breaks */
+            border-radius: 12px !important;
+            /* Prevent cards from breaking across pages to maintain borders and border-radius */
             height: auto !important;
-            page-break-inside: auto;
-            break-inside: auto;
-            /* Prevent orphaned header: if the card header + table header can't fit on current page, move entire card to next page */
-            overflow: visible;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
+            /* Ensure the entire card moves to next page if it doesn't fit */
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -701,6 +704,7 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
+            border-radius: 12px 12px 0 0 !important;
             /* Prevent page break after card header so header + table header stay together */
             page-break-after: avoid;
             break-after: avoid;
@@ -722,6 +726,8 @@ const FinalIngredientSummary = () => {
           .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
           .card-body{ 
             flex: 1 1 auto !important; 
+            border-radius: 0 0 12px 12px !important;
+            overflow: hidden !important;
             /* Prevent break immediately after card-body starts (keeps table header with card header) */
             page-break-before: avoid;
             break-before: avoid;
