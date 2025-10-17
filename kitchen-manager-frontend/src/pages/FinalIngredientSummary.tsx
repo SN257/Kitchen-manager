@@ -878,83 +878,64 @@ const FinalIngredientSummary = () => {
     // Detect if mobile/tablet device
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
     
+    // Create a new window with the HTML content for printing (works better than iframe printing)
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up blocked. Please allow pop-ups for this site and try again.');
+      return;
+    }
+
     try {
-      // Try to print from the visible preview iframe (this preserves rendering exactly as the user sees it)
-      const visibleIframe = document.querySelector('iframe[title="print-preview"]') as HTMLIFrameElement | null;
-      if (visibleIframe && visibleIframe.contentWindow) {
-        // Wait longer for mobile devices to ensure iframe is fully loaded
-        setTimeout(() => {
-          try {
-            // Check if iframe document is loaded
-            const iframeDoc = visibleIframe.contentDocument || visibleIframe.contentWindow!.document;
-            if (!iframeDoc || !iframeDoc.body || iframeDoc.body.children.length === 0) {
-              console.error('iframe not fully loaded');
+      // Write the HTML content directly to the new window
+      printWindow.document.open();
+      printWindow.document.write(previewHtml);
+      printWindow.document.close();
+
+      // Wait for content to load, then print
+      const waitForLoad = () => {
+        // Check if document is ready
+        if (printWindow.document.readyState === 'complete') {
+          setTimeout(() => {
+            try {
+              printWindow.focus();
+              printWindow.print();
+              
+              // Close the print window after printing (or if user cancels)
+              // Give extra time on mobile devices
+              setTimeout(() => {
+                try {
+                  printWindow.close();
+                } catch (e) {
+                  console.log('Could not auto-close print window', e);
+                }
+              }, isMobile ? 2000 : 1000);
+            } catch (e) {
+              console.error('Print failed', e);
               if (isMobile) {
-                alert('Content is still loading. Please wait a moment and try again.');
+                alert('Please use your browser\'s share menu to print or save as PDF');
               } else {
                 alert('Print failed. Please try again.');
               }
-              return;
+              printWindow.close();
             }
-            
-            visibleIframe.contentWindow!.focus();
-            visibleIframe.contentWindow!.print();
-          } catch (e) {
-            console.error('print from visible iframe failed', e);
-            // On mobile, show more helpful message
-            if (isMobile) {
-              alert('Please use your browser\'s share menu to print or save as PDF');
-            } else {
-              alert('Print failed. Please try again.');
-            }
-          }
-          setPreviewOpen(false);
-          setPreviewHtml(null);
-        }, isMobile ? 1000 : 300);
-        return;
-      }
-    } catch (err) {
-      console.error('error locating visible preview iframe', err);
-    }
+          }, isMobile ? 1000 : 500);
+        } else {
+          // Still loading, check again
+          setTimeout(waitForLoad, 100);
+        }
+      };
 
-    // Fallback: create a temporary srcdoc iframe, wait for it to load, then print
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '0';
-    iframe.style.top = '0';
-    iframe.style.width = '100%';
-    iframe.style.height = '100%';
-    iframe.style.border = '0';
-    // render but keep it visually invisible so user isn't disrupted
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.srcdoc = previewHtml;
-    const cleanup = () => { try { iframe.remove(); } catch {} setPreviewOpen(false); setPreviewHtml(null); };
-    iframe.onload = () => {
-      try {
-        const win = iframe.contentWindow as Window | null;
-        if (!win) throw new Error('no iframe window');
-        // slight delay to ensure fonts/images are painted - longer for mobile
-        setTimeout(() => {
-          try { 
-            win.focus(); 
-            win.print(); 
-          } catch (e) { 
-            console.error('iframe print failed', e); 
-            if (isMobile) {
-              alert('Please use your browser\'s share menu to print or save as PDF');
-            } else {
-              alert('Print failed. Please try again.');
-            }
-          }
-          setTimeout(cleanup, isMobile ? 1000 : 500);
-        }, isMobile ? 500 : 200);
-      } catch (e) {
-        console.error('onload print failed', e);
-        cleanup();
-      }
-    };
-    document.body.appendChild(iframe);
+      // Start checking for load
+      waitForLoad();
+      
+      // Close the preview dialog
+      setPreviewOpen(false);
+      setPreviewHtml(null);
+    } catch (err) {
+      console.error('Error opening print window', err);
+      alert('Failed to open print window. Please check your browser settings.');
+      printWindow.close();
+    }
   };
 
   useEffect(() => {
