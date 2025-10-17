@@ -688,11 +688,10 @@ const FinalIngredientSummary = () => {
             margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            /* let the card height be determined by content */
+            /* let the card height be determined by content; allow internal page breaks */
             height: auto !important;
-            /* Keep entire card together on the same page - prevent breaking between header and content */
-            page-break-inside: avoid;
-            break-inside: avoid-page;
+            page-break-inside: auto;
+            break-inside: auto;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -700,6 +699,9 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
+            /* Prevent page break after card header so header + table header stay together */
+            page-break-after: avoid;
+            break-after: avoid;
           }
           .card-header .card-title {
             font-size: 15px !important;
@@ -712,13 +714,22 @@ const FinalIngredientSummary = () => {
           .chip { padding: 3px 6px !important; font-size: 11px !important; border-radius: 10px !important; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           /* subtitle under title (eg: 'X ingredients') keep small and truncated in print */
           .card-header > div > div + div { font-size: 10px !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 220px; }
-          .card-fragment{ page-break-inside: avoid; break-inside: avoid-page; margin-bottom: 8px; }
-          .card-body{ flex: 1 1 auto !important; }
+          .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
+          .card-body{ 
+            flex: 1 1 auto !important; 
+            /* Prevent break immediately after card-body starts (keeps table header with card header) */
+            page-break-before: avoid;
+            break-before: avoid;
+          }
+          /* Prevent page break after table header so it stays with at least one data row */
+          .card-table thead { 
+            display: table-header-group !important; 
+            page-break-after: avoid;
+            break-after: avoid;
+          }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
           }
-          /* Ensure table headers behave as header group so columns align with data when printing */
-          .card-table thead { display: table-header-group !important; }
           @page{
             size: portrait;
             /* top right bottom left -> reduce right margin, increase bottom margin */
