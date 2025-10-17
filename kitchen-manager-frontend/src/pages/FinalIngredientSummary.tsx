@@ -688,10 +688,11 @@ const FinalIngredientSummary = () => {
             margin: 0 !important; 
             box-shadow: none;
             border: 1px solid var(--border);
-            /* let the card height be determined by content; allow internal page breaks */
+            /* let the card height be determined by content */
             height: auto !important;
-            page-break-inside: auto;
-            break-inside: auto;
+            /* Keep entire card together on the same page - prevent breaking between header and content */
+            page-break-inside: avoid;
+            break-inside: avoid-page;
           }
           /* Keep header height consistent in printed (portrait) pages so chips don't push layout */
           .card-header {
@@ -699,19 +700,6 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
-            /* Prevent breaking between card header and table - keep them together */
-            page-break-after: avoid;
-            break-after: avoid;
-          }
-          /* Ensure card body (table) doesn't break away from header */
-          .card-body {
-            page-break-before: avoid;
-            break-before: avoid;
-          }
-          /* Prevent table header from being orphaned from data rows */
-          .card-table thead {
-            page-break-after: avoid;
-            break-after: avoid;
           }
           .card-header .card-title {
             font-size: 15px !important;
@@ -724,7 +712,7 @@ const FinalIngredientSummary = () => {
           .chip { padding: 3px 6px !important; font-size: 11px !important; border-radius: 10px !important; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           /* subtitle under title (eg: 'X ingredients') keep small and truncated in print */
           .card-header > div > div + div { font-size: 10px !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 220px; }
-          .card-fragment{ page-break-inside: auto; break-inside: auto; margin-bottom: 8px; }
+          .card-fragment{ page-break-inside: avoid; break-inside: avoid-page; margin-bottom: 8px; }
           .card-body{ flex: 1 1 auto !important; }
           .card-table tbody tr:hover{
             background: rgba(36,93,107,0.02);
