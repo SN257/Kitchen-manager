@@ -752,6 +752,9 @@ const FinalIngredientSummary = () => {
     return { ingredientMatrixRows: rows, foodColumns: displayCols, groupedColumns: grouped };
   }, [finalRows, recipes, foodItems]);
 
+  // Compute a reasonable minimum table width so many food columns force horizontal scroll
+  const tableMinWidth = Math.max(900, (foodColumns.length * 140) + 60 + 260 + 120);
+
   
 
   return (
@@ -793,7 +796,13 @@ const FinalIngredientSummary = () => {
               '&::-webkit-scrollbar-track': { background:'rgba(0,0,0,0.08)' }
             }}
           >
-            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 } }}>
+            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 }, minWidth: `${tableMinWidth}px` }}>
+              <colgroup>
+                <col style={{ width: '60px' }} />
+                <col style={{ width: '260px' }} />
+                {foodColumns.map(() => (<col style={{ width: '140px' }} />))}
+                <col style={{ width: '120px' }} />
+              </colgroup>
               <TableHead sx={{
                 position: 'sticky',
                 top: 0,
@@ -831,8 +840,8 @@ const FinalIngredientSummary = () => {
                 '& .MuiTableCell-head': { borderBottom: '0 !important' }
               }}>
                 <TableRow>
-                  <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:5, minWidth:60, maxWidth:60, textAlign:'center' }}>ID</TableCell>
-                  <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:5, minWidth:120, maxWidth:180, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
+          <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:0, top:0, zIndex:5, width:60, textAlign:'center' }}>ID</TableCell>
+          <TableCell rowSpan={2} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', position:'sticky', left:60, top:0, zIndex:5, width:260, whiteSpace:'normal', overflow:'visible', lineHeight:1.2 }}>Ingredient Name</TableCell>
                   {groupedColumns && groupedColumns.map(group => (
                     <TableCell key={`g-${group.category}`} colSpan={group.cols.length} sx={{ fontWeight:700, background:'#245D6B', color:'#fff', textAlign:'center' }}>{group.category}</TableCell>
                   ))}
@@ -851,8 +860,8 @@ const FinalIngredientSummary = () => {
                   const rowBg = idx % 2 === 0 ? '#f7fbfc' : '#eaf3f6';
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg }}>
-                      <TableCell sx={{ position:'sticky', left:0, background:rowBg, textAlign:'center', zIndex:2 }}>{row.id}</TableCell>
-                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, minWidth:120, maxWidth:180, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2 }}>{row.ingredientName}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:0, background:rowBg, textAlign:'center', zIndex:2, width:60 }}>{row.id}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:60, background:rowBg, zIndex:2, width:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2 }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
                         const val = row.perFood[col.key];
                         return <TableCell key={col.key} align='center'>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
@@ -893,7 +902,13 @@ const FinalIngredientSummary = () => {
             </Typography>
           </Box>
           <TableContainer sx={{ width:'100%', boxShadow:'none', '@media print': { width:'100%', overflow:'visible' } }}>
-            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', fontSize:13, '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 }, '@media print': { tableLayout:'fixed', width:'100%', fontSize:13 } }}>
+            <Table className='ingredient-print-table' stickyHeader sx={{ border: '1px solid #245D6B', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', fontSize:13, '& th, & td': { border: '0.5px solid #245D6B' }, '& tbody td': { borderTop: 0 }, '@media print': { tableLayout:'fixed', width:'100%', fontSize:13 }, minWidth: `${tableMinWidth}px` }}>
+              <colgroup>
+                <col style={{ width: '70px' }} />
+                <col style={{ width: '260px' }} />
+                {foodColumns.map(() => (<col style={{ width: '140px' }} />))}
+                <col style={{ width: '140px' }} />
+              </colgroup>
               <TableHead sx={{
                 position: 'sticky',
                 top: 0,
@@ -931,8 +946,8 @@ const FinalIngredientSummary = () => {
                 '& .MuiTableCell-head': { borderBottom: '0 !important' }
               }}>
                 <TableRow>
-                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:5, minWidth:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
-                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:5, minWidth:140, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'140px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
+                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:0, top:0, zIndex:5, width:70, border:'1px solid #245D6B', textAlign:'center', whiteSpace:'nowrap', '@media print': { position:'static', left:'auto', top:'auto' } }}>ID</TableCell>
+                  <TableCell rowSpan={2} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, position:'sticky', left:70, top:0, zIndex:5, width:260, border:'1px solid #245D6B', whiteSpace:'normal', lineHeight:1.2, '@media print': { position:'static', left:'auto', top:'auto', minWidth:'140px', whiteSpace:'normal' } }}>Ingredient Name</TableCell>
                   {groupedColumns && groupedColumns.map(group => (
                     <TableCell key={`gprint-${group.category}`} colSpan={group.cols.length} sx={{ background:'#245D6B', color:'#fff', fontWeight:700, border:'1px solid #245D6B', textAlign:'center', '@media print': { whiteSpace:'normal' } }}>{group.category}</TableCell>
                   ))}
@@ -951,8 +966,8 @@ const FinalIngredientSummary = () => {
                   const rowBg = idx % 2 === 0 ? '#f7fbfc' : '#eaf3f6';
                   return (
                     <TableRow key={row.id} sx={{ backgroundColor: rowBg, '@media print': { backgroundColor: '#fff' } }}>
-                      <TableCell sx={{ position:'sticky', left:0, background:rowBg, zIndex:2, border:'1px solid #245D6B', textAlign:'center', '@media print': { position:'static', left:'auto', background:'#fff' } }}>{row.id}</TableCell>
-                      <TableCell sx={{ position:'sticky', left:70, background:rowBg, zIndex:2, border:'1px solid #245D6B', minWidth:140, maxWidth:180, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2, '@media print': { position:'static', left:'auto', background:'#fff', minWidth:'140px' } }}>{row.ingredientName}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:0, background:rowBg, zIndex:2, border:'1px solid #245D6B', textAlign:'center', width:70, '@media print': { position:'static', left:'auto', background:'#fff' } }}>{row.id}</TableCell>
+                      <TableCell sx={{ position:'sticky', left:70, background:rowBg, zIndex:2, border:'1px solid #245D6B', width:260, whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.2, '@media print': { position:'static', left:'auto', background:'#fff', minWidth:'140px' } }}>{row.ingredientName}</TableCell>
                       {foodColumns.map(col => {
                         const val = row.perFood[col.key];
                         return <TableCell key={col.key} align='center' sx={{ border:'1px solid #245D6B' }}>{val ? `${val.toFixed(3)} kg` : '-'}</TableCell>;
