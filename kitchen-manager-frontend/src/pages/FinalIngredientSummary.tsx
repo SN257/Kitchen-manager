@@ -699,6 +699,9 @@ const FinalIngredientSummary = () => {
             align-items: center !important;
             min-height: 44px !important; /* fixed header height for print */
             box-sizing: border-box !important;
+            /* Avoid leaving the header orphaned at the bottom of a printed page */
+            page-break-after: avoid;
+            break-after: avoid;
           }
           .card-header .card-title {
             font-size: 15px !important;
@@ -718,6 +721,8 @@ const FinalIngredientSummary = () => {
           }
           /* Ensure table headers behave as header group so columns align with data when printing */
           .card-table thead { display: table-header-group !important; }
+          /* avoid breaking within thead so header isn't orphaned */
+          .card-table thead { page-break-inside: avoid; break-inside: avoid; }
           @page{
             size: portrait;
             /* top right bottom left -> reduce right margin, increase bottom margin */
