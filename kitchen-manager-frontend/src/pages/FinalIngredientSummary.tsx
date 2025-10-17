@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, Checkbox, DialogContentText} from '@mui/material';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem, Checkbox, DialogContentText, Snackbar, Alert } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import { useApiBaseUrl } from '../config/config';
@@ -408,8 +408,9 @@ const FinalIngredientSummary = () => {
           border-collapse: collapse;
           font-size: 13px;
         }
-        /* Ensure the table header repeats when a table is broken across pages/columns */
-        .card-table thead{ display: table-header-group; }
+      /* By default don't force repeating the card table header across printed page breaks
+        (we prefer the card header to appear only once at the top of the card). */
+      .card-table thead{ display: table-row-group; }
         .card-table thead th{
           background: var(--brand-lighter);
           padding: 10px 14px;
@@ -477,6 +478,13 @@ const FinalIngredientSummary = () => {
             background: #fff;
             padding: 8px;
           }
+          /* Prefer not to split individual cards across pages. If a card is taller than
+             a page it will still be split, but the table header inside the card will not
+             be repeated on the continuation page. */
+          .card { page-break-inside: avoid; break-inside: avoid; }
+          .card-body { page-break-inside: avoid; break-inside: avoid; }
+          /* Ensure thead does not behave as a repeating header in print */
+          .card-table thead{ display: table-row-group !important; }
           .header{
             margin-bottom: 12px;
             padding: 10px 0 12px;
@@ -538,7 +546,11 @@ const FinalIngredientSummary = () => {
 
   const handlePrintSelected = () => {
     const cols = foodColumns.filter(c => selectedFoodKeys.includes(c.key));
-    if (!cols.length) { alert('Select at least one food to print'); return; }
+    if (!cols.length) {
+      // show snackbar error
+      setSnack({ open: true, message: 'Please select at least one recipe', severity: 'error' });
+      return;
+    }
     setSelectionDialogOpen(false);
     const html = buildCardsHtml(cols);
     setPreviewHtml(html);
@@ -548,6 +560,7 @@ const FinalIngredientSummary = () => {
   // Preview dialog state and print helper
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'error'|'info'|'success'|'warning' }>({ open:false, message:'', severity:'info' });
 
 
 
@@ -929,6 +942,16 @@ const FinalIngredientSummary = () => {
           <Button onClick={handlePreviewPrint} variant='contained' size='small' sx={{ bgcolor:'#245D6B', textTransform:'none', '&:hover':{ bgcolor:'#1d4b56' } }}>Print</Button>
         </DialogActions>
       </Dialog>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={4000}
+        onClose={() => setSnack(s => ({ ...s, open:false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSnack(s => ({ ...s, open:false }))} severity={snack.severity} sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
