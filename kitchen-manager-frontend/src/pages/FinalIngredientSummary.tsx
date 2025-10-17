@@ -753,40 +753,7 @@ const FinalIngredientSummary = () => {
             window.addEventListener('resize', updateTotals);
             window.addEventListener('scroll', updateTotals);
 
-            // For printing: create per-page footers with correct page numbers
-            window.addEventListener('beforeprint', function() {
-              try {
-                const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
-                const mainFooter = document.getElementById('print-footer-main');
-                if (mainFooter) {
-                  // Clear dynamic spans and set text directly for first page
-                  mainFooter.textContent = 'Page 1 of ' + total;
-                }
-                
-                // Create additional footers for subsequent pages
-                for (let i = 2; i <= total; i++) {
-                  const footer = document.createElement('div');
-                  footer.className = 'print-footer print-footer-page';
-                  footer.textContent = 'Page ' + i + ' of ' + total;
-                  footer.style.marginTop = ((i - 1) * pageHeightPx) + 'px';
-                  document.body.appendChild(footer);
-                }
-              } catch(e) { console.error('beforeprint page numbering failed', e); }
-            });
-
-            // Clean up extra footers after printing
-            window.addEventListener('afterprint', function() {
-              try {
-                document.querySelectorAll('.print-footer-page').forEach(el => el.remove());
-                // Restore main footer with dynamic spans
-                const mainFooter = document.getElementById('print-footer-main');
-                if (mainFooter) {
-                  const total = Math.max(1, Math.ceil(document.body.scrollHeight / pageHeightPx));
-                  mainFooter.innerHTML = 'Page <span class="page-current">1</span> of <span class="page-total">' + total + '</span>';
-                  updateTotals();
-                }
-              } catch(e) { console.error('afterprint cleanup failed', e); }
-            });
+            // Page numbers are now injected directly in handlePreviewPrint before printing
           } catch(e) { console.error('page numbering script error', e); }
         })();
       </script>
@@ -849,12 +816,50 @@ const FinalIngredientSummary = () => {
         // give the browser a moment to finish painting the iframe
         setTimeout(() => {
           try {
-            // Attempt to compute page counts inside the iframe and write explicit footer text
-            // For printing, rely on CSS counters; preview already shows dynamic spans.
-            // No additional footer mutation needed beyond ensuring iframe is focused.
+            // Compute page numbers and inject footers before printing
+            const win = visibleIframe.contentWindow as Window;
+            const doc = win.document;
+            const mmToPx = (mm: number) => mm * (96/25.4);
+            const contentHeightMm = 297 - 22; // A4 height minus margins
+            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+            const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
 
-            visibleIframe.contentWindow!.focus();
-            visibleIframe.contentWindow!.print();
+            // Clear existing page footers
+            doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
+            
+            // Update main footer for page 1
+            const mainFooter = doc.getElementById('print-footer-main');
+            if (mainFooter) {
+              mainFooter.textContent = `Page 1 of ${total}`;
+            }
+
+            // Create footers for pages 2 through total
+            for (let i = 2; i <= total; i++) {
+              const footer = doc.createElement('div');
+              footer.className = 'print-footer print-footer-page';
+              footer.textContent = `Page ${i} of ${total}`;
+              footer.style.position = 'absolute';
+              footer.style.right = '2mm';
+              footer.style.bottom = '2mm';
+              footer.style.marginTop = `${(i - 1) * pageHeightPx}px`;
+              footer.style.color = '#6b7c7b';
+              footer.style.fontSize = '12px';
+              doc.body.appendChild(footer);
+            }
+
+            // Small delay to ensure footers are rendered before print
+            setTimeout(() => {
+              visibleIframe.contentWindow!.focus();
+              visibleIframe.contentWindow!.print();
+              
+              // Clean up after print dialog closes (delayed cleanup)
+              setTimeout(() => {
+                doc.querySelectorAll('.print-footer-page').forEach(el => el.remove());
+                if (mainFooter) {
+                  mainFooter.innerHTML = `Page <span class="page-current">1</span> of <span class="page-total">${total}</span>`;
+                }
+              }, 1000);
+            }, 100);
           } catch (e) {
             console.error('print from visible iframe failed', e);
             alert('Print failed');
@@ -888,9 +893,35 @@ const FinalIngredientSummary = () => {
         // slight delay to ensure fonts/images are painted
         setTimeout(() => {
           try {
-            // attempt same page count write as done for visible iframe
-            // rely on CSS counters for printed page numbering (no additional DOM mutation)
-            win.focus(); win.print();
+            // Compute and inject page footers
+            const doc = win.document;
+            const mmToPx = (mm: number) => mm * (96/25.4);
+            const contentHeightMm = 297 - 22;
+            const pageHeightPx = Math.max(200, Math.round(mmToPx(contentHeightMm)));
+            const total = Math.max(1, Math.ceil(doc.body.scrollHeight / pageHeightPx));
+
+            const mainFooter = doc.getElementById('print-footer-main');
+            if (mainFooter) {
+              mainFooter.textContent = `Page 1 of ${total}`;
+            }
+
+            for (let i = 2; i <= total; i++) {
+              const footer = doc.createElement('div');
+              footer.className = 'print-footer print-footer-page';
+              footer.textContent = `Page ${i} of ${total}`;
+              footer.style.position = 'absolute';
+              footer.style.right = '2mm';
+              footer.style.bottom = '2mm';
+              footer.style.marginTop = `${(i - 1) * pageHeightPx}px`;
+              footer.style.color = '#6b7c7b';
+              footer.style.fontSize = '12px';
+              doc.body.appendChild(footer);
+            }
+
+            setTimeout(() => {
+              win.focus(); 
+              win.print();
+            }, 100);
           } catch (e) { console.error('iframe print failed', e); alert('Print failed'); }
           setTimeout(cleanup, 500);
         }, 200);
