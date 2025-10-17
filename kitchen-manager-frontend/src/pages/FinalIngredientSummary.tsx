@@ -703,6 +703,8 @@ const FinalIngredientSummary = () => {
             page-break-after: avoid;
             break-after: avoid;
           }
+          /* Keep the card body with the header so header + table top move together */
+          .card-body { page-break-before: avoid; break-before: avoid; }
           .card-header .card-title {
             font-size: 15px !important;
             line-height: 1.1 !important;
@@ -723,6 +725,8 @@ const FinalIngredientSummary = () => {
           .card-table thead { display: table-header-group !important; }
           /* avoid breaking within thead so header isn't orphaned */
           .card-table thead { page-break-inside: avoid; break-inside: avoid; }
+          /* Also avoid breaking immediately before table body so thead stays with the first rows */
+          .card-table tbody { page-break-before: avoid; break-before: avoid; }
           @page{
             size: portrait;
             /* top right bottom left -> reduce right margin, increase bottom margin */
